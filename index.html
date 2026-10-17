@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>MenuReal AR — Padaria Sabor da Vila</title>
+  <meta name="description" content="Cardápio digital com visualização 3D e realidade aumentada. Veja antes de pedir.">
+  <meta name="theme-color" content="#F6F1E6" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0F1F18" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4D3A'/%3E%3Cpath d='M32 13 50 23v18L32 51 14 41V23z' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M14 23l18 10 18-10M32 33v18' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a class="skip" href="#cardapio">Pular para o cardápio</a>
+
+  <!-- Aviso para quem abre o arquivo direto (file://): sem servidor, os modelos 3D não carregam -->
+  <div id="aviso-protocolo" class="aviso-topo" hidden role="alert"></div>
+
+  <header class="topbar">
+    <div class="topbar__in">
+      <a class="logo" href="#" aria-label="MenuReal AR, início">
+        <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true">
+          <path d="M16 3.5 27 9.8v12.4L16 28.5 5 22.2V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+          <path d="M5 9.8 16 16l11-6.2M16 16v12.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
+        </svg>
+        <span class="logo__txt">MenuReal</span><span class="logo__ar">AR</span>
+      </a>
+      <div class="topbar__acoes">
+        <button class="icone-btn" id="btn-admin" type="button" aria-label="Abrir painel administrativo">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span class="icone-btn__rot">Admin</span>
+        </button>
+        <button class="icone-btn icone-btn--carrinho" id="btn-carrinho" type="button" aria-label="Abrir pedido (0 itens)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 8h14l-1.2 11.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span class="icone-btn__rot">Pedido</span>
+          <span class="contador" id="contador-carrinho" hidden>0</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="cardapio">
+    <section class="hero" aria-labelledby="nome-padaria">
+      <p class="hero__selo">
+        <span class="selo-3d" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        </span>
+        Cardápio em 3D <span class="sep" aria-hidden="true">·</span> Realidade aumentada
+      </p>
+      <h1 class="hero__nome" id="nome-padaria">Padaria Sabor da Vila</h1>
+      <p class="hero__slogan" id="slogan-padaria">Veja antes de pedir</p>
+      <div class="hero__info">
+        <span class="status" id="status-horario"><span class="status__ponto" aria-hidden="true"></span><span id="status-texto">—</span></span>
+        <span class="hero__horario" id="horario-texto">—</span>
+      </div>
+    </section>
+
+    <div class="filtros" id="filtros">
+      <label class="busca">
+        <span class="sr-only">Buscar produtos</span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <input id="busca" type="search" placeholder="Buscar coxinha, pão de queijo…" autocomplete="off" enterkeyhint="search">
+      </label>
+      <nav class="categorias" aria-label="Categorias">
+        <div class="categorias__trilho" id="categorias" role="tablist"></div>
+      </nav>
+    </div>
+
+    <p class="resultado" id="resultado" aria-live="polite"></p>
+    <section class="grade" id="grade" aria-label="Produtos"></section>
+
+    <section class="nota" aria-labelledby="nota-titulo">
+      <h2 id="nota-titulo">Sobre esta demonstração</h2>
+      <p>Preços, medidas e modelos 3D são <strong>demonstrativos</strong>. Os modelos são ilustrações originais, criadas no tamanho das medidas cadastradas — não são digitalizações de alimentos reais.</p>
+      <p>A realidade aumentada depende do aparelho e do navegador: Android com Chrome e Google Play Services para RA, ou iPhone/iPad com Safari. Em computadores, a visualização 3D continua disponível.</p>
+    </section>
+  </main>
+
+  <footer class="rodape">
+    <p><strong>MenuReal AR</strong> · versão de demonstração. Visualização 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">&lt;model-viewer&gt;</a>.</p>
+  </footer>
+
+  <!-- ================= Visualizador 3D / AR ================= -->
+  <dialog class="folha folha--viewer" id="dlg-viewer" aria-labelledby="viewer-nome">
+    <div class="viewer">
+      <div class="viewer__topo">
+        <div>
+          <p class="viewer__cat" id="viewer-cat"></p>
+          <h2 class="viewer__nome" id="viewer-nome"></h2>
+          <p class="viewer__preco" id="viewer-preco"></p>
+        </div>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar e voltar ao cardápio">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="palco" id="palco">
+        <!-- O <model-viewer> é criado pelo app.js a cada abertura -->
+        <div class="palco__estado" id="palco-estado" hidden></div>
+      </div>
+
+      <div class="viewer__painel">
+        <div class="abas" role="tablist" aria-label="Modo de visualização">
+          <button class="aba" role="tab" id="aba-3d" aria-selected="true" aria-controls="painel-3d" type="button">Ver em 3D</button>
+          <button class="aba" role="tab" id="aba-ar" aria-selected="false" aria-controls="painel-ar" type="button">Ver em tamanho real</button>
+        </div>
+
+        <div id="painel-3d" role="tabpanel" aria-labelledby="aba-3d">
+          <p class="dica">Arraste para girar · pinça ou roda do mouse para zoom · toque duplo para recentralizar.</p>
+          <dl class="ficha">
+            <div><dt>Medidas cadastradas</dt><dd id="viewer-dim"></dd></div>
+            <div><dt>Medidas do arquivo 3D</dt><dd id="viewer-dim-modelo">calculando…</dd></div>
+          </dl>
+          <p class="escala" id="viewer-escala" hidden></p>
+          <p class="viewer__desc" id="viewer-desc"></p>
+        </div>
+
+        <div id="painel-ar" role="tabpanel" aria-labelledby="aba-ar" hidden>
+          <ol class="passos">
+            <li>Aponte a câmera para uma mesa ou bancada bem iluminada.</li>
+            <li>Mova o celular devagar até o aparelho reconhecer a superfície.</li>
+            <li>Toque para posicionar. O alimento aparece em escala fixa, no tamanho das medidas cadastradas.</li>
+            <li>Para sair, use o botão de fechar da câmera ou o “voltar” do celular.</li>
+          </ol>
+          <div class="ar-indisp" id="ar-indisp" hidden role="status"></div>
+          <p class="mini">A precisão do tamanho real depende das medidas usadas na criação do modelo 3D. Medidas desta demonstração são fictícias.</p>
+        </div>
+
+        <div class="viewer__acoes">
+          <button class="btn btn--primario btn--bloco" type="button" id="viewer-add">Adicionar ao pedido</button>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ================= Carrinho ================= -->
+  <dialog class="folha folha--lateral" id="dlg-carrinho" aria-labelledby="carrinho-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="carrinho-titulo">Seu pedido</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar pedido">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="carrinho-corpo"></div>
+      <div class="painel__rodape" id="carrinho-rodape"></div>
+    </div>
+  </dialog>
+
+  <!-- ================= Administração ================= -->
+  <dialog class="folha folha--admin" id="dlg-admin" aria-labelledby="admin-titulo">
+    <form class="painel" id="form-admin" novalidate>
+      <div class="painel__topo">
+        <h2 id="admin-titulo">Painel administrativo</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar painel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="admin-corpo"></div>
+      <div class="painel__rodape painel__rodape--admin">
+        <button class="btn btn--fantasma" type="button" id="admin-restaurar">Restaurar demonstração</button>
+        <button class="btn btn--primario" type="submit">Salvar alterações</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- ================= Criar cardápio por foto ================= -->
+  <dialog class="folha folha--admin" id="dlg-foto" aria-labelledby="foto-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="foto-titulo">Cardápio por foto</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="foto-corpo"></div>
+      <div class="painel__rodape" id="foto-rodape"></div>
+    </div>
+  </dialog>
+
+  <dialog class="confirmar" id="dlg-confirmar" aria-labelledby="confirmar-texto">
+    <form method="dialog" class="confirmar__caixa">
+      <p id="confirmar-texto"></p>
+      <div class="confirmar__acoes">
+        <button class="btn btn--fantasma" value="nao" type="submit">Cancelar</button>
+        <button class="btn btn--primario" value="sim" type="submit" id="confirmar-sim">Confirmar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><div class="aviso-topo">Ative o JavaScript para usar o cardápio.</div></noscript>
+
+  <script>
+    // Detecção imediata (script clássico, roda até em file://)
+    if (location.protocol === 'file:') {
+      var a = document.getElementById('aviso-protocolo');
+      a.hidden = false;
+      a.textContent = 'Você abriu o arquivo direto do computador. O cardápio funciona, mas os modelos 3D só carregam por um servidor (ex.: npx serve) ou hospedagem HTTPS. Para testar sem servidor, use o arquivo menureal-ar-arquivo-unico.html.';
+    }
+  </script>
+  <script src="app.js" defer></script>
+</body>
+</html>

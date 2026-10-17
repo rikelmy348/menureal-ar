@@ -1,0 +1,6 @@
+# Configuração da Netlify: site estático na raiz + funções em netlify/functions
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
