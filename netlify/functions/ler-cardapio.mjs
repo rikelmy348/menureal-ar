@@ -69,6 +69,16 @@ function mensagemErroApi(status) {
 }
 
 export default async (req) => {
+  // GET = diagnóstico: mostra se o servidor está configurado (sem revelar valores)
+  if (req.method === 'GET') {
+    return json({
+      servidor: 'ok',
+      chave_configurada: Boolean(process.env.ANTHROPIC_API_KEY),
+      chave_formato_ok: /^sk-ant-api/.test(process.env.ANTHROPIC_API_KEY || ''),
+      codigo_configurado: Boolean(process.env.MENUREAL_CODIGO),
+      modelo: process.env.MENUREAL_MODELO || 'claude-haiku-5-5'
+    });
+  }
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
 
   const chave = process.env.ANTHROPIC_API_KEY;

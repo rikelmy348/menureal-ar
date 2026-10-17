@@ -996,9 +996,11 @@
     }).catch(function (e) {
       foto.lendo = false;
       if (e && e.name === 'AbortError') { renderFotoInicio(); return; }
-      renderFotoInicio(e && e.message && e.message !== 'Failed to fetch'
-        ? e.message
-        : 'Sem conexão com o servidor. Verifique a internet e tente de novo.');
+      var msg = (e && e.message) || '';
+      var rede = !msg || /failed to fetch|network|load failed|networkerror/i.test(msg);
+      renderFotoInicio(rede
+        ? 'A conexão com o servidor caiu antes da resposta (' + (msg || 'erro de rede') + '). Tente de novo; se repetir, abra ' + location.origin + '/api/ler-cardapio para ver o diagnóstico.'
+        : msg);
     });
   }
 

@@ -201,6 +201,13 @@ desmarca o que não quiser e escolhe **Adicionar** ou **Substituir**. Depois,
    | `MENUREAL_MODELO` | opcional; ex.: `claude-sonnet-5-5` para cardápios difíceis |
 5. Após salvar as variáveis: *Deploys → Trigger deploy → Deploy site*.
 
+### Diagnóstico
+Abra `https://SEU-SITE.netlify.app/api/ler-cardapio` no navegador. Se o
+servidor estiver publicado, aparece um texto com `"servidor":"ok"` e se a
+chave e o código estão configurados (sem mostrar os valores). Se aparecer a
+página "Page not found" da Netlify, a função não foi publicada: confira se o
+site foi importado do GitHub, não pelo Netlify Drop.
+
 ### Segurança
 - A chave da Anthropic fica só no servidor; nunca vai para o navegador.
 - O código de acesso impede que estranhos usem a leitura por sua conta. Passe
