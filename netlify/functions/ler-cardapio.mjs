@@ -7,6 +7,8 @@
      ANTHROPIC_API_KEY   chave da API da Anthropic (obrigatória, secreta)
      MENUREAL_CODIGO     código de acesso que o dono digita no painel (obrigatório)
      MENUREAL_MODELO     opcional; padrão: claude-haiku-5-5
+     ANTHROPIC_WORKSPACE_ID  obrigatório só para chaves de vários workspaces
+                         (as que começam com sk-ant-usr-); ex.: wrkspc_...
 
    A resposta é transmitida (streaming) para o navegador, o que permite
    leituras de até 60 s na Netlify.
@@ -71,18 +73,29 @@ function mensagemErroApi(status) {
 export default async (req) => {
   // GET = diagnóstico: mostra se o servidor está configurado (sem revelar valores)
   if (req.method === 'GET') {
+    const k = (process.env.ANTHROPIC_API_KEY || '').trim();
+    const multi = /^sk-ant-usr-/.test(k);
+    const ws = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();
     return json({
       servidor: 'ok',
-      chave_configurada: Boolean(process.env.ANTHROPIC_API_KEY),
-      chave_formato_ok: /^sk-ant-api/.test(process.env.ANTHROPIC_API_KEY || ''),
+      chave_configurada: Boolean(k),
+      chave_formato_ok: /^sk-ant-/.test(k) && !/\s/.test(k),
+      chave_tipo: !k ? 'nenhuma' : multi ? 'varios-workspaces' : 'workspace',
+      workspace_necessario: multi,
+      workspace_configurado: Boolean(ws),
+      workspace_formato_ok: !ws || /^wrkspc_/.test(ws),
       codigo_configurado: Boolean(process.env.MENUREAL_CODIGO),
       modelo: process.env.MENUREAL_MODELO || 'claude-haiku-5-5'
     });
   }
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
 
-  const chave = process.env.ANTHROPIC_API_KEY;
+  const chave = (process.env.ANTHROPIC_API_KEY || '').trim();
+  const workspace = (process.env.ANTHROPIC_WORKSPACE_ID || '').trim();
   const codigo = process.env.MENUREAL_CODIGO;
+  if (/^sk-ant-usr-/.test(chave) && !workspace) {
+    return json({ erro: 'Esta chave vale para vários workspaces: cadastre também ANTHROPIC_WORKSPACE_ID na Netlify (ID que começa com wrkspc_) ou crie uma chave de um único workspace.' }, 500);
+  }
   if (!chave || !codigo) {
     return json({ erro: 'Servidor não configurado: defina ANTHROPIC_API_KEY e MENUREAL_CODIGO nas variáveis de ambiente da Netlify e publique de novo.' }, 500);
   }
@@ -103,11 +116,11 @@ export default async (req) => {
   try {
     resp = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
+      headers: Object.assign({
         'x-api-key': chave,
         'anthropic-version': '2023-06-01',
         'content-type': 'application/json'
-      },
+      }, workspace ? { 'anthropic-workspace-id': workspace } : {}),
       body: JSON.stringify({
         model: process.env.MENUREAL_MODELO || 'claude-haiku-5-5',
         max_tokens: 8000,

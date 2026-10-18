@@ -199,6 +199,7 @@ desmarca o que não quiser e escolhe **Adicionar** ou **Substituir**. Depois,
    | `ANTHROPIC_API_KEY` | a chave da Anthropic (secreta) |
    | `MENUREAL_CODIGO` | um código de acesso que você inventa (ex.: 8+ caracteres) |
    | `MENUREAL_MODELO` | opcional; ex.: `claude-sonnet-5-5` para cardápios difíceis |
+   | `ANTHROPIC_WORKSPACE_ID` | só se a chave valer para vários workspaces (começa com `sk-ant-usr-`): o ID do workspace, `wrkspc_...` |
 5. Após salvar as variáveis: *Deploys → Trigger deploy → Deploy site*.
 
 ### Diagnóstico
