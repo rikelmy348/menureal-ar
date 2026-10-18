@@ -421,7 +421,8 @@
       alt: 'Modelo 3D ilustrativo de ' + p.nome + ', ' + dimTexto(p.dim),
       ar: '',
       // Scene Viewer primeiro: no Android ele fixa o objeto na mesa com mais estabilidade
-      'ar-modes': 'scene-viewer webxr quick-look',
+      // Com medidas ligadas, a RA abre dentro do Chrome (WebXR), único modo que mostra as etiquetas
+      'ar-modes': medidasLigadas ? 'webxr scene-viewer quick-look' : 'scene-viewer webxr quick-look',
       'ar-scale': 'fixed',
       'ar-placement': 'floor',
       'camera-controls': '',
@@ -438,7 +439,9 @@
     Object.keys(attrs).forEach(function (k) { mv.setAttribute(k, attrs[k]); });
     mv.innerHTML =
       '<button slot="ar-button" class="botao-ar" type="button">' + ICONES.ar + 'Abrir câmera · tamanho real</button>' +
-      '<div slot="progress-bar" class="progresso"><i></i></div>';
+      '<div slot="progress-bar" class="progresso"><i></i></div>' +
+      HTML_MEDIDAS;
+    mv.classList.toggle('sem-medidas', !medidasLigadas);
     palco.insertBefore(mv, palcoEstado);
     estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Carregando modelo 3D…</span></div>');
 
@@ -450,6 +453,7 @@
     });
     mv.addEventListener('load', function () {
       estadoPalco('');
+      posicionarMedidas(mv);
       conferirEscala(mv, p);
       atualizarAvisoAR();
     });
@@ -471,6 +475,85 @@
       estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando visualizador 3D…</span></div>');
     }
   }
+
+  // ---------------------------------------------------------------------
+  // Medidas no modelo (largura, altura, profundidade) — 3D e câmera (WebXR)
+  // ---------------------------------------------------------------------
+  var CHAVE_MEDIDAS = 'menureal:medidas';
+  var medidasLigadas = (function () { try { return localStorage.getItem(CHAVE_MEDIDAS) !== '0'; } catch (e) { return true; } })();
+  var quadroMedidas = 0;
+  var HTML_MEDIDAS =
+    '<button slot="hotspot-pA" class="med-ponto" tabindex="-1" aria-hidden="true"></button>' +
+    '<button slot="hotspot-pB" class="med-ponto" tabindex="-1" aria-hidden="true"></button>' +
+    '<button slot="hotspot-pC" class="med-ponto" tabindex="-1" aria-hidden="true"></button>' +
+    '<button slot="hotspot-pD" class="med-ponto" tabindex="-1" aria-hidden="true"></button>' +
+    '<div slot="hotspot-mL" class="med-rotulo" data-med="largura"></div>' +
+    '<div slot="hotspot-mA" class="med-rotulo" data-med="altura"></div>' +
+    '<div slot="hotspot-mP" class="med-rotulo" data-med="profundidade"></div>' +
+    '<svg class="med-linhas" aria-hidden="true"><line data-de="pA" data-ate="pB"></line><line data-de="pA" data-ate="pC"></line><line data-de="pB" data-ate="pD"></line></svg>' +
+    '<button type="button" class="med-alternar" aria-pressed="' + medidasLigadas + '">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
+      '<span>Medidas</span></button>';
+
+  function cmTexto(m) { var c = m * 100; return (c < 10 ? c.toFixed(1).replace('.', ',') : String(Math.round(c))) + ' cm'; }
+
+  function posicionarMedidas(mv) {
+    try {
+      var c = mv.getBoundingBoxCenter(), d = mv.getDimensions();
+      var x0 = c.x - d.x / 2, x1 = c.x + d.x / 2, y0 = c.y - d.y / 2, y1 = c.y + d.y / 2, z0 = c.z - d.z / 2, z1 = c.z + d.z / 2;
+      var folga = Math.max(d.x, d.y, d.z) * 0.08;
+      function pos(nome, x, y, z) { mv.updateHotspot({ name: 'hotspot-' + nome, position: x + 'm ' + y + 'm ' + z + 'm' }); }
+      // largura: aresta da frente embaixo; altura: canto esquerdo da frente; profundidade: lado direito
+      pos('pA', x0, y0, z1); pos('pB', x1, y0, z1); pos('pC', x0, y1, z1); pos('pD', x1, y0, z0);
+      pos('mL', c.x, y0, z1 + folga);
+      pos('mA', x0 - folga, c.y, z1);
+      pos('mP', x1 + folga, y0, c.z);
+      // afasta um pouco a câmera para as etiquetas caberem na tela
+      if (!mv.dataset.enquadrado) {
+        mv.dataset.enquadrado = '1';
+        var o = mv.getCameraOrbit();
+        mv.maxCameraOrbit = 'auto auto ' + (o.radius * 2.5) + 'm';
+        mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (o.radius * 1.3) + 'm';
+        mv.jumpCameraToGoal();
+      }
+      mv.querySelector('[data-med="largura"]').textContent = 'L ' + cmTexto(d.x);
+      mv.querySelector('[data-med="altura"]').textContent = 'A ' + cmTexto(d.y);
+      mv.querySelector('[data-med="profundidade"]').textContent = 'P ' + cmTexto(d.z);
+      animarLinhas(mv);
+    } catch (e) { /* modelo sem dimensões: sem medidas */ }
+  }
+
+  function animarLinhas(mv) {
+    cancelAnimationFrame(quadroMedidas);
+    var linhas = $$('.med-linhas line', mv);
+    function quadro() {
+      if (!mv.isConnected) return;
+      if (!mv.classList.contains('sem-medidas')) {
+        linhas.forEach(function (l) {
+          var a = mv.queryHotspot('hotspot-' + l.getAttribute('data-de'));
+          var b = mv.queryHotspot('hotspot-' + l.getAttribute('data-ate'));
+          if (!a || !b) return;
+          l.setAttribute('x1', a.canvasPosition.x); l.setAttribute('y1', a.canvasPosition.y);
+          l.setAttribute('x2', b.canvasPosition.x); l.setAttribute('y2', b.canvasPosition.y);
+        });
+      }
+      quadroMedidas = requestAnimationFrame(quadro);
+    }
+    quadro();
+  }
+
+  palco.addEventListener('click', function (e) {
+    var b = e.target.closest('.med-alternar');
+    if (!b) return;
+    medidasLigadas = !medidasLigadas;
+    try { localStorage.setItem(CHAVE_MEDIDAS, medidasLigadas ? '1' : '0'); } catch (err) { /* ignora */ }
+    var mv = palco.querySelector('model-viewer');
+    if (!mv) return;
+    mv.classList.toggle('sem-medidas', !medidasLigadas);
+    mv.setAttribute('ar-modes', medidasLigadas ? 'webxr scene-viewer quick-look' : 'scene-viewer webxr quick-look');
+    b.setAttribute('aria-pressed', String(medidasLigadas));
+    toast(medidasLigadas ? 'Medidas visíveis no 3D e na câmera' : 'Medidas ocultas');
+  });
 
   function conferirEscala(mv, p) {
     var el = $('#viewer-escala');
@@ -514,6 +597,7 @@
     setTimeout(function () { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(produtoAtual.preco); }, 1400);
   });
   dlgViewer.addEventListener('close', function () {
+    cancelAnimationFrame(quadroMedidas);
     var mv = palco.querySelector('model-viewer');
     if (mv) mv.remove(); // libera memória da GPU
     estadoPalco('');
