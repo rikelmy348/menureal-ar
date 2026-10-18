@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>MenuReal AR — Padaria Sabor da Vila</title>
-  <meta name="description" content="Cardápio digital com visualização 3D e realidade aumentada. Veja antes de pedir.">
+  <title>MenuReal AR</title>
+  <meta name="description" content="Cardápio e catálogo com visualização 3D e realidade aumentada. Veja em tamanho real antes de comprar.">
   <meta name="theme-color" content="#F6F1E6" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0F1F18" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4D3A'/%3E%3Cpath d='M32 13 50 23v18L32 51 14 41V23z' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M14 23l18 10 18-10M32 33v18' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <a class="skip" href="#cardapio">Pular para o cardápio</a>
+  <a class="skip" href="#cardapio">Pular para os produtos</a>
 
   <!-- Aviso para quem abre o arquivo direto (file://): sem servidor, os modelos 3D não carregam -->
   <div id="aviso-protocolo" class="aviso-topo" hidden role="alert"></div>
@@ -49,7 +49,7 @@
         <span class="selo-3d" aria-hidden="true">
           <svg viewBox="0 0 24 24"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
         </span>
-        Cardápio em 3D <span class="sep" aria-hidden="true">·</span> Realidade aumentada
+        <span id="selo-texto">Cardápio em 3D</span> <span class="sep" aria-hidden="true">·</span> Realidade aumentada
       </p>
       <h1 class="hero__nome" id="nome-padaria">Padaria Sabor da Vila</h1>
       <p class="hero__slogan" id="slogan-padaria">Veja antes de pedir</p>
@@ -93,7 +93,7 @@
           <h2 class="viewer__nome" id="viewer-nome"></h2>
           <p class="viewer__preco" id="viewer-preco"></p>
         </div>
-        <button class="fechar" type="button" data-fechar aria-label="Fechar e voltar ao cardápio">
+        <button class="fechar" type="button" data-fechar aria-label="Fechar e voltar à lista de produtos">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -125,7 +125,7 @@
           <ol class="passos">
             <li>Aponte a câmera para uma mesa ou bancada bem iluminada.</li>
             <li>Mova o celular devagar até o aparelho reconhecer a superfície.</li>
-            <li>Toque para posicionar. O alimento aparece em escala fixa, no tamanho das medidas cadastradas.</li>
+            <li id="passo-posicionar">Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.</li>
             <li>Para sair, use o botão de fechar da câmera ou o “voltar” do celular.</li>
             <li>Com <strong>Medidas</strong> ligado, as etiquetas de largura, altura e profundidade aparecem junto do produto. No Android elas aparecem na câmera; no iPhone, só no 3D.</li>
           </ol>
@@ -175,7 +175,7 @@
   <dialog class="folha folha--admin" id="dlg-foto" aria-labelledby="foto-titulo">
     <div class="painel">
       <div class="painel__topo">
-        <h2 id="foto-titulo">Cardápio por foto</h2>
+        <h2 id="foto-titulo">Produtos por foto</h2>
         <button class="fechar" type="button" data-fechar aria-label="Fechar">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
@@ -211,7 +211,7 @@
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <noscript><div class="aviso-topo">Ative o JavaScript para usar o cardápio.</div></noscript>
+  <noscript><div class="aviso-topo">Ative o JavaScript para ver os produtos.</div></noscript>
 
   <script>
     // Detecção imediata (script clássico, roda até em file://)

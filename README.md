@@ -1,7 +1,11 @@
 # MenuReal AR — Cardápio digital com 3D e realidade aumentada
 
-Plataforma para qualquer negócio de comida (padarias, confeitarias, cafeterias,
-lanchonetes, restaurantes): cada estabelecimento tem conta e endereço próprios.
+Plataforma para qualquer loja que queira mostrar produtos em 3D e em tamanho
+real: comida (padarias, confeitarias, restaurantes) e também objetos (móveis,
+decoração, eletrônicos, presentes). Cada loja tem conta e endereço próprios e
+escolhe o **tipo de negócio**: *Comida e bebida* (cardápio, ingredientes e
+alérgicos) ou *Produtos e objetos* (catálogo, composição/materiais, medidas até
+10 m).
 
 Demonstração funcional de um cardápio para padarias, lanchonetes e cafeterias:
 o cliente gira o alimento em 3D e, em aparelhos compatíveis, abre a câmera para

@@ -16,7 +16,7 @@ function pasta(slug) { return 'modelos/' + (slug ? slug + '/' : ''); }
 function nomeArq(s) { return String(s || 'produto').replace(/[^\w-]/g, '').slice(0, 60) || 'produto'; }
 function lerDim(d) {
   const r = { largura: Number(d && d.largura), profundidade: Number(d && d.profundidade), altura: Number(d && d.altura) };
-  return r.largura > 0 && r.profundidade > 0 && r.altura > 0 && Math.max(r.largura, r.profundidade, r.altura) <= 500 ? r : null;
+  return r.largura > 0 && r.profundidade > 0 && r.altura > 0 && Math.max(r.largura, r.profundidade, r.altura) <= 1000 ? r : null;
 }
 
 async function meshy(caminho, opcoes = {}) {

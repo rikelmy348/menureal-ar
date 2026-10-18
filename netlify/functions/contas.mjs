@@ -28,6 +28,7 @@ export default async (req) => {
     const nome = String(d.nome || '').trim().slice(0, 60);
     const email = String(d.email || '').trim().toLowerCase().slice(0, 120);
     const senha = String(d.senha || '');
+    const tipo = d.tipo === 'produtos' ? 'produtos' : 'alimentos';
     if (!slugValido(slug)) return json({ erro: 'Endereço inválido: use de 3 a 40 letras minúsculas, números e hífens (ex.: sabor-da-vila).' }, 400);
     if (!nome) return json({ erro: 'Informe o nome do estabelecimento.' }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ erro: 'E-mail inválido.' }, 400);
@@ -43,8 +44,9 @@ export default async (req) => {
     await store.setJSON('emails/' + email, { slug });
     if (!(await store.get('cardapios/' + slug, { type: 'json' }))) {
       await store.setJSON('cardapios/' + slug, {
-        padaria: { nome, slogan: 'Veja antes de pedir', abre: '07:00', fecha: '19:00', dias: [1, 2, 3, 4, 5, 6], whatsapp: '' },
-        categorias: ['Salgados', 'Doces', 'Bebidas'],
+        padaria: { nome, slogan: tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : 'Veja antes de pedir',
+          abre: '08:00', fecha: '18:00', dias: [1, 2, 3, 4, 5, 6], whatsapp: '', tipo },
+        categorias: tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções'] : ['Salgados', 'Doces', 'Bebidas'],
         produtos: [],
         atualizadoEm: new Date().toISOString()
       });

@@ -136,7 +136,8 @@
       abre: /^\d{2}:\d{2}$/.test(p.abre) ? p.abre : PADRAO.padaria.abre,
       fecha: /^\d{2}:\d{2}$/.test(p.fecha) ? p.fecha : PADRAO.padaria.fecha,
       dias: Array.isArray(p.dias) ? p.dias.filter(function (x) { return x >= 0 && x <= 6; }) : PADRAO.padaria.dias.slice(),
-      whatsapp: String(p.whatsapp || '').replace(/\D/g, '')
+      whatsapp: String(p.whatsapp || '').replace(/\D/g, ''),
+      tipo: p.tipo === 'produtos' ? 'produtos' : 'alimentos' // alimentos = cardápio; produtos = catálogo de objetos
     };
     var categorias = [];
     (Array.isArray(d.categorias) ? d.categorias : CATEGORIAS_PADRAO).forEach(function (c) {
@@ -177,6 +178,10 @@
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
   }
+
+  // Vocabulário conforme o tipo de negócio
+  function ehAlimento(d) { return (d || dados).padaria.tipo !== 'produtos'; }
+  function termo(d) { return ehAlimento(d) ? 'cardápio' : 'catálogo'; }
 
   // Produto com o tamanho escolhido aplicado (preço, medidas e modelo do tamanho)
   function efetivo(p, tamId) {
@@ -253,6 +258,9 @@
     $('#slogan-padaria').textContent = p.slogan;
     document.title = 'MenuReal AR — ' + p.nome;
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
+    $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D';
+    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar coxinha, pão de queijo…') : 'Buscar produtos…';
+    $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
     var nota = $('#nota-demo');
     if (nota) nota.hidden = !!LOJA;
     var agora = new Date();
@@ -295,7 +303,7 @@
         '<span class="card__preco">' + (p.tamanhos && p.tamanhos.length ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span></div>' +
         (p.descricao ? '<p class="card__desc">' + esc(p.descricao) + '</p>' : '') +
         (p.tamanhos && p.tamanhos.length ? '<p class="card__tams">' + p.tamanhos.map(function (t) { return '<span>' + esc(t.nome) + '</span>'; }).join('') + '</p>' : '') +
-        (p.alergenos && p.alergenos.length ? '<p class="card__alerg"><strong>Contém:</strong> ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
+        (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg"><strong>Contém:</strong> ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
         '<div class="card__acoes">' +
           (temModelo
             ? '<button class="btn btn--sec btn--p" type="button" data-acao="3d">' + ICONES.cubo + 'Ver em 3D</button>' +
@@ -419,7 +427,7 @@
     if (MODELOS_EMBUTIDOS) itens.push('A versão de arquivo único serve para testar a interface; publique o projeto em HTTPS para testar a RA.');
     if (ios) itens.push('No iPhone/iPad, abra no <strong>Safari</strong> (iOS 12 ou mais recente). Navegadores dentro de outros apps podem bloquear o Quick Look.');
     else if (android) itens.push('No Android, use o <strong>Chrome</strong> atualizado e instale/atualize o <strong>Google Play Services para RA</strong> (ARCore). Nem todo aparelho é compatível.');
-    else itens.push('Computadores não abrem a câmera em RA. Abra este cardápio em um celular compatível — o 3D continua funcionando aqui.');
+    else itens.push('Computadores não abrem a câmera em RA. Abra esta página em um celular compatível — o 3D continua funcionando aqui.');
     return itens;
   }
 
@@ -464,8 +472,8 @@
         '<strong>' + esc(t.nome) + '</strong><span>' + brl(t.preco) + '</span><small>' + esc(dimTexto(t.dim)) + '</small></button>';
     }).join('');
     var info = '';
-    if (p.ingredientes) info += '<div><dt>Ingredientes</dt><dd>' + esc(p.ingredientes) + '</dd></div>';
-    if (p.alergenos && p.alergenos.length) info += '<div class="alerg"><dt>Alérgicos</dt><dd>Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '.</dd></div>';
+    if (p.ingredientes) info += '<div><dt>' + (ehAlimento() ? 'Ingredientes' : 'Composição') + '</dt><dd>' + esc(p.ingredientes) + '</dd></div>';
+    if (ehAlimento() && p.alergenos && p.alergenos.length) info += '<div class="alerg"><dt>Alérgicos</dt><dd>Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '.</dd></div>';
     $('#viewer-info').innerHTML = info;
     $('#viewer-info').hidden = !info;
     var add = $('#viewer-add');
@@ -762,8 +770,8 @@
     var rodape = $('#carrinho-rodape');
     var itens = itensCarrinho();
     if (!itens.length) {
-      corpo.innerHTML = '<div class="carrinho-vazio">' + ICONES.sacola + '<strong>Seu pedido está vazio</strong>Escolha um item no cardápio para começar.</div>';
-      rodape.innerHTML = '<button class="btn btn--contorno btn--bloco" type="button" data-fechar>Voltar ao cardápio</button>';
+      corpo.innerHTML = '<div class="carrinho-vazio">' + ICONES.sacola + '<strong>Seu pedido está vazio</strong>Escolha um item no ' + termo() + ' para começar.</div>';
+      rodape.innerHTML = '<button class="btn btn--contorno btn--bloco" type="button" data-fechar>Voltar ao ' + termo() + '</button>';
       return;
     }
     corpo.innerHTML = itens.map(function (i) {
@@ -777,7 +785,7 @@
           '<button class="link-remover" type="button" data-remover>Remover</button>' +
         '</div></div>';
     }).join('') +
-      '<label class="campo" style="margin-top:14px">Observações (opcional)<textarea class="obs" id="obs" maxlength="280" placeholder="Ex.: sem azeitona na empada">' + esc(sessionObs) + '</textarea></label>' +
+      '<label class="campo" style="margin-top:14px">Observações (opcional)<textarea class="obs" id="obs" maxlength="280" placeholder="' + (ehAlimento() ? 'Ex.: sem cebola, para viagem' : 'Ex.: cor, tamanho ou recado para a loja') + '">' + esc(sessionObs) + '</textarea></label>' +
       (itensCom3d().length >= 2
         ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + 'Ver o pedido na mesa (3D)</button>' +
           '<p class="mini">Mostra os itens do pedido juntos, lado a lado, no tamanho real.</p>'
@@ -824,7 +832,7 @@
     itensCarrinho().forEach(function (i) { linhas.push(i.qtd + 'x ' + i.p.nome + ' — ' + brl(i.p.preco * i.qtd)); });
     linhas.push('', 'Total: ' + brl(totalCarrinho()));
     if (sessionObs.trim()) linhas.push('Obs.: ' + sessionObs.trim());
-    linhas.push('', '(Pedido feito pelo cardápio MenuReal AR)');
+    linhas.push('', '(Pedido feito pelo ' + termo() + ' MenuReal AR)');
     return linhas.join('\n');
   }
 
@@ -892,7 +900,7 @@
     $('#admin-corpo').innerHTML =
       '<div class="login">' +
         '<p class="login__loja">' + esc(dados.padaria.nome) + '</p>' +
-        '<p>Entre com o e-mail e a senha do estabelecimento para editar este cardápio.</p>' +
+        '<p>Entre com o e-mail e a senha da loja para editar este ' + termo() + '.</p>' +
         campo('E-mail', '<input id="login-email" type="email" autocomplete="username" maxlength="120">') +
         campo('Senha', '<input id="login-senha" type="password" autocomplete="current-password" maxlength="120">') +
         (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
@@ -928,9 +936,9 @@
       (!servidor
         ? '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Netlify para salvar na nuvem.</div>'
         : LOJA
-          ? '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>“Salvar alterações” publica o cardápio para todos os clientes.</span>' +
+          ? '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>“Salvar alterações” publica o ' + termo() + ' para todos os clientes.</span>' +
               '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>'
-          : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita o cardápio de demonstração e cria as contas dos estabelecimentos clientes.</div>' +
+          : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita a demonstração e cria as contas das lojas clientes (comida, objetos, móveis, o que for).</div>' +
             campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Netlify (MENUREAL_CODIGO).') +
             '<section class="secao-admin"><h3>Estabelecimentos clientes</h3><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver e criar estabelecimentos</button></div></section>') +
       '<section class="secao-admin"><h3>Estabelecimento</h3><div class="campos">' +
@@ -947,12 +955,14 @@
         '</div></fieldset>' +
         campo('WhatsApp para pedidos (opcional)', '<input name="p-zap" inputmode="numeric" maxlength="15" placeholder="Somente números, com DDI e DDD" value="' + esc(p.whatsapp) + '">',
           'Deixe vazio para desativar. O cliente envia o resumo do pedido para este número.') +
-        campo('Categorias do cardápio', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">',
-          'Separe por vírgulas, na ordem em que devem aparecer. Ex.: Bolos, Tortas, Doces, Bebidas.') +
+        campo('Tipo de negócio', '<select name="p-tipo"><option value="alimentos"' + (p.tipo !== 'produtos' ? ' selected' : '') + '>Comida e bebida (cardápio, ingredientes e alérgicos)</option>' +
+          '<option value="produtos"' + (p.tipo === 'produtos' ? ' selected' : '') + '>Produtos e objetos (catálogo)</option></select>') +
+        campo('Categorias', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">',
+          'Separe por vírgulas, na ordem em que devem aparecer. Ex.: Bolos, Doces, Bebidas · Sofás, Mesas, Decoração.') +
       '</div></section>' +
       '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
         '<button class="btn btn--contorno btn--bloco destaque-foto" type="button" id="admin-foto">' + ICONES.camera +
-          '<span><strong>Criar a partir de uma foto do cardápio</strong><small>Tire uma foto do cardápio impresso e revise os itens lidos</small></span></button>' +
+          '<span><strong>Criar a partir de uma foto</strong><small>Fotografe um cardápio, catálogo ou tabela de preços e revise os itens lidos</small></span></button>' +
         rascunho.produtos.map(function (x, i) { return htmlProdutoAdmin(x, i); }).join('') +
         '<div class="linha-acoes" style="margin-top:12px">' +
           '<button class="btn btn--sec" type="button" id="admin-novo">' + ICONES.mais + 'Adicionar produto</button>' +
@@ -976,16 +986,18 @@
           }).join('') + '</select>') +
         '</div>' +
         campo('Descrição', '<textarea data-f="descricao" maxlength="240">' + esc(x.descricao) + '</textarea>') +
-        campo('Ingredientes', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: farinha de trigo, frango, requeijão, cebola">' + esc(x.ingredientes) + '</textarea>') +
-        '<fieldset class="campo alerg-admin"><legend>Contém (alérgicos)</legend><div class="linha-acoes">' +
-          ALERGENOS.map(function (a) {
-            return '<label class="checar"><input type="checkbox" data-alerg="' + esc(a) + '"' + (x.alergenos.indexOf(a) > -1 ? ' checked' : '') + '>' + esc(a) + '</label>';
-          }).join('') +
-        '</div></fieldset>' +
+        (ehAlimento(rascunho)
+          ? campo('Ingredientes', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: farinha de trigo, frango, requeijão, cebola">' + esc(x.ingredientes) + '</textarea>') +
+            '<fieldset class="campo alerg-admin"><legend>Contém (alérgicos)</legend><div class="linha-acoes">' +
+              ALERGENOS.map(function (a) {
+                return '<label class="checar"><input type="checkbox" data-alerg="' + esc(a) + '"' + (x.alergenos.indexOf(a) > -1 ? ' checked' : '') + '>' + esc(a) + '</label>';
+              }).join('') +
+            '</div></fieldset>'
+          : campo('Composição / materiais', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: madeira maciça, tecido linho, pés de metal">' + esc(x.ingredientes) + '</textarea>')) +
         '<div class="campos campos--3">' +
-          campo('Largura (cm)', '<input data-f="largura" type="number" min="0.1" max="200" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
-          campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="200" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
-          campo('Altura (cm)', '<input data-f="altura" type="number" min="0.1" max="200" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
+          campo('Largura (cm)', '<input data-f="largura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
+          campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
+          campo('Altura (cm)', '<input data-f="altura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
         '</div>' +
         campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
           'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
@@ -1030,6 +1042,7 @@
     p.fecha = f.elements['p-fecha'].value || p.fecha;
     p.dias = $$('input[name="p-dia"]', f).filter(function (c) { return c.checked; }).map(function (c) { return Number(c.value); });
     p.whatsapp = f.elements['p-zap'].value.replace(/\D/g, '');
+    p.tipo = f.elements['p-tipo'].value === 'produtos' ? 'produtos' : 'alimentos';
     var cats = [];
     f.elements['p-cats'].value.split(/[,;\n]/).forEach(function (c) { c = c.trim().slice(0, 40); if (c && cats.indexOf(c) < 0 && cats.length < 20) cats.push(c); });
     rascunho.categorias = cats.length ? cats : rascunho.categorias;
@@ -1045,7 +1058,7 @@
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
       x.ingredientes = g('ingredientes').value.trim();
-      x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
+      if (ehAlimento(rascunho)) x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
       x.tamanhos = $$('.tam-linha', d).map(function (l) {
         var t = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
         var antigo = x.tamanhos[Number(l.getAttribute('data-ti'))] || {};
@@ -1080,13 +1093,13 @@
       if (!x.nome) erro(g('nome'), 'Informe o nome.');
       if (!isFinite(x.preco) || x.preco < 0 || x.preco > 10000) erro(g('preco'), 'Preço inválido. Ex.: 8,50');
       ['largura', 'profundidade', 'altura'].forEach(function (k) {
-        if (!(x.dim[k] > 0 && x.dim[k] <= 200)) erro(g(k), 'Entre 0,1 e 200.');
+        if (!(x.dim[k] > 0 && x.dim[k] <= 1000)) erro(g(k), 'Entre 0,1 e 1000 cm.');
       });
       $$('.tam-linha', d).forEach(function (l, ti) {
         var t = x.tamanhos[ti], q = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
         if (!t.nome) erro(q('nome'), 'Informe o nome do tamanho.');
         if (!isFinite(t.preco) || t.preco < 0) erro(q('preco'), 'Preço inválido.');
-        ['largura', 'profundidade', 'altura'].forEach(function (k) { if (!(t.dim[k] > 0 && t.dim[k] <= 500)) erro(q(k), 'Inválido.'); });
+        ['largura', 'profundidade', 'altura'].forEach(function (k) { if (!(t.dim[k] > 0 && t.dim[k] <= 1000)) erro(q(k), 'Inválido.'); });
       });
       if (x.modelo && !/^(https:\/\/|\.{0,2}\/?[\w\-./]+\.(glb|gltf)(\?.*)?$)/i.test(x.modelo)) erro(g('modelo'), 'Use um caminho .glb/.gltf ou uma URL https://');
       if (primeiro !== antes) d.open = true;
@@ -1240,6 +1253,7 @@
   });
 
   $('#admin-corpo').addEventListener('change', function (e) {
+    if (e.target.name === 'p-tipo') { coletarAdmin(); renderAdmin(); return; }
     if (e.target.id !== 'admin-importar' || !e.target.files[0]) return;
     var leitor = new FileReader();
     leitor.onload = function () {
@@ -1276,8 +1290,8 @@
   function renderFotoInicio(erro) {
     $('#foto-corpo').innerHTML =
       '<div class="foto-intro">' +
-        '<p>Fotografe o cardápio impresso ou escolha uma foto da galeria. A leitura é feita por inteligência artificial e pode errar: você revisa cada item antes de ele entrar no cardápio.</p>' +
-        '<ul class="dicas-foto"><li>Cardápio inteiro no quadro, sem cortes</li><li>Boa luz, sem reflexo</li><li>Celular reto, de frente para o papel</li><li>Cardápio grande: uma foto por página</li></ul>' +
+        '<p>Fotografe o cardápio, catálogo ou tabela de preços, ou escolha uma foto da galeria. A leitura é feita por inteligência artificial e pode errar: você revisa cada item antes de ele entrar no cardápio.</p>' +
+        '<ul class="dicas-foto"><li>Página inteira no quadro, sem cortes</li><li>Boa luz, sem reflexo</li><li>Celular reto, de frente para o papel</li><li>Cardápio grande: uma foto por página</li></ul>' +
       '</div>' +
       '<label class="seletor-foto' + (foto.previa ? ' tem' : '') + '">' +
         (foto.previa ? '<img src="' + foto.previa + '" alt="Foto do cardápio selecionada">' : ICONES.camera + '<strong>Tirar foto ou escolher da galeria</strong><small>JPG, PNG ou WebP</small>') +
@@ -1286,7 +1300,7 @@
       (foto.previa ? '<button class="btn btn--fantasma btn--p" type="button" id="foto-trocar">Trocar foto</button>' : '') +
 
       (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível ler</strong>' + esc(erro) + '</div>' : '');
-    $('#foto-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="foto-ler"' + (foto.imagem ? '' : ' disabled') + '>Ler cardápio</button>';
+    $('#foto-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="foto-ler"' + (foto.imagem ? '' : ' disabled') + '>Ler foto</button>';
   }
 
   function reduzirImagem(arquivo) {
@@ -1316,8 +1330,8 @@
       '<div class="lendo">' +
         '<img src="' + foto.previa + '" alt="">' +
         '<div class="carregando"><div class="spinner" aria-hidden="true"></div>' +
-        '<strong id="foto-status" aria-live="polite">' + (qtd ? qtd + (qtd === 1 ? ' item encontrado…' : ' itens encontrados…') : 'Lendo o cardápio…') + '</strong>' +
-        '<small>Pode levar até 1 minuto em cardápios grandes.</small></div>' +
+        '<strong id="foto-status" aria-live="polite">' + (qtd ? qtd + (qtd === 1 ? ' item encontrado…' : ' itens encontrados…') : 'Lendo a foto…') + '</strong>' +
+        '<small>Pode levar até 1 minuto em listas grandes.</small></div>' +
       '</div>';
     $('#foto-rodape').innerHTML = '<button class="btn btn--fantasma btn--bloco" type="button" id="foto-cancelar">Cancelar leitura</button>';
   }
@@ -1380,7 +1394,7 @@
       });
     }).then(function (res) {
       if (res.parada === 'refusal') throw new Error('A leitura desta imagem foi recusada. Tente outra foto.');
-      if (res.parada === 'max_tokens') throw new Error('O cardápio é grande demais para uma foto só. Fotografe uma página ou metade por vez.');
+      if (res.parada === 'max_tokens') throw new Error('A lista é grande demais para uma foto só. Fotografe uma página ou metade por vez.');
       var dados;
       try { dados = JSON.parse(res.texto); } catch (e) { throw new Error('A resposta veio incompleta. Tente de novo.'); }
       foto.itens = (dados.itens || []).filter(function (x) { return x && x.nome; }).map(function (x) {
@@ -1428,13 +1442,13 @@
               (x.descricao ? '<p class="rev__desc">' + esc(x.descricao) + '</p>' : '') +
               (x.preco == null ? '<p class="rev__obs">Preço não identificado: digite o valor.</p>' : '') +
               (x.observacao ? '<p class="rev__obs">' + esc(x.observacao) + '</p>' : '') +
-              (dup ? '<p class="rev__obs">Já existe um produto com este nome no cardápio.</p>' : '') +
+              (dup ? '<p class="rev__obs">Já existe um produto com este nome.</p>' : '') +
             '</div></div>';
         }).join('') + '</div>'
-        : '<div class="carrinho-vazio"><strong>Nenhum item encontrado</strong>Tente uma foto mais nítida, com o cardápio inteiro no quadro.</div>');
+        : '<div class="carrinho-vazio"><strong>Nenhum item encontrado</strong>Tente uma foto mais nítida, com a página inteira no quadro.</div>');
     $('#foto-rodape').innerHTML = n
-      ? '<div class="pilha"><button class="btn btn--primario btn--bloco" type="button" id="foto-adicionar">Adicionar ao cardápio</button>' +
-        '<button class="btn btn--fantasma btn--bloco" type="button" id="foto-substituir">Substituir o cardápio atual</button></div>'
+      ? '<div class="pilha"><button class="btn btn--primario btn--bloco" type="button" id="foto-adicionar">Adicionar aos produtos</button>' +
+        '<button class="btn btn--fantasma btn--bloco" type="button" id="foto-substituir">Substituir todos os produtos</button></div>'
       : '<button class="btn btn--primario btn--bloco" type="button" id="foto-nova">Tentar outra foto</button>';
   }
 
@@ -1530,9 +1544,9 @@
       '<p class="g3d-prod"><strong>' + esc(x.nome) + '</strong></p>' +
       '<fieldset class="g3d-medidas"><legend>Medidas reais do produto (cm) — definem o tamanho na câmera</legend>' +
         '<div class="campos campos--3">' +
-          campo('Largura', '<input id="g3d-largura" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
-          campo('Profund.', '<input id="g3d-profundidade" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
-          campo('Altura', '<input id="g3d-altura" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
+          campo('Largura', '<input id="g3d-largura" type="number" min="0.5" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
+          campo('Profund.', '<input id="g3d-profundidade" type="number" min="0.5" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
+          campo('Altura', '<input id="g3d-altura" type="number" min="0.5" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
         '</div>' +
         (x.dim.largura === 5 && x.dim.profundidade === 5 && x.dim.altura === 5
           ? '<p class="rev__obs">Estas são as medidas padrão (5 cm). Meça o produto com uma régua: uma lata, por exemplo, tem cerca de 6 × 6 × 16 cm.</p>' : '') +
@@ -1655,11 +1669,11 @@
 
   function lojaNaoEncontrada(msg) {
     dados = clonar(VAZIO);
-    dados.padaria.nome = 'Cardápio não encontrado';
+    dados.padaria.nome = 'Página não encontrada';
     dados.padaria.slogan = msg || 'Confira o endereço digitado.';
     CATEGORIAS = [];
     renderTudo();
-    $('#grade').innerHTML = '<div class="vazio"><strong>Não encontramos este cardápio</strong>O endereço “/' + esc(LOJA) + '” não corresponde a nenhum estabelecimento.</div>';
+    $('#grade').innerHTML = '<div class="vazio"><strong>Não encontramos esta loja</strong>O endereço “/' + esc(LOJA) + '” não corresponde a nenhuma loja cadastrada.</div>';
   }
 
   // Painel do dono da plataforma: contas dos estabelecimentos
@@ -1677,9 +1691,10 @@
                   '<a class="btn btn--fantasma btn--p" href="/' + esc(c.slug) + '" target="_blank" rel="noopener">/' + esc(c.slug) + '</a></li>';
               }).join('') + '</ul>'
             : '<p class="mini">Nenhum estabelecimento ainda.</p>') +
-          '<div class="nova-loja"><h4>Novo estabelecimento (ou nova senha)</h4>' +
-            campo('Nome', '<input id="nl-nome" maxlength="60" placeholder="Confeitaria Doce Lar">') +
-            campo('Endereço do cardápio', '<input id="nl-slug" maxlength="40" placeholder="doce-lar" autocapitalize="off">', location.host + '/<endereço>') +
+          '<div class="nova-loja"><h4>Nova loja (ou nova senha)</h4>' +
+            campo('Nome', '<input id="nl-nome" maxlength="60" placeholder="Confeitaria Doce Lar, Móveis Silva…">') +
+            campo('Endereço da página', '<input id="nl-slug" maxlength="40" placeholder="doce-lar" autocapitalize="off">', location.host + '/<endereço>') +
+            campo('Tipo de negócio', '<select id="nl-tipo"><option value="alimentos">Comida e bebida (cardápio)</option><option value="produtos">Produtos e objetos (catálogo)</option></select>') +
             campo('E-mail do dono', '<input id="nl-email" type="email" maxlength="120">') +
             campo('Senha inicial (8+ caracteres)', '<input id="nl-senha" type="text" maxlength="120" autocomplete="off">') +
             '<div class="linha-acoes"><button class="btn btn--primario" type="button" id="loja-criar">Criar conta</button>' +
@@ -1692,7 +1707,7 @@
       .catch(function (e) { alvo.innerHTML = '<div class="ar-indisp" role="alert">' + esc(e.message) + '</div><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Tentar de novo</button>'; });
   }
   function criarLoja() {
-    var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value };
+    var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value, tipo: $('#nl-tipo').value };
     var b = $('#loja-criar');
     b.disabled = true;
     fetch('api/contas', { method: 'POST', headers: cabecalhos(), body: JSON.stringify(corpo) })
