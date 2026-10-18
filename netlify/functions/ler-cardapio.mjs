@@ -15,6 +15,7 @@
    ========================================================================= */
 
 import { autorizar, slugValido } from '../lib/comum.mjs';
+import { bancoOk } from '../lib/banco.mjs';
 
 const CATEGORIAS_PADRAO = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp'];
@@ -91,7 +92,8 @@ export default async (req) => {
       codigo_configurado: Boolean(process.env.MENUREAL_CODIGO),
       modelo: process.env.MENUREAL_MODELO || 'claude-haiku-5-5',
       meshy_configurada: Boolean((process.env.MESHY_API_KEY || '').trim()),
-      meshy_formato_ok: /^msy_/.test((process.env.MESHY_API_KEY || '').trim())
+      meshy_formato_ok: /^msy_/.test((process.env.MESHY_API_KEY || '').trim()),
+      banco_de_dados_ok: await bancoOk()
     });
   }
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);

@@ -7,6 +7,7 @@
    Autorização: conta da loja (token) ou código mestre. Variáveis: MESHY_API_KEY.
    ========================================================================= */
 import { loja, json, autorizar, slugValido, escalarGlb } from '../lib/comum.mjs';
+import { lerTarefa, salvarTarefa } from '../lib/banco.mjs';
 
 const API = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
 const LIMITE_GLB = 19_000_000; // respostas em streaming da Netlify: até 20 MB
@@ -105,7 +106,7 @@ export default async (req) => {
       if (!/^[\w-]{6,80}$/.test(tarefa)) return json({ erro: 'Tarefa inválida.' }, 400);
       if (!dim) return json({ erro: 'Medidas inválidas.' }, 400);
 
-      const pronto = await store.get('tarefas/' + tarefa, { type: 'json' });
+      const pronto = await lerTarefa(tarefa);
       if (pronto) return json({ status: 'SUCCEEDED', progresso: 100, ...pronto });
 
       const t = await meshy('/' + encodeURIComponent(tarefa));
@@ -124,7 +125,7 @@ export default async (req) => {
       const chave = pasta(slug) + nomeArq(u.searchParams.get('produto')) + '-' + Date.now().toString(36) + '.glb';
       await store.set(chave, glb, { metadata: { tarefa, dim } });
       const resultado = { url: 'api/arquivo/' + chave, miniatura: t.thumbnail_url || '', medidasCm, tamanhoMb: +(glb.length / 1e6).toFixed(1) };
-      await store.setJSON('tarefas/' + tarefa, resultado);
+      await salvarTarefa(tarefa, slug, resultado);
       return json({ status: 'SUCCEEDED', progresso: 100, ...resultado });
     }
 

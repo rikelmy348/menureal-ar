@@ -37,7 +37,9 @@ menureal-ar/
 ├── netlify/functions/combo.mjs         servidor: junta os itens do pedido em um só 3D
 ├── netlify/functions/modelo-3d.mjs     servidor: gera modelo 3D realista por fotos (Meshy)
 ├── netlify/functions/arquivo.mjs       servidor: entrega os modelos 3D guardados na nuvem
-├── netlify/lib/comum.mjs               utilidades: Netlify Blobs, código de acesso, escala do GLB
+├── netlify/lib/comum.mjs               utilidades: Netlify Blobs, login, escala e combo de GLB
+├── netlify/lib/banco.mjs               acesso ao banco de dados (lojas, produtos, tarefas 3D)
+├── netlify/database/migrations/        esquema do banco (SQL), aplicado a cada publicação
 ├── package.json                        dependência @netlify/blobs
 ├── netlify.toml                    configuração da Netlify (site + funções)
 ├── vendor/model-viewer.min.js      cópia local do <model-viewer> 4.4.0 (reserva offline)
@@ -299,6 +301,35 @@ Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os
 logins. Sem ela, a assinatura usa o `MENUREAL_CODIGO`; trocar qualquer um dos
 dois desconecta todas as lojas.
 
+## 7d. Banco de dados
+
+Os dados ficam num **PostgreSQL** gerenciado pela própria Netlify (**Netlify
+Database**), criado automaticamente na publicação a partir do pacote
+`@netlify/database` e das migrações em `netlify/database/migrations/`.
+
+| Tabela | Conteúdo |
+|---|---|
+| `lojas` | uma linha por loja: endereço, nome, login (e-mail e senha com hash), tipo, horário, WhatsApp, categorias. A demonstração da página inicial é a linha `_demo` |
+| `produtos` | produtos de cada loja: preço, medidas, modelo 3D, ingredientes, alérgicos, tamanhos |
+| `tarefas_3d` | resultado das gerações 3D (evita gerar duas vezes) |
+| `configuracao` | controles internos (ex.: importação já feita) |
+
+Os **arquivos 3D** continuam no Netlify Blobs (armazenamento de arquivos).
+
+**Importação automática:** na primeira chamada depois da publicação, o
+servidor copia para o banco as lojas e cardápios que estavam no Netlify Blobs
+(versão anterior) e marca a importação como feita.
+
+**Conferir:** `https://SEU-SITE/api/ler-cardapio` mostra `"banco_de_dados_ok": true`.
+
+**Mudar o esquema:** crie um novo arquivo `000N_descricao.sql` na pasta de
+migrações (nunca edite um já publicado). A Netlify aplica antes de publicar; se
+a migração falhar, a publicação é bloqueada e o site antigo continua no ar.
+
+**Plano Netlify:** disponível nos planos por créditos. No plano gratuito há
+limites mensais de processamento e transferência do banco (veja a página de
+cobrança da Netlify); para começar, são suficientes.
+
 ## 8. O que ainda depende de backend ou serviços externos
 
 | Recurso | Situação atual | O que falta |
@@ -306,7 +337,7 @@ dois desconecta todas as lojas.
 | Pedidos | Demonstrativos; nada é enviado | API de pedidos + painel da cozinha |
 | Pagamento | Não existe (intencional) | Gateway (Pix, cartão) com conformidade |
 | WhatsApp | Link `wa.me` opcional com o resumo | Número oficial; WhatsApp Business API para automação |
-| Administração | Na nuvem (Netlify Blobs), login por estabelecimento | Recuperação de senha por e-mail; banco de dados quando houver muitas lojas |
+| Administração | Banco de dados PostgreSQL, login por loja | Recuperação de senha por e-mail; cadastro feito pela própria loja |
 | Cardápio por foto | Funciona com a função da Netlify + chave da Anthropic | Login por padaria em vez de código compartilhado |
 | Cardápio entre aparelhos | Exportar/Importar JSON manual | Banco de dados ou CMS |
 | Modelos 3D | Arquivos estáticos | Armazenamento/CDN e fluxo de upload |

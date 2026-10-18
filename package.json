@@ -3,6 +3,7 @@
   "private": true,
   "description": "MenuReal AR: cardápio digital com 3D e realidade aumentada",
   "dependencies": {
-    "@netlify/blobs": "10.7.13"
+    "@netlify/blobs": "10.7.13",
+    "@netlify/database": "2.0.1"
   }
 }

@@ -1,27 +1,19 @@
 /* =========================================================================
-   MenuReal AR — contas dos estabelecimentos (somente o dono da plataforma)
+   MenuReal AR — contas das lojas (somente o dono da plataforma)
    GET  /api/contas   lista as lojas            (código MENUREAL_CODIGO)
-   POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha }
+   POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, tipo }
    ========================================================================= */
-import { loja, json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
+import { json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
+import { garantirMigracao, listarLojas, contaPorEmail, salvarConta } from '../lib/banco.mjs';
 
 export default async (req) => {
   if (!process.env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO.' }, 500);
   if (!ehMestre(req)) return json({ erro: 'Código de acesso incorreto.' }, 401);
-  const store = loja();
+  try {
+    await garantirMigracao();
+    if (req.method === 'GET') return json({ contas: await listarLojas() });
+    if (req.method !== 'POST') return json({ erro: 'Use GET ou POST.' }, 405);
 
-  if (req.method === 'GET') {
-    const { blobs } = await store.list({ prefix: 'contas/' });
-    const contas = [];
-    for (const b of blobs) {
-      const c = await store.get(b.key, { type: 'json' });
-      if (c) contas.push({ slug: c.slug, nome: c.nome, email: c.email, criadoEm: c.criadoEm });
-    }
-    contas.sort((a, b) => a.nome.localeCompare(b.nome));
-    return json({ contas });
-  }
-
-  if (req.method === 'POST') {
     let d;
     try { d = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
     const slug = String(d.slug || '').trim().toLowerCase();
@@ -30,31 +22,18 @@ export default async (req) => {
     const senha = String(d.senha || '');
     const tipo = d.tipo === 'produtos' ? 'produtos' : 'alimentos';
     if (!slugValido(slug)) return json({ erro: 'Endereço inválido: use de 3 a 40 letras minúsculas, números e hífens (ex.: sabor-da-vila).' }, 400);
-    if (!nome) return json({ erro: 'Informe o nome do estabelecimento.' }, 400);
+    if (!nome) return json({ erro: 'Informe o nome da loja.' }, 400);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ erro: 'E-mail inválido.' }, 400);
     if (senha.length < 8) return json({ erro: 'A senha precisa ter pelo menos 8 caracteres.' }, 400);
 
-    const dono = await store.get('emails/' + email, { type: 'json' });
+    const dono = await contaPorEmail(email);
     if (dono && dono.slug !== slug) return json({ erro: 'Este e-mail já é usado pela loja "' + dono.slug + '".' }, 409);
-    const atual = await store.get('contas/' + slug, { type: 'json' });
-    if (atual && atual.email !== email) await store.delete('emails/' + atual.email);
-
-    const conta = { slug, nome, email, senha: hashSenha(senha), criadoEm: (atual && atual.criadoEm) || new Date().toISOString() };
-    await store.setJSON('contas/' + slug, conta);
-    await store.setJSON('emails/' + email, { slug });
-    if (!(await store.get('cardapios/' + slug, { type: 'json' }))) {
-      await store.setJSON('cardapios/' + slug, {
-        padaria: { nome, slogan: tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : 'Veja antes de pedir',
-          abre: '08:00', fecha: '18:00', dias: [1, 2, 3, 4, 5, 6], whatsapp: '', tipo },
-        categorias: tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções'] : ['Salgados', 'Doces', 'Bebidas'],
-        produtos: [],
-        atualizadoEm: new Date().toISOString()
-      });
-    }
-    return json({ ok: true, slug, nome, email, atualizado: Boolean(atual) });
+    const { atualizado } = await salvarConta({ slug, nome, email, senhaHash: hashSenha(senha), tipo });
+    return json({ ok: true, slug, nome, email, atualizado });
+  } catch (e) {
+    console.error('contas:', e);
+    return json({ erro: 'Erro no banco de dados. Tente de novo em instantes.' }, 500);
   }
-
-  return json({ erro: 'Use GET ou POST.' }, 405);
 };
 
 export const config = { path: '/api/contas' };
