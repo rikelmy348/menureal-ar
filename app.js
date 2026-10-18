@@ -258,7 +258,7 @@
     $('#slogan-padaria').textContent = p.slogan;
     document.title = 'MenuReal AR — ' + p.nome;
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
-    $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D';
+    $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
     $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar coxinha, pão de queijo…') : 'Buscar produtos…';
     $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
     var nota = $('#nota-demo');
@@ -295,35 +295,38 @@
     });
   }
 
+  function reguaTexto(d) { return num(d.largura) + ' × ' + num(d.altura) + ' cm'; }
+
   function htmlCard(p) {
     var temModelo = !!p.modelo;
-    var corpo =
+    var temTams = p.tamanhos && p.tamanhos.length;
+    var vitrine = temModelo
+      ? '<button class="card__palco" type="button" data-acao="3d" aria-label="Girar ' + esc(p.nome) + ' em 3D">' +
+          '<model-viewer src="' + esc(urlModelo(p.modelo)) + '" alt="Modelo 3D de ' + esc(p.nome) + '" loading="lazy" reveal="auto"' +
+          ' camera-orbit="28deg 70deg auto" shadow-intensity="1.1" shadow-softness="0.8" environment-image="neutral" exposure="1.05"' +
+          ' interaction-prompt="none" disable-zoom disable-tap tabindex="-1"></model-viewer>' +
+          '<span class="card__estado" data-estado><span class="carregando"><span class="spinner" aria-hidden="true"></span><span class="barra"><i></i></span></span></span>' +
+        '</button>' +
+        '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' na mesa, em tamanho real">' + ICONES.ar + '<span>Na mesa</span></button>'
+      : '<span class="card__palco card__palco--vazio" aria-hidden="true"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></span>';
+    return '<article class="card' + (temModelo ? '' : ' card--simples') + '" data-id="' + esc(p.id) + '">' +
+      '<div class="card__vitrine">' + vitrine +
+        (temModelo ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
+          ? num(Math.min.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' a ' + num(Math.max.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' cm'
+          : reguaTexto(p.dim)) + '</span></span>' : '') +
+      '</div>' +
       '<div class="card__corpo">' +
-        '<div class="card__linha"><div><p class="card__cat">' + esc(p.categoria) + '</p><h3 class="card__nome">' + esc(p.nome) + '</h3></div>' +
-        '<span class="card__preco">' + (p.tamanhos && p.tamanhos.length ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span></div>' +
+        '<h3 class="card__nome">' + esc(p.nome) + '</h3>' +
         (p.descricao ? '<p class="card__desc">' + esc(p.descricao) + '</p>' : '') +
-        (p.tamanhos && p.tamanhos.length ? '<p class="card__tams">' + p.tamanhos.map(function (t) { return '<span>' + esc(t.nome) + '</span>'; }).join('') + '</p>' : '') +
-        (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg"><strong>Contém:</strong> ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
-        '<div class="card__acoes">' +
-          (temModelo
-            ? '<button class="btn btn--sec btn--p" type="button" data-acao="3d">' + ICONES.cubo + 'Ver em 3D</button>' +
-              '<button class="btn btn--contorno btn--p" type="button" data-acao="ar">' + ICONES.ar + 'Ver em tamanho real</button>'
-            : '') +
-          '<button class="btn btn--primario" type="button" data-acao="' + (p.tamanhos && p.tamanhos.length ? 'escolher' : 'add') + '">' + ICONES.mais +
-            (p.tamanhos && p.tamanhos.length ? 'Escolher tamanho' : 'Adicionar ao pedido') + '</button>' +
+        (temTams ? '<p class="card__tams">' + p.tamanhos.map(function (t) { return '<span>' + esc(t.nome) + '</span>'; }).join('') + '</p>' : '') +
+        (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg">Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
+        (temModelo && p.ilustrativo ? '<p class="card__nota">Modelo ilustrativo</p>' : '') +
+        '<div class="card__rodape">' +
+          '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span>' +
+          '<button class="card__add" type="button" data-acao="' + (temTams ? 'escolher' : 'add') + '" aria-label="' +
+            (temTams ? 'Escolher tamanho de ' : 'Adicionar ao pedido: ') + esc(p.nome) + '">' + ICONES.mais + '</button>' +
         '</div>' +
-      '</div>';
-    // Produto sem modelo 3D: card compacto, só com texto e botão de pedido
-    if (!temModelo) return '<article class="card card--simples" data-id="' + esc(p.id) + '">' + corpo + '</article>';
-    return '<article class="card" data-id="' + esc(p.id) + '">' +
-      '<button class="card__palco" type="button" data-acao="3d" aria-label="Ver ' + esc(p.nome) + ' em 3D">' +
-        '<model-viewer src="' + esc(urlModelo(p.modelo)) + '" alt="Modelo 3D ilustrativo: ' + esc(p.nome) + '" loading="lazy" reveal="auto"' +
-        ' camera-orbit="28deg 68deg auto" shadow-intensity="1" shadow-softness="0.9" environment-image="neutral" exposure="1.05"' +
-        ' interaction-prompt="none" disable-zoom disable-tap tabindex="-1"></model-viewer>' +
-        '<div class="card__estado" data-estado><div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Carregando 3D…</span><div class="barra"><i></i></div></div></div>' +
-        '<span class="card__tags"><span class="tag tag--3d">3D · RA</span>' + (p.ilustrativo ? '<span class="tag">Modelo ilustrativo</span>' : '') + '</span>' +
-        '<span class="card__dim" title="Largura × profundidade × altura">' + esc(dimTexto(p.dim)) + '</span>' +
-      '</button>' + corpo +
+      '</div>' +
     '</article>';
   }
 
@@ -354,7 +357,7 @@
     mv.addEventListener('error', function () {
       if (!estado) return;
       estado.hidden = false;
-      estado.innerHTML = '<div><strong>Modelo 3D indisponível</strong>O arquivo não foi encontrado ou está corrompido.</div>';
+      estado.innerHTML = '<span><strong>3D indisponível</strong>O arquivo não foi encontrado.</span>';
     });
     if (mvStatus === 'falhou') marcarCardSemBiblioteca(estado);
   }
@@ -362,7 +365,7 @@
   function marcarCardSemBiblioteca(estado) {
     if (!estado) return;
     estado.hidden = false;
-    estado.innerHTML = '<div><strong>3D indisponível</strong>A biblioteca 3D não carregou. Verifique a conexão e recarregue a página.</div>';
+    estado.innerHTML = '<span><strong>3D indisponível</strong>Verifique a conexão e recarregue.</span>';
   }
 
   // ---------------------------------------------------------------------
@@ -1799,7 +1802,7 @@
       adicionar(id);
       var original = b.innerHTML;
       b.classList.add('feito');
-      b.innerHTML = ICONES.ok + 'Adicionado';
+      b.innerHTML = ICONES.ok + (b.classList.contains('card__add') ? '' : 'Adicionado');
       setTimeout(function () { b.classList.remove('feito'); b.innerHTML = original; }, 1200);
     } else {
       abrirViewer(id, acao);

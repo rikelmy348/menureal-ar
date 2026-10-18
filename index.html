@@ -6,12 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MenuReal AR</title>
   <meta name="description" content="Cardápio e catálogo com visualização 3D e realidade aumentada. Veja em tamanho real antes de comprar.">
-  <meta name="theme-color" content="#F6F1E6" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0F1F18" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F3F5F1" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0A130F" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4D3A'/%3E%3Cpath d='M32 13 50 23v18L32 51 14 41V23z' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M14 23l18 10 18-10M32 33v18' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,650&family=Manrope:wght@400;500;600;700;800&display=swap">
+  <link rel="preload" href="vendor/fontes/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -45,17 +43,13 @@
 
   <main id="cardapio">
     <section class="hero" aria-labelledby="nome-padaria">
-      <p class="hero__selo">
-        <span class="selo-3d" aria-hidden="true">
-          <svg viewBox="0 0 24 24"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
-        </span>
-        <span id="selo-texto">Cardápio em 3D</span> <span class="sep" aria-hidden="true">·</span> Realidade aumentada
-      </p>
       <h1 class="hero__nome" id="nome-padaria">Padaria Sabor da Vila</h1>
       <p class="hero__slogan" id="slogan-padaria">Veja antes de pedir</p>
+      <div class="hero__regua" aria-hidden="true"></div>
       <div class="hero__info">
         <span class="status" id="status-horario"><span class="status__ponto" aria-hidden="true"></span><span id="status-texto">—</span></span>
         <span class="hero__horario" id="horario-texto">—</span>
+        <span class="hero__selo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span id="selo-texto">Cardápio em 3D</span></span>
       </div>
     </section>
 
@@ -81,7 +75,7 @@
   </main>
 
   <footer class="rodape">
-    <p><strong>MenuReal AR</strong> · versão de demonstração. Visualização 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">&lt;model-viewer&gt;</a>.</p>
+    <p>Feito com <strong>MenuReal AR</strong>. Visualização 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a>.</p>
   </footer>
 
   <!-- ================= Visualizador 3D / AR ================= -->

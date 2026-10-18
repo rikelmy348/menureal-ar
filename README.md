@@ -42,6 +42,7 @@ menureal-ar/
 ├── netlify.toml                    configuração da Netlify (site + funções)
 ├── vendor/model-viewer.min.js      cópia local do <model-viewer> 4.4.0 (reserva offline)
 ├── vendor/model-viewer-LICENSE.txt licença Apache-2.0 do model-viewer
+├── vendor/fontes/                   fonte Bricolage Grotesque (SIL Open Font License)
 ├── tools/gerar_modelos.py          gera os 6 GLBs (Python + numpy + Pillow)
 ├── tools/gerar_arquivo_unico.py    gera a versão de arquivo único
 ├── menureal-ar-arquivo-unico.html  tudo em um arquivo (abre com duplo clique)
@@ -56,7 +57,7 @@ em pé, por isso aparece como 5 × 5 × 9 cm (as mesmas medidas de 9 × 5 × 5 c
 - [`<model-viewer>`](https://modelviewer.dev/) **4.4.0** (Google, Apache-2.0),
   carregado do CDN jsDelivr — `https://cdn.jsdelivr.net/npm/@google/model-viewer@4.4.0/dist/model-viewer.min.js` —
   com a cópia em `vendor/` como reserva automática se o CDN falhar.
-- Fontes Fraunces e Manrope (Google Fonts). Sem internet, caem para fontes do sistema.
+- Fonte Bricolage Grotesque hospedada no próprio site (`vendor/fontes/`).
 
 ---
 
@@ -359,4 +360,4 @@ dois desconecta todas as lojas.
 ## Licenças
 - Código do MenuReal AR e modelos em `assets/models/`: originais deste projeto (modelos em CC0 1.0).
 - `<model-viewer>`: Apache-2.0, © Google LLC (inclui three.js, MIT).
-- Fontes Fraunces e Manrope: SIL Open Font License.
+- Fonte Bricolage Grotesque: SIL Open Font License (`vendor/fontes/OFL.txt`).

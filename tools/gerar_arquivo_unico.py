@@ -40,6 +40,11 @@ for nome in sorted(os.listdir(pasta)):
 
 mapa = ",\n".join('  "%s": "%s"' % (k, v) for k, v in modelos.items())
 
+with open(os.path.join(RAIZ, "vendor", "fontes", "bricolage-grotesque.woff2"), "rb") as f:
+    fonte = "data:font/woff2;base64," + base64.b64encode(f.read()).decode("ascii")
+css = css.replace('url("vendor/fontes/bricolage-grotesque.woff2")', 'url("' + fonte + '")')
+html = re.sub(r'\s*<link rel="preload"[^>]*>', "", html)
+html = html.replace('<base href="/">', "")
 html = html.replace('<link rel="stylesheet" href="style.css">', "<style>\n" + css + "\n</style>")
 html = re.sub(r"if \(location\.protocol === 'file:'\) \{.*?\n    \}\n", "", html, flags=re.S)
 html = html.replace(
