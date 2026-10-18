@@ -43,6 +43,24 @@ export default async (req) => {
     if (req.method === 'POST') {
       let corpo;
       try { corpo = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
+
+      // Corrigir o tamanho de um modelo já guardado, sem gerar de novo (não gasta créditos)
+      if (corpo && corpo.acao === 'reescalar') {
+        const m = /^api\/arquivo\/(modelos\/[\w.-]+\.glb)$/.exec(String(corpo.url || ''));
+        const d = corpo.dim || {};
+        const dim = { largura: Number(d.largura), profundidade: Number(d.profundidade), altura: Number(d.altura) };
+        if (!m) return json({ erro: 'Este produto não usa um modelo guardado na nuvem.' }, 400);
+        if (!(dim.largura > 0 && dim.profundidade > 0 && dim.altura > 0)) return json({ erro: 'Medidas inválidas.' }, 400);
+        const store = loja();
+        const atual = await store.get(m[1], { type: 'arrayBuffer' });
+        if (!atual) return json({ erro: 'Modelo não encontrado na nuvem.' }, 404);
+        const { glb, medidasCm } = escalarGlb(new Uint8Array(atual), dim);
+        const produto = String(corpo.produto || 'produto').replace(/[^\w-]/g, '').slice(0, 60) || 'produto';
+        const chave = 'modelos/' + produto + '-' + Date.now().toString(36) + '.glb';
+        await store.set(chave, glb, { metadata: { produto, origem: m[1], dim } });
+        return json({ url: 'api/arquivo/' + chave, medidasCm });
+      }
+
       const imagens = Array.isArray(corpo && corpo.imagens) ? corpo.imagens.filter((x) => typeof x === 'string' && x) : [];
       if (imagens.length < 1 || imagens.length > 4) return json({ erro: 'Envie de 1 a 4 fotos.' }, 400);
       if (imagens.some((x) => x.length > 4_000_000)) return json({ erro: 'Foto grande demais.' }, 413);

@@ -710,6 +710,7 @@
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
         '<div class="linha-acoes">' +
           (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
+          (servidor && /^api\/arquivo\//.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
           '<button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
       '</div></details>';
   }
@@ -836,6 +837,24 @@
     if (g3d) {
       coletarAdmin();
       abrirGerador3D(Number(g3d.closest('details').getAttribute('data-i')));
+      return;
+    }
+    var resc = e.target.closest('[data-reescalar]');
+    if (resc) {
+      coletarAdmin();
+      var px = rascunho.produtos[Number(resc.closest('details').getAttribute('data-i'))];
+      var cod = lerCodigo();
+      if (!cod) { toast('Preencha o código de acesso no topo do painel'); return; }
+      if (!(px.dim.largura > 0 && px.dim.profundidade > 0 && px.dim.altura > 0)) { toast('Preencha as três medidas em cm'); return; }
+      resc.disabled = true; resc.textContent = 'Ajustando…';
+      fetch('api/modelo-3d', { method: 'POST', headers: { 'content-type': 'application/json', 'x-menureal-codigo': cod },
+        body: JSON.stringify({ acao: 'reescalar', url: px.modelo, dim: px.dim, produto: slug(px.nome) }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+        .then(function (j) {
+          px.modelo = j.url; abertoNoAdmin = px.id; renderAdmin();
+          toast('Tamanho ajustado para ' + dimTexto({ largura: j.medidasCm[0], altura: j.medidasCm[1], profundidade: j.medidasCm[2] }) + '. Salve para publicar.');
+        })
+        .catch(function (err) { resc.disabled = false; resc.textContent = 'Aplicar as medidas acima ao 3D'; toast(err.message); });
       return;
     }
     var rem = e.target.closest('[data-remover-prod]');
@@ -1154,7 +1173,16 @@
   function renderG3dInicio(erro) {
     var x = produtoG3d();
     $('#g3d-corpo').innerHTML =
-      '<p class="g3d-prod"><strong>' + esc(x.nome) + '</strong> · medidas para a escala real: ' + esc(dimTexto(x.dim)) + '</p>' +
+      '<p class="g3d-prod"><strong>' + esc(x.nome) + '</strong></p>' +
+      '<fieldset class="g3d-medidas"><legend>Medidas reais do produto (cm) — definem o tamanho na câmera</legend>' +
+        '<div class="campos campos--3">' +
+          campo('Largura', '<input id="g3d-largura" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
+          campo('Profund.', '<input id="g3d-profundidade" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
+          campo('Altura', '<input id="g3d-altura" type="number" min="0.5" max="200" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
+        '</div>' +
+        (x.dim.largura === 5 && x.dim.profundidade === 5 && x.dim.altura === 5
+          ? '<p class="rev__obs">Estas são as medidas padrão (5 cm). Meça o produto com uma régua: uma lata, por exemplo, tem cerca de 6 × 6 × 16 cm.</p>' : '') +
+      '</fieldset>' +
       '<div class="foto-intro"><p>Tire de 1 a 4 fotos do produto <strong>real</strong>. A inteligência artificial monta o modelo 3D, e o site ajusta o tamanho pela maior medida cadastrada.</p>' +
         '<ul class="dicas-foto"><li>1ª foto de frente; as outras dos lados ou de cima</li><li>Produto inteiro no quadro, sobre fundo liso e claro</li><li>Boa luz, sem sombra forte e sem outros objetos</li><li>Confira as medidas acima antes de gerar</li></ul></div>' +
       '<div class="g3d-fotos">' +
@@ -1186,9 +1214,12 @@
 
   function iniciarG3d() {
     var codigo = (($('#g3d-codigo') || {}).value || '').trim();
+    var x = produtoG3d();
+    var dimNova = { largura: Number($('#g3d-largura').value), profundidade: Number($('#g3d-profundidade').value), altura: Number($('#g3d-altura').value) };
+    if (!(dimNova.largura > 0 && dimNova.profundidade > 0 && dimNova.altura > 0)) { renderG3dInicio('Preencha as três medidas reais, em centímetros.'); return; }
+    x.dim = dimNova;
     if (!codigo) { renderG3dInicio('Digite o código de acesso.'); $('#g3d-codigo').focus(); return; }
     guardarCodigo(codigo);
-    var x = produtoG3d();
     renderG3dProgresso(2, 'Enviando fotos…');
     fetch('api/modelo-3d', {
       method: 'POST',
@@ -1246,6 +1277,7 @@
   $('#dlg-3d').addEventListener('change', function (e) {
     if (e.target.id !== 'g3d-arquivo' || !e.target.files.length) return;
     var arquivos = Array.prototype.slice.call(e.target.files, 0, 4 - g3d.fotos.length);
+    ['largura', 'profundidade', 'altura'].forEach(function (k) { var v = Number(($('#g3d-' + k) || {}).value); if (v > 0) produtoG3d().dim[k] = v; });
     var cod = ($('#g3d-codigo') || {}).value;
     if (cod) guardarCodigo(cod);
     Promise.all(arquivos.map(function (a) { return reduzirImagem(a).catch(function () { return null; }); })).then(function (rs) {
