@@ -85,7 +85,9 @@ export default async (req) => {
       workspace_configurado: Boolean(ws),
       workspace_formato_ok: !ws || /^wrkspc_/.test(ws),
       codigo_configurado: Boolean(process.env.MENUREAL_CODIGO),
-      modelo: process.env.MENUREAL_MODELO || 'claude-haiku-5-5'
+      modelo: process.env.MENUREAL_MODELO || 'claude-haiku-5-5',
+      meshy_configurada: Boolean((process.env.MESHY_API_KEY || '').trim()),
+      meshy_formato_ok: /^msy_/.test((process.env.MESHY_API_KEY || '').trim())
     });
   }
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
