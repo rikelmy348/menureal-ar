@@ -24,6 +24,11 @@ menureal-ar/
 │   ├── empada.glb         8 × 8 × 4 cm
 │   └── brigadeiro.glb     3 × 3 × 3 cm
 ├── netlify/functions/ler-cardapio.mjs  servidor: lê a foto do cardápio com a API do Claude
+├── netlify/functions/cardapio.mjs      servidor: cardápio publicado na nuvem (GET/PUT)
+├── netlify/functions/modelo-3d.mjs     servidor: gera modelo 3D realista por fotos (Meshy)
+├── netlify/functions/arquivo.mjs       servidor: entrega os modelos 3D guardados na nuvem
+├── netlify/lib/comum.mjs               utilidades: Netlify Blobs, código de acesso, escala do GLB
+├── package.json                        dependência @netlify/blobs
 ├── netlify.toml                    configuração da Netlify (site + funções)
 ├── vendor/model-viewer.min.js      cópia local do <model-viewer> 4.4.0 (reserva offline)
 ├── vendor/model-viewer-LICENSE.txt licença Apache-2.0 do model-viewer
@@ -199,6 +204,7 @@ desmarca o que não quiser e escolhe **Adicionar** ou **Substituir**. Depois,
    | `ANTHROPIC_API_KEY` | a chave da Anthropic (secreta) |
    | `MENUREAL_CODIGO` | um código de acesso que você inventa (ex.: 8+ caracteres) |
    | `MENUREAL_MODELO` | opcional; ex.: `claude-sonnet-5-5` para cardápios difíceis |
+   | `MESHY_API_KEY` | chave da API da Meshy, para gerar modelos 3D realistas por fotos |
    | `ANTHROPIC_WORKSPACE_ID` | só se a chave valer para vários workspaces (começa com `sk-ant-usr-`): o ID do workspace, `wrkspc_...` |
 5. Após salvar as variáveis: *Deploys → Trigger deploy → Deploy site*.
 
@@ -226,6 +232,25 @@ site foi importado do GitHub, não pelo Netlify Drop.
 
 ---
 
+## 7b. Cardápio na nuvem e modelos 3D realistas
+
+**Publicação para todos:** no painel, com o código de acesso preenchido,
+*Salvar alterações* envia o cardápio para `/api/cardapio`, guardado no
+**Netlify Blobs**. Ao abrir o site, todo cliente carrega essa versão.
+
+**Modelo 3D por fotos:** em cada produto, *Gerar 3D realista com fotos*.
+O dono tira de 1 a 4 fotos (a primeira de frente). O servidor envia as fotos
+para a API *Multi-Image to 3D* da **Meshy**, acompanha o progresso, baixa o
+GLB, **ajusta a escala** para que a maior dimensão seja a maior medida
+cadastrada (mantendo as proporções), apoia a base no chão, guarda o arquivo na
+nuvem e devolve o endereço `api/arquivo/modelos/...glb`. Depois: *Usar este
+modelo* → *Salvar alterações*.
+
+Para ativar: crie conta em https://www.meshy.ai, compre créditos de API,
+gere a chave em *API* e cadastre `MESHY_API_KEY` na Netlify. Cada modelo com
+textura custa cerca de 30 créditos (confira a página de preços da Meshy).
+Qualidade depende das fotos: fundo liso, boa luz, produto inteiro no quadro.
+
 ## 8. O que ainda depende de backend ou serviços externos
 
 | Recurso | Situação atual | O que falta |
@@ -233,7 +258,7 @@ site foi importado do GitHub, não pelo Netlify Drop.
 | Pedidos | Demonstrativos; nada é enviado | API de pedidos + painel da cozinha |
 | Pagamento | Não existe (intencional) | Gateway (Pix, cartão) com conformidade |
 | WhatsApp | Link `wa.me` opcional com o resumo | Número oficial; WhatsApp Business API para automação |
-| Administração | Só no navegador (`localStorage`), sem login | Autenticação, banco de dados, sincronização |
+| Administração | Na nuvem (Netlify Blobs) com código de acesso compartilhado | Login individual e várias padarias (banco de dados) |
 | Cardápio por foto | Funciona com a função da Netlify + chave da Anthropic | Login por padaria em vez de código compartilhado |
 | Cardápio entre aparelhos | Exportar/Importar JSON manual | Banco de dados ou CMS |
 | Modelos 3D | Arquivos estáticos | Armazenamento/CDN e fluxo de upload |

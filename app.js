@@ -113,6 +113,7 @@
   var filtro = { cat: 'Todos', q: '' };
   var mvStatus = 'carregando'; // 'carregando' | 'ok' | 'falhou'
   var produtoAtual = null;
+  var servidor = false; // true quando /api/cardapio existe (site publicado com funções)
 
   function validarDados(d) {
     if (!d || typeof d !== 'object' || !d.padaria || !Array.isArray(d.produtos)) return null;
@@ -480,11 +481,16 @@
       var ok = ['largura', 'profundidade', 'altura'].every(function (k) {
         return Math.abs(m[k] - p.dim[k]) / p.dim[k] <= TOLERANCIA_ESCALA;
       });
+      var maiorM = Math.max(m.largura, m.profundidade, m.altura);
+      var maiorP = Math.max(p.dim.largura, p.dim.profundidade, p.dim.altura);
+      var okMaior = Math.abs(maiorM - maiorP) / maiorP <= TOLERANCIA_ESCALA;
       el.hidden = false;
-      el.className = 'escala ' + (ok ? 'ok' : 'aviso');
+      el.className = 'escala ' + (ok || okMaior ? 'ok' : 'aviso');
       el.textContent = ok
         ? '✓ Escala conferida: o arquivo 3D tem as medidas cadastradas. Em RA, ele aparece nesse tamanho.'
-        : '⚠ O arquivo 3D não corresponde às medidas cadastradas. Em RA ele aparecerá com o tamanho do arquivo (' + dimTexto(m) + '). Ajuste o modelo ou as medidas.';
+        : okMaior
+          ? '✓ Tamanho real ajustado pela maior medida (' + num(maiorP) + ' cm). As outras medidas seguem as proporções das fotos.'
+          : '⚠ O arquivo 3D não corresponde às medidas cadastradas. Em RA ele aparecerá com o tamanho do arquivo (' + dimTexto(m) + '). Ajuste o modelo ou as medidas.';
     } catch (e) {
       $('#viewer-dim-modelo').textContent = '—';
     }
@@ -649,7 +655,10 @@
   function renderAdmin() {
     var p = rascunho.padaria;
     var h =
-      '<div class="aviso-admin"><strong>Administração apenas local</strong>As alterações ficam salvas só neste navegador (localStorage). Não há login, senha nem sincronização entre aparelhos — qualquer pessoa com acesso a este aparelho pode editar. Não guarde dados sensíveis aqui.</div>' +
+      (servidor
+        ? '<div class="aviso-admin aviso-admin--ok"><strong>Publicação para todos os clientes</strong>Com o código de acesso correto, “Salvar alterações” publica o cardápio na nuvem e todos os clientes passam a ver a nova versão.</div>' +
+          campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Netlify (MENUREAL_CODIGO). Sem ele, as alterações ficam só neste aparelho.')
+        : '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Netlify para salvar na nuvem.</div>') +
       '<section class="secao-admin"><h3>Padaria</h3><div class="campos">' +
         campo('Nome da padaria', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
         campo('Descrição / slogan', '<input name="p-slogan" maxlength="90" value="' + esc(p.slogan) + '">') +
@@ -699,7 +708,9 @@
         campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
           'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
-        '<div class="linha-acoes"><button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
+        '<div class="linha-acoes">' +
+          (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
+          '<button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
       '</div></details>';
   }
 
@@ -774,10 +785,20 @@
     rascunho.produtos.forEach(function (x) { delete x._preco; });
     dados = validarDados(rascunho);
     var salvo = gravar(CHAVE_DADOS, dados);
+    var codigoAdmin = (($('#admin-codigo') || {}).value || '').trim();
+    if (codigoAdmin) guardarCodigo(codigoAdmin);
     salvarCarrinho();
     renderTudo();
     fecharDialogo($('#dlg-admin'));
-    toast(salvo ? 'Alterações salvas neste navegador' : 'Não foi possível salvar (armazenamento bloqueado). As alterações valem só até recarregar.');
+    if (!servidor || !codigoAdmin) {
+      toast(salvo ? 'Alterações salvas só neste aparelho' : 'Não foi possível salvar (armazenamento bloqueado). As alterações valem só até recarregar.');
+      return;
+    }
+    toast('Publicando para todos os clientes…');
+    fetch('api/cardapio', { method: 'PUT', headers: { 'content-type': 'application/json', 'x-menureal-codigo': codigoAdmin }, body: JSON.stringify(dados) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) { toast(res.ok ? 'Publicado: todos os clientes já veem a nova versão' : 'Salvo só neste aparelho: ' + (res.j.erro || 'erro ao publicar')); })
+      .catch(function () { toast('Salvo só neste aparelho: sem conexão com o servidor'); });
   });
 
   $('#admin-restaurar').addEventListener('click', function () {
@@ -793,6 +814,8 @@
   });
 
   $('#admin-corpo').addEventListener('click', function (e) {
+    var codAdmin = $('#admin-codigo');
+    if (codAdmin && codAdmin.value.trim()) guardarCodigo(codAdmin.value.trim());
     if (e.target.closest('#admin-foto')) {
       coletarAdmin();
       abrirLeitorFoto();
@@ -807,6 +830,12 @@
       renderAdmin();
       var d = $('details.prod[open]');
       if (d) { d.scrollIntoView({ block: 'center', behavior: reduzMovimento ? 'auto' : 'smooth' }); d.querySelector('[data-f="nome"]').select(); }
+      return;
+    }
+    var g3d = e.target.closest('[data-gerar-3d]');
+    if (g3d) {
+      coletarAdmin();
+      abrirGerador3D(Number(g3d.closest('details').getAttribute('data-i')));
       return;
     }
     var rem = e.target.closest('[data-remover-prod]');
@@ -951,7 +980,7 @@
 
   function lerFoto() {
     var codigo = ($('#foto-codigo') || {}).value || '';
-    if (!codigo.trim()) { renderFotoInicio('Digite o código de acesso.'); return; }
+    if (!codigo.trim()) { renderFotoInicio('Digite o código de acesso.'); $('#foto-codigo').focus(); return; }
     guardarCodigo(codigo.trim());
     foto.lendo = true;
     foto.controle = window.AbortController ? new AbortController() : null;
@@ -1104,6 +1133,162 @@
   });
   $('#dlg-foto').addEventListener('close', function () { if (foto.lendo && foto.controle) foto.controle.abort(); });
 
+  // ---------------------------------------------------------------------
+  // Gerar modelo 3D realista a partir de fotos (servidor + Meshy)
+  // ---------------------------------------------------------------------
+  var CHAVE_TAREFAS = 'menureal:tarefas3d';
+  var g3d = { i: null, fotos: [], timer: null, resultado: null };
+
+  function tarefas3d() { return ler(CHAVE_TAREFAS) || {}; }
+  function guardarTarefa(id, t) { var x = tarefas3d(); if (t) x[id] = t; else delete x[id]; gravar(CHAVE_TAREFAS, x); }
+  function produtoG3d() { return rascunho && rascunho.produtos[g3d.i]; }
+
+  function abrirGerador3D(i) {
+    g3d.i = i; g3d.fotos = []; g3d.resultado = null;
+    abrirDialogo($('#dlg-3d'));
+    var x = produtoG3d();
+    var pend = tarefas3d()[x.id];
+    if (pend) acompanharG3d(pend); else renderG3dInicio();
+  }
+
+  function renderG3dInicio(erro) {
+    var x = produtoG3d();
+    $('#g3d-corpo').innerHTML =
+      '<p class="g3d-prod"><strong>' + esc(x.nome) + '</strong> · medidas para a escala real: ' + esc(dimTexto(x.dim)) + '</p>' +
+      '<div class="foto-intro"><p>Tire de 1 a 4 fotos do produto <strong>real</strong>. A inteligência artificial monta o modelo 3D, e o site ajusta o tamanho pela maior medida cadastrada.</p>' +
+        '<ul class="dicas-foto"><li>1ª foto de frente; as outras dos lados ou de cima</li><li>Produto inteiro no quadro, sobre fundo liso e claro</li><li>Boa luz, sem sombra forte e sem outros objetos</li><li>Confira as medidas acima antes de gerar</li></ul></div>' +
+      '<div class="g3d-fotos">' +
+        g3d.fotos.map(function (f, k) {
+          return '<div class="g3d-foto"><img src="' + f.previa + '" alt="Foto ' + (k + 1) + '"><span>' + (k === 0 ? 'Frente' : 'Foto ' + (k + 1)) + '</span>' +
+            '<button type="button" class="g3d-tirar" data-tirar="' + k + '" aria-label="Remover foto ' + (k + 1) + '">×</button></div>';
+        }).join('') +
+        (g3d.fotos.length < 4 ? '<label class="g3d-add">' + ICONES.camera + '<span>' + (g3d.fotos.length ? 'Adicionar foto' : 'Tirar 1ª foto (frente)') + '</span>' +
+          '<input type="file" accept="image/*" id="g3d-arquivo" ' + (g3d.fotos.length ? 'multiple ' : '') + 'hidden></label>' : '') +
+      '</div>' +
+      campo('Código de acesso', '<input id="g3d-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">') +
+      '<p class="mini">Cada geração usa créditos da sua conta na Meshy e leva de 2 a 5 minutos.</p>' +
+      (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível gerar</strong>' + esc(erro) + '</div>' : '');
+    $('#g3d-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="g3d-gerar"' + (g3d.fotos.length ? '' : ' disabled') + '>Gerar modelo 3D</button>';
+  }
+
+  function renderG3dProgresso(pct, msg, erro) {
+    $('#g3d-corpo').innerHTML =
+      '<div class="lendo">' +
+        (g3d.fotos[0] ? '<img src="' + g3d.fotos[0].previa + '" alt="">' : '') +
+        '<div class="carregando">' + (erro ? '' : '<div class="spinner" aria-hidden="true"></div>') +
+          '<strong aria-live="polite">' + esc(msg) + '</strong>' +
+          '<div class="barra barra--larga"><i style="width:' + Math.max(3, pct) + '%"></i></div>' +
+          '<small>Leva de 2 a 5 minutos. Pode fechar esta janela: ao voltar neste produto, o acompanhamento continua.</small>' +
+        '</div>' +
+      '</div>' + (erro ? '<div class="ar-indisp" role="alert"><strong>Falha ao acompanhar</strong>' + esc(erro) + '</div>' : '');
+    $('#g3d-rodape').innerHTML = erro ? '<button class="btn btn--primario btn--bloco" type="button" id="g3d-retomar">Tentar de novo</button>' : '';
+  }
+
+  function iniciarG3d() {
+    var codigo = (($('#g3d-codigo') || {}).value || '').trim();
+    if (!codigo) { renderG3dInicio('Digite o código de acesso.'); $('#g3d-codigo').focus(); return; }
+    guardarCodigo(codigo);
+    var x = produtoG3d();
+    renderG3dProgresso(2, 'Enviando fotos…');
+    fetch('api/modelo-3d', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-menureal-codigo': codigo },
+      body: JSON.stringify({ imagens: g3d.fotos.map(function (f) { return f.base64; }) })
+    }).then(function (r) {
+      return r.json().catch(function () { return { erro: 'Servidor de modelos 3D não encontrado (' + r.status + ').' }; })
+        .then(function (j) { if (!r.ok || !j.tarefa) throw new Error(j.erro || 'Erro ' + r.status); return j; });
+    }).then(function (j) {
+      var pend = { tarefa: j.tarefa, dim: x.dim, inicio: Date.now() };
+      guardarTarefa(x.id, pend);
+      acompanharG3d(pend);
+    }).catch(function (e) {
+      renderG3dInicio(/failed to fetch|network|load failed/i.test(e.message) ? 'Sem conexão com o servidor. Tente de novo.' : e.message);
+    });
+  }
+
+  function acompanharG3d(pend) {
+    clearTimeout(g3d.timer);
+    var x = produtoG3d();
+    var idProd = x.id;
+    renderG3dProgresso(5, 'Gerando modelo 3D…');
+    function consultar() {
+      if (!$('#dlg-3d').open || !produtoG3d() || produtoG3d().id !== idProd) return;
+      var q = '?tarefa=' + encodeURIComponent(pend.tarefa) + '&produto=' + encodeURIComponent(slug(x.nome)) +
+        '&largura=' + pend.dim.largura + '&profundidade=' + pend.dim.profundidade + '&altura=' + pend.dim.altura;
+      fetch('api/modelo-3d' + q, { headers: { 'x-menureal-codigo': lerCodigo() }, cache: 'no-store' })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+        .then(function (j) {
+          if (j.status === 'SUCCEEDED') { guardarTarefa(idProd, null); g3d.resultado = j; renderG3dPronto(); return; }
+          if (j.status === 'FAILED' || j.status === 'CANCELED') { guardarTarefa(idProd, null); renderG3dInicio(j.erro || 'A geração falhou. Tente outras fotos.'); return; }
+          var pct = Math.min(97, j.progresso || 0);
+          renderG3dProgresso(pct, (j.status === 'PENDING' ? 'Na fila… ' : 'Gerando modelo 3D… ') + pct + '%');
+          g3d.timer = setTimeout(consultar, 5000);
+        })
+        .catch(function (e) {
+          renderG3dProgresso(0, 'Acompanhamento interrompido', /failed to fetch|network|load failed/i.test(e.message) ? 'Sem conexão. Verifique a internet.' : e.message);
+        });
+    }
+    consultar();
+  }
+
+  function renderG3dPronto() {
+    var r = g3d.resultado;
+    $('#g3d-corpo').innerHTML =
+      '<div class="g3d-previa"><model-viewer src="' + esc(r.url) + '" alt="Prévia do modelo 3D gerado" camera-controls touch-action="pan-y" ' +
+        (reduzMovimento ? '' : 'auto-rotate ') + 'shadow-intensity="1" environment-image="neutral" exposure="1.05"></model-viewer></div>' +
+      '<p class="escala ok">✓ Modelo pronto e guardado na nuvem. Medidas finais: ' +
+        esc(dimTexto({ largura: r.medidasCm[0], altura: r.medidasCm[1], profundidade: r.medidasCm[2] })) + ' (' + esc(String(r.tamanhoMb)) + ' MB).</p>' +
+      '<p class="mini">Gire a prévia para conferir. Se não ficou bom, gere de novo com fotos mais nítidas e fundo liso.</p>';
+    $('#g3d-rodape').innerHTML = '<div class="pilha"><button class="btn btn--primario btn--bloco" type="button" id="g3d-usar">Usar este modelo</button>' +
+      '<button class="btn btn--fantasma btn--bloco" type="button" id="g3d-refazer">Gerar de novo</button></div>';
+  }
+
+  $('#dlg-3d').addEventListener('change', function (e) {
+    if (e.target.id !== 'g3d-arquivo' || !e.target.files.length) return;
+    var arquivos = Array.prototype.slice.call(e.target.files, 0, 4 - g3d.fotos.length);
+    var cod = ($('#g3d-codigo') || {}).value;
+    if (cod) guardarCodigo(cod);
+    Promise.all(arquivos.map(function (a) { return reduzirImagem(a).catch(function () { return null; }); })).then(function (rs) {
+      rs.forEach(function (r) { if (r) g3d.fotos.push({ base64: r.base64, previa: r.dataUrl }); });
+      renderG3dInicio(rs.some(function (r) { return !r; }) ? 'Uma das fotos não abriu. Use JPG ou tire pela câmera.' : '');
+    });
+  });
+  $('#dlg-3d').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-tirar]');
+    if (t) { g3d.fotos.splice(Number(t.getAttribute('data-tirar')), 1); renderG3dInicio(); return; }
+    if (e.target.closest('#g3d-gerar')) { iniciarG3d(); return; }
+    if (e.target.closest('#g3d-retomar')) { var p = tarefas3d()[produtoG3d().id]; if (p) acompanharG3d(p); else renderG3dInicio(); return; }
+    if (e.target.closest('#g3d-refazer')) { g3d.resultado = null; renderG3dInicio(); return; }
+    if (e.target.closest('#g3d-usar')) {
+      var x = produtoG3d();
+      x.modelo = g3d.resultado.url;
+      x.ilustrativo = false;
+      abertoNoAdmin = x.id;
+      fecharDialogo($('#dlg-3d'));
+      renderAdmin();
+      toast('Modelo aplicado. Toque em “Salvar alterações” para publicar.');
+    }
+  });
+  $('#dlg-3d').addEventListener('close', function () { clearTimeout(g3d.timer); });
+
+  // Cardápio publicado na nuvem (site na Netlify com funções)
+  function carregarNuvem() {
+    if (location.protocol === 'file:' || MODELOS_EMBUTIDOS) return;
+    fetch('api/cardapio', { cache: 'no-store' }).then(function (r) {
+      var ehJson = /json/.test(r.headers.get('content-type') || '');
+      if (!ehJson) return null;
+      servidor = true;
+      return r.ok ? r.json() : null;
+    }).then(function (d) {
+      var v = d && validarDados(d);
+      if (!v || JSON.stringify(v) === JSON.stringify(dados)) return;
+      dados = v;
+      gravar(CHAVE_DADOS, dados);
+      salvarCarrinho();
+      renderTudo();
+    }).catch(function () { /* sem servidor: segue com os dados locais */ });
+  }
+
   // Confirmação dentro da página (não usa window.confirm, que alguns
   // ambientes incorporados bloqueiam)
   function confirmar(msg, rotulo) {
@@ -1183,6 +1368,7 @@
   // Início
   // ---------------------------------------------------------------------
   renderTudo();
+  carregarNuvem();
   setInterval(renderCabecalho, 60000);
 
   carregarModelViewer().then(function (ok) {
