@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MenuReal AR — Padaria Sabor da Vila</title>
   <meta name="description" content="Cardápio digital com visualização 3D e realidade aumentada. Veja antes de pedir.">
@@ -396,6 +397,7 @@ body.travado { overflow: hidden; }
 .painel__corpo { flex: 1; overflow-y: auto; padding: 16px; }
 .painel__rodape { border-top: 1px solid var(--linha); padding: 14px 16px calc(14px + env(safe-area-inset-bottom)); background: var(--papel); }
 .painel__rodape--admin { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; }
+.painel__rodape--admin.um { grid-template-columns: 1fr; }
 
 .item { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; padding: 14px 0; border-bottom: 1px solid var(--linha); }
 .item:first-child { padding-top: 0; }
@@ -538,6 +540,41 @@ model-viewer.sem-medidas .med-ponto, model-viewer.sem-medidas .med-rotulo, model
 .med-alternar svg { width: 18px; height: 18px; }
 .med-alternar[aria-pressed="true"] { background: var(--verde); border-color: var(--verde); color: var(--papel); }
 
+/* -------------------- Tamanhos, alérgenos, contas ------------------ */
+.card__preco small { display: block; font-size: 11px; font-weight: 700; color: var(--tinta-2); text-align: right; }
+.card__tams { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.card__tams span { font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 999px; background: var(--creme); border: 1px solid var(--linha); }
+.card__alerg { margin: 0; font-size: 12.5px; color: var(--alerta-tinta); }
+.tamanhos { display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px; }
+.tam { display: grid; gap: 1px; text-align: left; padding: 10px 12px; border-radius: 14px; border: 1.5px solid var(--linha); background: var(--papel); color: var(--tinta); min-height: 64px; }
+.tam strong { font-size: 15px; }
+.tam span { font-weight: 800; font-size: 13.5px; }
+.tam small { font-size: 11.5px; color: var(--tinta-2); }
+.tam[aria-pressed="true"] { border-color: var(--verde); background: var(--limao-suave); box-shadow: 0 0 0 2px var(--verde) inset; }
+.viewer__info { margin: 0; display: grid; gap: 8px; font-size: 14px; }
+.viewer__info dt { font-weight: 800; font-size: 12.5px; color: var(--tinta-2); text-transform: uppercase; letter-spacing: .06em; }
+.viewer__info dd { margin: 2px 0 0; }
+.viewer__info .alerg dd { color: var(--alerta-tinta); font-weight: 700; }
+.alerg-admin, .tams-admin { border: 1px solid var(--linha); border-radius: 14px; padding: 10px 12px; margin: 0; display: grid; gap: 10px; }
+.alerg-admin legend, .tams-admin legend { padding: 0 4px; font-weight: 800; color: var(--tinta); }
+.alerg-admin .checar { min-height: 36px; font-size: 13.5px; }
+.tam-linha { border-top: 1px dashed var(--linha-forte); padding-top: 10px; display: grid; gap: 8px; }
+.tam-rodape { display: flex; justify-content: space-between; align-items: center; }
+.combo-btn { margin-top: 14px; }
+#form-admin.so-login .painel__rodape { display: none; }
+.login { display: grid; gap: 14px; max-width: 420px; }
+.login p { margin: 0; color: var(--tinta-2); }
+.login .login__loja { font-family: var(--fonte-titulo); font-size: 22px; font-weight: 650; color: var(--tinta); }
+.conta { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.conta strong { display: block; }
+.lojas { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.lojas li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--linha); border-radius: 12px; }
+.lojas li div { min-width: 0; }
+.lojas strong, .lojas small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.lojas small { color: var(--tinta-2); font-size: 12.5px; }
+.nova-loja { display: grid; gap: 10px; border: 1px solid var(--linha); border-radius: 14px; padding: 12px; }
+.nova-loja h4 { margin: 0; font-size: 15px; }
+
 /* ------------------------------ Toast ----------------------------- */
 .toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); z-index: 200;
@@ -615,7 +652,7 @@ model-viewer.sem-medidas .med-ponto, model-viewer.sem-medidas .med-rotulo, model
     <p class="resultado" id="resultado" aria-live="polite"></p>
     <section class="grade" id="grade" aria-label="Produtos"></section>
 
-    <section class="nota" aria-labelledby="nota-titulo">
+    <section class="nota" id="nota-demo" aria-labelledby="nota-titulo">
       <h2 id="nota-titulo">Sobre esta demonstração</h2>
       <p>Preços, medidas e modelos 3D são <strong>demonstrativos</strong>. Os modelos são ilustrações originais, criadas no tamanho das medidas cadastradas — não são digitalizações de alimentos reais.</p>
       <p>A realidade aumentada depende do aparelho e do navegador: Android com Chrome e Google Play Services para RA, ou iPhone/iPad com Safari. Em computadores, a visualização 3D continua disponível.</p>
@@ -646,6 +683,7 @@ model-viewer.sem-medidas .med-ponto, model-viewer.sem-medidas .med-rotulo, model
       </div>
 
       <div class="viewer__painel">
+        <div class="tamanhos" id="viewer-tamanhos" role="group" aria-label="Tamanho" hidden></div>
         <div class="abas" role="tablist" aria-label="Modo de visualização">
           <button class="aba" role="tab" id="aba-3d" aria-selected="true" aria-controls="painel-3d" type="button">Ver em 3D</button>
           <button class="aba" role="tab" id="aba-ar" aria-selected="false" aria-controls="painel-ar" type="button">Ver em tamanho real</button>
@@ -659,6 +697,7 @@ model-viewer.sem-medidas .med-ponto, model-viewer.sem-medidas .med-rotulo, model
           </dl>
           <p class="escala" id="viewer-escala" hidden></p>
           <p class="viewer__desc" id="viewer-desc"></p>
+          <dl class="viewer__info" id="viewer-info" hidden></dl>
         </div>
 
         <div id="painel-ar" role="tabpanel" aria-labelledby="aba-ar" hidden>
@@ -1906,9 +1945,19 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     'https://cdn.jsdelivr.net/npm/@google/model-viewer@' + MV_VERSAO + '/dist/model-viewer.min.js',
     new URL('vendor/model-viewer.min.js', document.baseURI).href
   ];
-  var CHAVE_DADOS = 'menureal:dados:v1';
-  var CHAVE_CARRINHO = 'menureal:carrinho:v1';
-  var CATEGORIAS = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
+  // Endereço do estabelecimento: https://site/<loja>  ('' = demonstração na página inicial)
+  var LOJA = (function () {
+    var s = decodeURIComponent(location.pathname).replace(/^\/+|\/+$/g, '').toLowerCase();
+    return /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(s) ? s : '';
+  })();
+  var SUFIXO = LOJA ? ':' + LOJA : '';
+  var CHAVE_DADOS = 'menureal:dados:v1' + SUFIXO;
+  var CHAVE_CARRINHO = 'menureal:carrinho:v1' + SUFIXO;
+  var CHAVE_TOKEN = 'menureal:token' + SUFIXO;
+  var CATEGORIAS_PADRAO = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
+  var CATEGORIAS = CATEGORIAS_PADRAO.slice();
+  // Alérgenos de declaração obrigatória no Brasil (RDC Anvisa 26/2015), agrupados
+  var ALERGENOS = ['Glúten', 'Leite', 'Ovos', 'Soja', 'Amendoim', 'Castanhas e nozes', 'Peixes', 'Crustáceos', 'Látex natural'];
   var DIAS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   var TOLERANCIA_ESCALA = 0.05; // 5% de diferença aceitável entre arquivo e cadastro
 
@@ -1999,7 +2048,9 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   // ---------------------------------------------------------------------
   // Estado
   // ---------------------------------------------------------------------
-  var dados = validarDados(ler(CHAVE_DADOS)) || clonar(PADRAO);
+  var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
+  var dados = validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO)));
+  CATEGORIAS = dados.categorias;
   var carrinho = ler(CHAVE_CARRINHO) || {};
   var filtro = { cat: 'Todos', q: '' };
   var mvStatus = 'carregando'; // 'carregando' | 'ok' | 'falhou'
@@ -2017,25 +2068,68 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       dias: Array.isArray(p.dias) ? p.dias.filter(function (x) { return x >= 0 && x <= 6; }) : PADRAO.padaria.dias.slice(),
       whatsapp: String(p.whatsapp || '').replace(/\D/g, '')
     };
+    var categorias = [];
+    (Array.isArray(d.categorias) ? d.categorias : CATEGORIAS_PADRAO).forEach(function (c) {
+      c = String(c || '').trim().slice(0, 40);
+      if (c && categorias.indexOf(c) < 0 && categorias.length < 20) categorias.push(c);
+    });
+    if (!categorias.length) categorias = CATEGORIAS_PADRAO.slice();
+    function lerDimObj(dim) {
+      dim = dim || {};
+      return { largura: Number(dim.largura) || 1, profundidade: Number(dim.profundidade) || 1, altura: Number(dim.altura) || 1 };
+    }
     var ids = {};
     var produtos = d.produtos.filter(function (x) { return x && x.nome; }).map(function (x) {
       var id = String(x.id || slug(x.nome));
       while (ids[id]) id += '-2';
       ids[id] = 1;
-      var dim = x.dim || {};
+      var cat = String(x.categoria || '').trim() || categorias[0];
+      if (categorias.indexOf(cat) < 0) categorias.push(cat);
+      var tids = {};
       return {
         id: id,
         nome: String(x.nome),
-        categoria: CATEGORIAS.indexOf(x.categoria) > -1 ? x.categoria : 'Salgados',
+        categoria: cat,
         preco: Math.max(0, Number(x.preco) || 0),
         descricao: String(x.descricao || ''),
-        dim: { largura: Number(dim.largura) || 1, profundidade: Number(dim.profundidade) || 1, altura: Number(dim.altura) || 1 },
+        dim: lerDimObj(x.dim),
         modelo: String(x.modelo || ''),
-        ilustrativo: x.ilustrativo !== false
+        ilustrativo: x.ilustrativo !== false,
+        ingredientes: String(x.ingredientes || '').slice(0, 600),
+        alergenos: (Array.isArray(x.alergenos) ? x.alergenos : []).filter(function (a) { return ALERGENOS.indexOf(a) > -1; }),
+        tamanhos: (Array.isArray(x.tamanhos) ? x.tamanhos : []).filter(function (t) { return t && t.nome; }).slice(0, 8).map(function (t) {
+          var tid = String(t.id || slug(t.nome));
+          while (tids[tid]) tid += '-2';
+          tids[tid] = 1;
+          return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
+        })
       };
     });
-    return { padaria: padaria, produtos: produtos };
+    return { padaria: padaria, categorias: categorias, produtos: produtos };
   }
+
+  // Produto com o tamanho escolhido aplicado (preço, medidas e modelo do tamanho)
+  function efetivo(p, tamId) {
+    var t = null;
+    (p.tamanhos || []).forEach(function (x) { if (x.id === tamId) t = x; });
+    if (!t) return { p: p, t: null, preco: p.preco, dim: p.dim, modelo: p.modelo, nome: p.nome };
+    return { p: p, t: t, preco: t.preco, dim: t.dim, modelo: t.modelo || p.modelo, nome: p.nome + ' (' + t.nome + ')' };
+  }
+  function precoMinimo(p) {
+    if (!p.tamanhos || !p.tamanhos.length) return p.preco;
+    return Math.min.apply(null, p.tamanhos.map(function (t) { return t.preco; }));
+  }
+
+  // Credenciais para o servidor: conta da loja (token) ou código mestre
+  function lerTokenLoja() { try { return localStorage.getItem(CHAVE_TOKEN) || ''; } catch (e) { return ''; } }
+  function credenciais() {
+    var t = LOJA && lerTokenLoja();
+    if (t) return { authorization: 'Bearer ' + t };
+    var c = lerCodigo();
+    return c ? { 'x-menureal-codigo': c } : null;
+  }
+  function comLoja(url) { return LOJA ? url + (url.indexOf('?') > -1 ? '&' : '?') + 'loja=' + encodeURIComponent(LOJA) : url; }
+  function cabecalhos(extra) { return Object.assign({ 'content-type': 'application/json' }, credenciais() || {}, extra || {}); }
 
   function produtoPorId(id) {
     for (var i = 0; i < dados.produtos.length; i++) if (dados.produtos[i].id === id) return dados.produtos[i];
@@ -2088,7 +2182,9 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     $('#nome-padaria').textContent = p.nome;
     $('#slogan-padaria').textContent = p.slogan;
     document.title = 'MenuReal AR — ' + p.nome;
-    $('#horario-texto').textContent = diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + ' (horário demonstrativo)';
+    $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
+    var nota = $('#nota-demo');
+    if (nota) nota.hidden = !!LOJA;
     var agora = new Date();
     var min = agora.getHours() * 60 + agora.getMinutes();
     function m(h) { var x = h.split(':'); return Number(x[0]) * 60 + Number(x[1]); }
@@ -2117,7 +2213,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     return dados.produtos.filter(function (p) {
       if (filtro.cat !== 'Todos' && p.categoria !== filtro.cat) return false;
       if (!q) return true;
-      return semAcento(p.nome + ' ' + p.descricao + ' ' + p.categoria).indexOf(q) > -1;
+      return semAcento(p.nome + ' ' + p.descricao + ' ' + p.categoria + ' ' + (p.ingredientes || '')).indexOf(q) > -1;
     });
   }
 
@@ -2126,14 +2222,17 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     var corpo =
       '<div class="card__corpo">' +
         '<div class="card__linha"><div><p class="card__cat">' + esc(p.categoria) + '</p><h3 class="card__nome">' + esc(p.nome) + '</h3></div>' +
-        '<span class="card__preco">' + brl(p.preco) + '</span></div>' +
+        '<span class="card__preco">' + (p.tamanhos && p.tamanhos.length ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span></div>' +
         (p.descricao ? '<p class="card__desc">' + esc(p.descricao) + '</p>' : '') +
+        (p.tamanhos && p.tamanhos.length ? '<p class="card__tams">' + p.tamanhos.map(function (t) { return '<span>' + esc(t.nome) + '</span>'; }).join('') + '</p>' : '') +
+        (p.alergenos && p.alergenos.length ? '<p class="card__alerg"><strong>Contém:</strong> ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
         '<div class="card__acoes">' +
           (temModelo
             ? '<button class="btn btn--sec btn--p" type="button" data-acao="3d">' + ICONES.cubo + 'Ver em 3D</button>' +
               '<button class="btn btn--contorno btn--p" type="button" data-acao="ar">' + ICONES.ar + 'Ver em tamanho real</button>'
             : '') +
-          '<button class="btn btn--primario" type="button" data-acao="add">' + ICONES.mais + 'Adicionar ao pedido</button>' +
+          '<button class="btn btn--primario" type="button" data-acao="' + (p.tamanhos && p.tamanhos.length ? 'escolher' : 'add') + '">' + ICONES.mais +
+            (p.tamanhos && p.tamanhos.length ? 'Escolher tamanho' : 'Adicionar ao pedido') + '</button>' +
         '</div>' +
       '</div>';
     // Produto sem modelo 3D: card compacto, só com texto e botão de pedido
@@ -2272,21 +2371,46 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     }
   }
 
+  var tamAtual = null;
+
   function abrirViewer(id, modo) {
     var p = produtoPorId(id);
     if (!p) return;
-    produtoAtual = p;
+    tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[0].id : null;
+    abrirViewerProduto(p, modo);
+  }
+
+  function preencherTextosViewer(p) {
+    var ef = p.combo ? { preco: p.preco, dim: p.dim } : efetivo(p, tamAtual);
     $('#viewer-cat').textContent = p.categoria + (p.ilustrativo ? ' · modelo ilustrativo' : '');
     $('#viewer-nome').textContent = p.nome;
-    $('#viewer-preco').textContent = brl(p.preco);
-    $('#viewer-dim').textContent = dimTexto(p.dim);
-    $('#viewer-dim-modelo').textContent = 'calculando…';
+    $('#viewer-preco').textContent = brl(ef.preco);
+    $('#viewer-dim').textContent = p.combo ? 'itens lado a lado' : dimTexto(ef.dim);
     $('#viewer-desc').textContent = p.descricao;
+    var tams = $('#viewer-tamanhos');
+    tams.hidden = !(p.tamanhos && p.tamanhos.length);
+    tams.innerHTML = (p.tamanhos || []).map(function (t) {
+      return '<button type="button" class="tam" data-tam="' + esc(t.id) + '" aria-pressed="' + (t.id === tamAtual) + '">' +
+        '<strong>' + esc(t.nome) + '</strong><span>' + brl(t.preco) + '</span><small>' + esc(dimTexto(t.dim)) + '</small></button>';
+    }).join('');
+    var info = '';
+    if (p.ingredientes) info += '<div><dt>Ingredientes</dt><dd>' + esc(p.ingredientes) + '</dd></div>';
+    if (p.alergenos && p.alergenos.length) info += '<div class="alerg"><dt>Alérgicos</dt><dd>Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '.</dd></div>';
+    $('#viewer-info').innerHTML = info;
+    $('#viewer-info').hidden = !info;
+    var add = $('#viewer-add');
+    add.hidden = !!p.combo;
+    add.classList.remove('feito');
+    add.textContent = 'Adicionar ao pedido · ' + brl(ef.preco);
+  }
+
+  function abrirViewerProduto(p, modo) {
+    produtoAtual = p;
+    preencherTextosViewer(p);
+    $('#viewer-dim-modelo').textContent = 'calculando…';
     $('#viewer-escala').hidden = true;
     $('#ar-indisp').hidden = true;
-    var add = $('#viewer-add');
-    add.classList.remove('feito');
-    add.textContent = 'Adicionar ao pedido · ' + brl(p.preco);
+    var ef = p.combo ? { modelo: p.modelo, dim: p.dim } : efetivo(p, tamAtual);
 
     var antigo = palco.querySelector('model-viewer');
     if (antigo) antigo.remove();
@@ -2300,16 +2424,17 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       atualizarAvisoAR();
       return;
     }
-    if (!p.modelo) {
-      estadoPalco('<div class="caixa-erro"><strong>Este produto ainda não tem modelo 3D</strong>Defina o caminho do arquivo .glb no painel administrativo.</div>', true);
+    if (!ef.modelo) {
+      estadoPalco('<div class="caixa-erro"><strong>Sem visualização 3D</strong>Este produto ainda não tem modelo 3D. ' +
+        (p.tamanhos && p.tamanhos.length ? 'Escolha o tamanho abaixo e adicione ao pedido.' : 'Você pode adicioná-lo ao pedido normalmente.') + '</div>', true);
       $('#viewer-dim-modelo').textContent = '—';
       return;
     }
 
     var mv = document.createElement('model-viewer');
     var attrs = {
-      src: urlModelo(p.modelo),
-      alt: 'Modelo 3D ilustrativo de ' + p.nome + ', ' + dimTexto(p.dim),
+      src: urlModelo(ef.modelo),
+      alt: 'Modelo 3D de ' + p.nome + (p.combo ? '' : ', ' + dimTexto(ef.dim)),
       ar: '',
       // Scene Viewer primeiro: no Android ele fixa o objeto na mesa com mais estabilidade
       // Com medidas ligadas, a RA abre dentro do Chrome (WebXR), único modo que mostra as etiquetas
@@ -2345,13 +2470,17 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     mv.addEventListener('load', function () {
       estadoPalco('');
       posicionarMedidas(mv);
-      conferirEscala(mv, p);
+      if (p.combo) {
+        try { var dc = mv.getDimensions(); $('#viewer-dim-modelo').textContent = dimTexto({ largura: dc.x * 100, altura: dc.y * 100, profundidade: dc.z * 100 }); } catch (e2) { /* ignora */ }
+      } else {
+        conferirEscala(mv, { dim: efetivo(p, tamAtual).dim });
+      }
       atualizarAvisoAR();
     });
     mv.addEventListener('error', function () {
       estadoPalco('<div class="caixa-erro"><strong>Não foi possível carregar o modelo 3D</strong>' +
         'Confira se o arquivo existe e se a página está sendo servida por um servidor (não abra o index.html direto do disco).<br><br>' +
-        'Arquivo: <code>' + esc(p.modelo) + '</code></div>', true);
+        'Arquivo: <code>' + esc(ef.modelo) + '</code></div>', true);
       $('#viewer-dim-modelo').textContent = '—';
       $('#ar-indisp').hidden = false;
       $('#ar-indisp').innerHTML = '<strong>Realidade aumentada indisponível</strong>O modelo 3D deste produto não carregou.';
@@ -2479,13 +2608,28 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       (ar ? $('#aba-3d') : $('#aba-ar')).focus();
     }
   });
+  $('#viewer-tamanhos').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tam]');
+    if (!b || !produtoAtual) return;
+    var antes = efetivo(produtoAtual, tamAtual).modelo;
+    tamAtual = b.getAttribute('data-tam');
+    var ef = efetivo(produtoAtual, tamAtual);
+    preencherTextosViewer(produtoAtual);
+    var mv = palco.querySelector('model-viewer');
+    if (ef.modelo !== antes || !mv) {
+      abrirViewerProduto(produtoAtual, $('#aba-ar').getAttribute('aria-selected') === 'true' ? 'ar' : '3d');
+    } else {
+      conferirEscala(mv, { dim: ef.dim });
+    }
+  });
+
   $('#viewer-add').addEventListener('click', function () {
-    if (!produtoAtual) return;
-    adicionar(produtoAtual.id);
+    if (!produtoAtual || produtoAtual.combo) return;
+    adicionar(produtoAtual.id, tamAtual);
     var b = this;
     b.classList.add('feito');
     b.textContent = 'Adicionado ✓';
-    setTimeout(function () { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(produtoAtual.preco); }, 1400);
+    setTimeout(function () { if (produtoAtual) { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(efetivo(produtoAtual, tamAtual).preco); } }, 1400);
   });
   dlgViewer.addEventListener('close', function () {
     cancelAnimationFrame(quadroMedidas);
@@ -2498,14 +2642,25 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   // ---------------------------------------------------------------------
   // Carrinho
   // ---------------------------------------------------------------------
+  // chave do carrinho: "idProduto" ou "idProduto|idTamanho"
+  function itemDaChave(k) {
+    var partes = k.split('|');
+    var p = produtoPorId(partes[0]);
+    if (!p) return null;
+    var temTams = p.tamanhos && p.tamanhos.length;
+    if (temTams && !partes[1]) return null;
+    var ef = efetivo(p, partes[1]);
+    if (partes[1] && !ef.t) return null;
+    return { chave: k, p: { id: k, nome: ef.nome, preco: ef.preco, modelo: ef.modelo } };
+  }
   function itensCarrinho() {
-    return Object.keys(carrinho).map(function (id) {
-      var p = produtoPorId(id);
-      return p && carrinho[id] > 0 ? { p: p, qtd: carrinho[id] } : null;
+    return Object.keys(carrinho).map(function (k) {
+      var it = itemDaChave(k);
+      return it && carrinho[k] > 0 ? { p: it.p, qtd: carrinho[k] } : null;
     }).filter(Boolean);
   }
   function salvarCarrinho() {
-    Object.keys(carrinho).forEach(function (id) { if (!produtoPorId(id) || carrinho[id] <= 0) delete carrinho[id]; });
+    Object.keys(carrinho).forEach(function (k) { if (!itemDaChave(k) || carrinho[k] <= 0) delete carrinho[k]; });
     gravar(CHAVE_CARRINHO, carrinho);
     atualizarContador();
   }
@@ -2521,13 +2676,14 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     if (pular) { c.classList.remove('pulo'); void c.offsetWidth; c.classList.add('pulo'); }
   }
 
-  function adicionar(id) {
+  function adicionar(id, tamId) {
     var p = produtoPorId(id);
     if (!p) return;
-    carrinho[id] = (carrinho[id] || 0) + 1;
+    var k = tamId ? id + '|' + tamId : id;
+    carrinho[k] = (carrinho[k] || 0) + 1;
     salvarCarrinho();
     atualizarContador(true);
-    toast(p.nome + ' adicionado ao pedido');
+    toast(efetivo(p, tamId).nome + ' adicionado ao pedido');
     if ($('#dlg-carrinho').open) renderCarrinho();
   }
 
@@ -2551,7 +2707,11 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
           '<button class="link-remover" type="button" data-remover>Remover</button>' +
         '</div></div>';
     }).join('') +
-      '<label class="campo" style="margin-top:14px">Observações (opcional)<textarea class="obs" id="obs" maxlength="280" placeholder="Ex.: sem azeitona na empada">' + esc(sessionObs) + '</textarea></label>';
+      '<label class="campo" style="margin-top:14px">Observações (opcional)<textarea class="obs" id="obs" maxlength="280" placeholder="Ex.: sem azeitona na empada">' + esc(sessionObs) + '</textarea></label>' +
+      (itensCom3d().length >= 2
+        ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + 'Ver o pedido na mesa (3D)</button>' +
+          '<p class="mini">Mostra os itens do pedido juntos, lado a lado, no tamanho real.</p>'
+        : '');
     var total = totalCarrinho();
     rodape.innerHTML =
       '<div class="totais"><div><span>Itens</span><span>' + qtdCarrinho() + '</span></div>' +
@@ -2560,12 +2720,41 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   }
   var sessionObs = '';
 
+  // Combo na mesa: até 8 unidades do pedido com modelo 3D
+  function itensCom3d() {
+    var urls = [];
+    itensCarrinho().forEach(function (i) {
+      if (!i.p.modelo || MODELOS_EMBUTIDOS) return;
+      for (var k = 0; k < i.qtd && urls.length < 8; k++) urls.push(i.p.modelo);
+    });
+    return urls;
+  }
+  function verCombo(botao) {
+    var urls = itensCom3d();
+    if (urls.length < 2) return;
+    if (!servidor) { toast('O combo em 3D funciona no site publicado na Netlify.'); return; }
+    botao.disabled = true;
+    botao.textContent = 'Montando seu pedido em 3D…';
+    fetch('api/combo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ itens: urls }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        var nomes = itensCarrinho().map(function (i) { return i.qtd + 'x ' + i.p.nome; }).join(' · ');
+        fecharDialogo($('#dlg-carrinho'));
+        tamAtual = null;
+        setTimeout(function () {
+          abrirViewerProduto({ id: '__combo', combo: true, nome: 'Seu pedido', categoria: 'Pedido completo', preco: totalCarrinho(),
+            descricao: nomes + (urls.length < qtdCarrinho() ? ' (itens sem 3D ficam de fora)' : ''), dim: null, modelo: j.url, ilustrativo: false }, '3d');
+        }, 150);
+      })
+      .catch(function (e) { botao.disabled = false; botao.innerHTML = ICONES.ar + 'Ver o pedido na mesa (3D)'; toast(e.message); });
+  }
+
   function resumoPedido() {
     var linhas = ['Pedido — ' + dados.padaria.nome, ''];
     itensCarrinho().forEach(function (i) { linhas.push(i.qtd + 'x ' + i.p.nome + ' — ' + brl(i.p.preco * i.qtd)); });
     linhas.push('', 'Total: ' + brl(totalCarrinho()));
     if (sessionObs.trim()) linhas.push('Obs.: ' + sessionObs.trim());
-    linhas.push('', '(Pedido demonstrativo gerado pelo MenuReal AR)');
+    linhas.push('', '(Pedido feito pelo cardápio MenuReal AR)');
     return linhas.join('\n');
   }
 
@@ -2575,10 +2764,10 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     $('#carrinho-corpo').innerHTML =
       '<div class="confirmacao">' +
         '<div class="confirmacao__selo">' + ICONES.ok + '</div>' +
-        '<h3>Pedido demonstrativo</h3>' +
-        '<p>Esta é uma versão de demonstração: <strong>o pedido não foi enviado à padaria e nenhum pagamento foi processado</strong>. Confira o resumo:</p>' +
+        '<h3>Resumo do pedido</h3>' +
+        '<p>Confira o resumo. <strong>O pedido ainda não foi enviado</strong> e nenhum pagamento foi processado' + (zap ? ': envie pelo WhatsApp abaixo.' : '.') + '</p>' +
         '<div class="resumo">' + esc(resumo) + '</div>' +
-        (zap ? '' : '<p class="mini">Integração com WhatsApp: cadastre o número da padaria no painel administrativo para enviar este resumo por mensagem.</p>') +
+        (zap ? '' : '<p class="mini">Para enviar o pedido por WhatsApp, o estabelecimento precisa cadastrar o número no painel administrativo.</p>') +
       '</div>';
     $('#carrinho-rodape').innerHTML = '<div class="pilha">' +
       (zap ? '<a class="btn btn--primario btn--bloco" target="_blank" rel="noopener" href="https://wa.me/' + esc(zap) + '?text=' + encodeURIComponent(resumo) + '">Enviar resumo pelo WhatsApp</a>' : '') +
@@ -2606,6 +2795,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       renderCarrinho();
       return;
     }
+    if (e.target.closest('#ver-combo')) { verCombo(e.target.closest('#ver-combo')); return; }
     if (e.target.closest('#finalizar')) { renderConfirmacao(); return; }
     if (e.target.closest('#voltar-pedido')) { renderCarrinho(); return; }
     if (e.target.closest('#novo-pedido')) {
@@ -2627,15 +2817,54 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     return '<label class="campo">' + rotulo + html + (ajuda ? '<small>' + ajuda + '</small>' : '') + '</label>';
   }
 
+  function renderLogin(erro) {
+    $('#form-admin').classList.add('so-login');
+    $('#admin-corpo').innerHTML =
+      '<div class="login">' +
+        '<p class="login__loja">' + esc(dados.padaria.nome) + '</p>' +
+        '<p>Entre com o e-mail e a senha do estabelecimento para editar este cardápio.</p>' +
+        campo('E-mail', '<input id="login-email" type="email" autocomplete="username" maxlength="120">') +
+        campo('Senha', '<input id="login-senha" type="password" autocomplete="current-password" maxlength="120">') +
+        (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
+        '<button class="btn btn--primario btn--bloco" type="button" id="login-entrar">Entrar</button>' +
+        '<p class="mini">Esqueceu a senha? Fale com quem criou a sua conta no MenuReal.</p>' +
+      '</div>';
+    setTimeout(function () { var el = $('#login-email'); if (el) el.focus(); }, 50);
+  }
+
+  function entrar() {
+    var email = $('#login-email').value.trim(), senha = $('#login-senha').value;
+    if (!email || !senha) { renderLogin('Preencha e-mail e senha.'); return; }
+    $('#login-entrar').disabled = true;
+    fetch('api/entrar', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: email, senha: senha }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (e) { /* ignora */ }
+        if (j.slug !== LOJA) { location.href = '/' + j.slug; return; }
+        rascunho = clonar(dados);
+        renderAdmin();
+        toast('Bem-vindo, ' + j.nome);
+      })
+      .catch(function (e) { renderLogin(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
+  }
+
   function renderAdmin() {
+    $('#admin-restaurar').hidden = !!LOJA;
+    $('.painel__rodape--admin').classList.toggle('um', !!LOJA);
+    if (servidor && LOJA && !lerTokenLoja()) { renderLogin(); return; }
+    $('#form-admin').classList.remove('so-login');
     var p = rascunho.padaria;
     var h =
-      (servidor
-        ? '<div class="aviso-admin aviso-admin--ok"><strong>Publicação para todos os clientes</strong>Com o código de acesso correto, “Salvar alterações” publica o cardápio na nuvem e todos os clientes passam a ver a nova versão.</div>' +
-          campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Netlify (MENUREAL_CODIGO). Sem ele, as alterações ficam só neste aparelho.')
-        : '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Netlify para salvar na nuvem.</div>') +
-      '<section class="secao-admin"><h3>Padaria</h3><div class="campos">' +
-        campo('Nome da padaria', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
+      (!servidor
+        ? '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Netlify para salvar na nuvem.</div>'
+        : LOJA
+          ? '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>“Salvar alterações” publica o cardápio para todos os clientes.</span>' +
+              '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>'
+          : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita o cardápio de demonstração e cria as contas dos estabelecimentos clientes.</div>' +
+            campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Netlify (MENUREAL_CODIGO).') +
+            '<section class="secao-admin"><h3>Estabelecimentos clientes</h3><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver e criar estabelecimentos</button></div></section>') +
+      '<section class="secao-admin"><h3>Estabelecimento</h3><div class="campos">' +
+        campo('Nome do estabelecimento', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
         campo('Descrição / slogan', '<input name="p-slogan" maxlength="90" value="' + esc(p.slogan) + '">') +
         '<div class="campos campos--2">' +
           campo('Abre às', '<input type="time" name="p-abre" value="' + esc(p.abre) + '">') +
@@ -2646,8 +2875,10 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
             return '<label class="checar" style="min-height:auto"><input type="checkbox" name="p-dia" value="' + i + '"' + (p.dias.indexOf(i) > -1 ? ' checked' : '') + '>' + d + '</label>';
           }).join('') +
         '</div></fieldset>' +
-        campo('WhatsApp da padaria (opcional)', '<input name="p-zap" inputmode="numeric" maxlength="15" placeholder="Somente números, com DDI e DDD" value="' + esc(p.whatsapp) + '">',
-          'Deixe vazio para desativar. Use o número comercial real da padaria; nada é enviado automaticamente.') +
+        campo('WhatsApp para pedidos (opcional)', '<input name="p-zap" inputmode="numeric" maxlength="15" placeholder="Somente números, com DDI e DDD" value="' + esc(p.whatsapp) + '">',
+          'Deixe vazio para desativar. O cliente envia o resumo do pedido para este número.') +
+        campo('Categorias do cardápio', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">',
+          'Separe por vírgulas, na ordem em que devem aparecer. Ex.: Bolos, Tortas, Doces, Bebidas.') +
       '</div></section>' +
       '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
         '<button class="btn btn--contorno btn--bloco destaque-foto" type="button" id="admin-foto">' + ICONES.camera +
@@ -2670,11 +2901,17 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
         campo('Nome', '<input data-f="nome" required maxlength="60" value="' + esc(x.nome) + '">') +
         '<div class="campos campos--2">' +
           campo('Preço (R$)', '<input data-f="preco" inputmode="decimal" value="' + esc(x.preco.toFixed(2).replace('.', ',')) + '">') +
-          campo('Categoria', '<select data-f="categoria">' + CATEGORIAS.map(function (c) {
+          campo('Categoria', '<select data-f="categoria">' + rascunho.categorias.map(function (c) {
             return '<option' + (c === x.categoria ? ' selected' : '') + '>' + c + '</option>';
           }).join('') + '</select>') +
         '</div>' +
         campo('Descrição', '<textarea data-f="descricao" maxlength="240">' + esc(x.descricao) + '</textarea>') +
+        campo('Ingredientes', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: farinha de trigo, frango, requeijão, cebola">' + esc(x.ingredientes) + '</textarea>') +
+        '<fieldset class="campo alerg-admin"><legend>Contém (alérgicos)</legend><div class="linha-acoes">' +
+          ALERGENOS.map(function (a) {
+            return '<label class="checar"><input type="checkbox" data-alerg="' + esc(a) + '"' + (x.alergenos.indexOf(a) > -1 ? ' checked' : '') + '>' + esc(a) + '</label>';
+          }).join('') +
+        '</div></fieldset>' +
         '<div class="campos campos--3">' +
           campo('Largura (cm)', '<input data-f="largura" type="number" min="0.1" max="200" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
           campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="200" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
@@ -2683,9 +2920,32 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
         campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
           'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
+        '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
+          '<small>Ex.: bolo P, M e G. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
+          x.tamanhos.map(function (t, ti) {
+            return '<div class="tam-linha" data-ti="' + ti + '">' +
+              '<div class="campos campos--2">' +
+                campo('Nome', '<input data-t="nome" maxlength="30" value="' + esc(t.nome) + '">') +
+                campo('Preço (R$)', '<input data-t="preco" inputmode="decimal" value="' + esc(t.preco.toFixed(2).replace('.', ',')) + '">') +
+              '</div>' +
+              '<div class="campos campos--3">' +
+                campo('Larg. (cm)', '<input data-t="largura" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.largura + '">') +
+                campo('Prof. (cm)', '<input data-t="profundidade" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.profundidade + '">') +
+                campo('Alt. (cm)', '<input data-t="altura" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.altura + '">') +
+              '</div>' +
+              '<input type="hidden" data-t="modelo" value="' + esc(t.modelo) + '">' +
+              '<div class="tam-rodape"><span class="mini">' + (t.modelo ? '3D pronto' : 'Sem 3D próprio') + '</span>' +
+                '<button class="link-remover" type="button" data-tam-remover>Remover tamanho</button></div>' +
+            '</div>';
+          }).join('') +
+          '<div class="linha-acoes">' +
+            '<button class="btn btn--fantasma btn--p" type="button" data-tam-novo>' + ICONES.mais + 'Adicionar tamanho</button>' +
+            (servidor && x.tamanhos.length && x.modelo ? '<button class="btn btn--sec btn--p" type="button" data-tam-3d>' + ICONES.cubo + 'Gerar 3D de cada tamanho</button>' : '') +
+          '</div>' +
+        '</fieldset>' +
         '<div class="linha-acoes">' +
           (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
-          (servidor && /^api\/arquivo\//.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
+          (servidor && /^(api\/arquivo\/|assets\/models\/)/.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
           '<button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
       '</div></details>';
   }
@@ -2700,6 +2960,9 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     p.fecha = f.elements['p-fecha'].value || p.fecha;
     p.dias = $$('input[name="p-dia"]', f).filter(function (c) { return c.checked; }).map(function (c) { return Number(c.value); });
     p.whatsapp = f.elements['p-zap'].value.replace(/\D/g, '');
+    var cats = [];
+    f.elements['p-cats'].value.split(/[,;\n]/).forEach(function (c) { c = c.trim().slice(0, 40); if (c && cats.indexOf(c) < 0 && cats.length < 20) cats.push(c); });
+    rascunho.categorias = cats.length ? cats : rascunho.categorias;
     $$('details.prod', f).forEach(function (d) {
       var x = rascunho.produtos[Number(d.getAttribute('data-i'))];
       var g = function (k) { return d.querySelector('[data-f="' + k + '"]'); };
@@ -2711,6 +2974,15 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       x.dim = { largura: Number(g('largura').value), profundidade: Number(g('profundidade').value), altura: Number(g('altura').value) };
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
+      x.ingredientes = g('ingredientes').value.trim();
+      x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
+      x.tamanhos = $$('.tam-linha', d).map(function (l) {
+        var t = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
+        var antigo = x.tamanhos[Number(l.getAttribute('data-ti'))] || {};
+        return { id: antigo.id || slug(t('nome').value) || 't' + Date.now().toString(36), nome: t('nome').value.trim(), preco: lerPreco(t('preco').value),
+          dim: { largura: Number(t('largura').value), profundidade: Number(t('profundidade').value), altura: Number(t('altura').value) }, modelo: t('modelo').value };
+      });
+      if (rascunho.categorias.indexOf(x.categoria) < 0) rascunho.categorias.push(x.categoria);
     });
   }
 
@@ -2728,7 +3000,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     $$('[aria-invalid]', f).forEach(function (e) { e.removeAttribute('aria-invalid'); });
     var primeiro = null;
     function erro(input, msg) { marcarErro(input, msg); if (!primeiro) primeiro = input; }
-    if (!rascunho.padaria.nome) erro(f.elements['p-nome'], 'Informe o nome da padaria.');
+    if (!rascunho.padaria.nome) erro(f.elements['p-nome'], 'Informe o nome do estabelecimento.');
     var zap = rascunho.padaria.whatsapp;
     if (zap && (zap.length < 10 || zap.length > 15)) erro(f.elements['p-zap'], 'Número inválido. Use DDI + DDD + número (10 a 15 dígitos).');
     $$('details.prod', f).forEach(function (d) {
@@ -2739,6 +3011,12 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       if (!isFinite(x.preco) || x.preco < 0 || x.preco > 10000) erro(g('preco'), 'Preço inválido. Ex.: 8,50');
       ['largura', 'profundidade', 'altura'].forEach(function (k) {
         if (!(x.dim[k] > 0 && x.dim[k] <= 200)) erro(g(k), 'Entre 0,1 e 200.');
+      });
+      $$('.tam-linha', d).forEach(function (l, ti) {
+        var t = x.tamanhos[ti], q = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
+        if (!t.nome) erro(q('nome'), 'Informe o nome do tamanho.');
+        if (!isFinite(t.preco) || t.preco < 0) erro(q('preco'), 'Preço inválido.');
+        ['largura', 'profundidade', 'altura'].forEach(function (k) { if (!(t.dim[k] > 0 && t.dim[k] <= 500)) erro(q(k), 'Inválido.'); });
       });
       if (x.modelo && !/^(https:\/\/|\.{0,2}\/?[\w\-./]+\.(glb|gltf)(\?.*)?$)/i.test(x.modelo)) erro(g('modelo'), 'Use um caminho .glb/.gltf ou uma URL https://');
       if (primeiro !== antes) d.open = true;
@@ -2763,15 +3041,16 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     var salvo = gravar(CHAVE_DADOS, dados);
     var codigoAdmin = (($('#admin-codigo') || {}).value || '').trim();
     if (codigoAdmin) guardarCodigo(codigoAdmin);
+    CATEGORIAS = dados.categorias;
     salvarCarrinho();
     renderTudo();
     fecharDialogo($('#dlg-admin'));
-    if (!servidor || !codigoAdmin) {
+    if (!servidor || !credenciais()) {
       toast(salvo ? 'Alterações salvas só neste aparelho' : 'Não foi possível salvar (armazenamento bloqueado). As alterações valem só até recarregar.');
       return;
     }
     toast('Publicando para todos os clientes…');
-    fetch('api/cardapio', { method: 'PUT', headers: { 'content-type': 'application/json', 'x-menureal-codigo': codigoAdmin }, body: JSON.stringify(dados) })
+    fetch(comLoja('api/cardapio'), { method: 'PUT', headers: cabecalhos(), body: JSON.stringify(dados) })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) { toast(res.ok ? 'Publicado: todos os clientes já veem a nova versão' : 'Salvo só neste aparelho: ' + (res.j.erro || 'erro ao publicar')); })
       .catch(function () { toast('Salvo só neste aparelho: sem conexão com o servidor'); });
@@ -2781,7 +3060,8 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     confirmar('Restaurar o cardápio de demonstração? Todas as alterações feitas neste navegador serão perdidas.', 'Restaurar').then(function (sim) {
     if (!sim) return;
     apagar(CHAVE_DADOS);
-    dados = clonar(PADRAO);
+    dados = validarDados(clonar(PADRAO));
+    CATEGORIAS = dados.categorias;
     salvarCarrinho();
     renderTudo();
     fecharDialogo($('#dlg-admin'));
@@ -2789,9 +3069,42 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     });
   });
 
+  $('#admin-corpo').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.closest('.login')) { e.preventDefault(); entrar(); }
+  });
   $('#admin-corpo').addEventListener('click', function (e) {
     var codAdmin = $('#admin-codigo');
     if (codAdmin && codAdmin.value.trim()) guardarCodigo(codAdmin.value.trim());
+    if (e.target.closest('#login-entrar')) { entrar(); return; }
+    if (e.target.closest('#admin-sair')) {
+      try { localStorage.removeItem(CHAVE_TOKEN); } catch (err) { /* ignora */ }
+      renderAdmin();
+      toast('Você saiu da conta');
+      return;
+    }
+    if (e.target.closest('#lojas-abrir') || e.target.closest('#lojas-atualizar')) { carregarLojas(); return; }
+    if (e.target.closest('#loja-criar')) { criarLoja(); return; }
+    var tamNovo = e.target.closest('[data-tam-novo]');
+    if (tamNovo) {
+      coletarAdmin();
+      var pn = rascunho.produtos[Number(tamNovo.closest('details').getAttribute('data-i'))];
+      var nomes = ['P', 'M', 'G', 'GG', 'Família', 'Extra'];
+      var base = pn.tamanhos.length ? pn.tamanhos[pn.tamanhos.length - 1] : { preco: pn.preco, dim: pn.dim };
+      pn.tamanhos.push({ id: 't' + Date.now().toString(36), nome: nomes[pn.tamanhos.length] || 'Tamanho ' + (pn.tamanhos.length + 1),
+        preco: base.preco, dim: { largura: base.dim.largura, profundidade: base.dim.profundidade, altura: base.dim.altura }, modelo: '' });
+      abertoNoAdmin = pn.id; renderAdmin();
+      return;
+    }
+    var tamRem = e.target.closest('[data-tam-remover]');
+    if (tamRem) {
+      coletarAdmin();
+      var pr = rascunho.produtos[Number(tamRem.closest('details').getAttribute('data-i'))];
+      pr.tamanhos.splice(Number(tamRem.closest('.tam-linha').getAttribute('data-ti')), 1);
+      abertoNoAdmin = pr.id; renderAdmin();
+      return;
+    }
+    var tam3d = e.target.closest('[data-tam-3d]');
+    if (tam3d) { coletarAdmin(); gerarTamanhos3d(tam3d, rascunho.produtos[Number(tam3d.closest('details').getAttribute('data-i'))]); return; }
     if (e.target.closest('#admin-foto')) {
       coletarAdmin();
       abrirLeitorFoto();
@@ -2799,8 +3112,9 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     }
     if (e.target.closest('#admin-novo')) {
       coletarAdmin();
-      var novo = { id: 'produto-' + Date.now().toString(36), nome: 'Novo produto', categoria: filtro.cat !== 'Todos' ? filtro.cat : 'Salgados',
-        preco: 0, descricao: '', dim: { largura: 5, profundidade: 5, altura: 5 }, modelo: '', ilustrativo: true };
+      var novo = { id: 'produto-' + Date.now().toString(36), nome: 'Novo produto',
+        categoria: filtro.cat !== 'Todos' && rascunho.categorias.indexOf(filtro.cat) > -1 ? filtro.cat : rascunho.categorias[0],
+        preco: 0, descricao: '', dim: { largura: 5, profundidade: 5, altura: 5 }, modelo: '', ilustrativo: true, ingredientes: '', alergenos: [], tamanhos: [] };
       rascunho.produtos.push(novo);
       abertoNoAdmin = novo.id;
       renderAdmin();
@@ -2818,11 +3132,10 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     if (resc) {
       coletarAdmin();
       var px = rascunho.produtos[Number(resc.closest('details').getAttribute('data-i'))];
-      var cod = lerCodigo();
-      if (!cod) { toast('Preencha o código de acesso no topo do painel'); return; }
+      if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
       if (!(px.dim.largura > 0 && px.dim.profundidade > 0 && px.dim.altura > 0)) { toast('Preencha as três medidas em cm'); return; }
       resc.disabled = true; resc.textContent = 'Ajustando…';
-      fetch('api/modelo-3d', { method: 'POST', headers: { 'content-type': 'application/json', 'x-menureal-codigo': cod },
+      fetch(comLoja('api/modelo-3d'), { method: 'POST', headers: cabecalhos(),
         body: JSON.stringify({ acao: 'reescalar', url: px.modelo, dim: px.dim, produto: slug(px.nome) }) })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
         .then(function (j) {
@@ -2901,8 +3214,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
         '<input type="file" accept="image/jpeg,image/png,image/webp,image/*" id="foto-arquivo" hidden>' +
       '</label>' +
       (foto.previa ? '<button class="btn btn--fantasma btn--p" type="button" id="foto-trocar">Trocar foto</button>' : '') +
-      campo('Código de acesso', '<input id="foto-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">',
-        'Definido por você na Netlify (variável MENUREAL_CODIGO). Protege a leitura contra uso por estranhos.') +
+
       (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível ler</strong>' + esc(erro) + '</div>' : '');
     $('#foto-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="foto-ler"' + (foto.imagem ? '' : ' disabled') + '>Ler cardápio</button>';
   }
@@ -2973,17 +3285,15 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   }
 
   function lerFoto() {
-    var codigo = ($('#foto-codigo') || {}).value || '';
-    if (!codigo.trim()) { renderFotoInicio('Digite o código de acesso.'); $('#foto-codigo').focus(); return; }
-    guardarCodigo(codigo.trim());
+    if (!credenciais()) { renderFotoInicio(LOJA ? 'Entre na conta do estabelecimento (feche e abra o painel).' : 'Preencha o código de acesso no topo do painel.'); return; }
     foto.lendo = true;
     foto.controle = window.AbortController ? new AbortController() : null;
     renderLendo(0);
     var contados = 0;
-    fetch(API_FOTO, {
+    fetch(comLoja(API_FOTO), {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-menureal-codigo': codigo.trim() },
-      body: JSON.stringify({ imagem: foto.imagem, tipo: 'image/jpeg' }),
+      headers: cabecalhos(),
+      body: JSON.stringify({ imagem: foto.imagem, tipo: 'image/jpeg', categorias: rascunho.categorias }),
       signal: foto.controle ? foto.controle.signal : undefined
     }).then(function (r) {
       var tipo = r.headers.get('content-type') || '';
@@ -3008,7 +3318,8 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
           nome: String(x.nome).trim().slice(0, 60),
           preco: typeof x.preco === 'number' && isFinite(x.preco) && x.preco >= 0 ? Math.round(x.preco * 100) / 100 : null,
           descricao: String(x.descricao || '').trim().slice(0, 240),
-          categoria: CATEGORIAS.filter(function (c) { return semAcento(c) === semAcento(x.categoria); })[0] || 'Salgados',
+          categoria: rascunho.categorias.filter(function (c) { return semAcento(c) === semAcento(x.categoria); })[0] || rascunho.categorias[0],
+          ingredientes: String(x.ingredientes || '').trim().slice(0, 600),
           observacao: String(x.observacao || '').trim(),
           usar: true
         };
@@ -3042,7 +3353,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
               '<input data-rf="nome" maxlength="60" value="' + esc(x.nome) + '" aria-label="Nome">' +
               '<div class="rev__linha">' +
                 '<input data-rf="preco" inputmode="decimal" placeholder="Preço" value="' + (x.preco == null ? '' : esc(x.preco.toFixed(2).replace('.', ','))) + '" aria-label="Preço em reais"' + (x.preco == null ? ' aria-invalid="true"' : '') + '>' +
-                '<select data-rf="categoria" aria-label="Categoria">' + CATEGORIAS.map(function (c) { return '<option' + (c === x.categoria ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>' +
+                '<select data-rf="categoria" aria-label="Categoria">' + rascunho.categorias.map(function (c) { return '<option' + (c === x.categoria ? ' selected' : '') + '>' + c + '</option>'; }).join('') + '</select>' +
               '</div>' +
               (x.descricao ? '<p class="rev__desc">' + esc(x.descricao) + '</p>' : '') +
               (x.preco == null ? '<p class="rev__obs">Preço não identificado: digite o valor.</p>' : '') +
@@ -3084,7 +3395,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       var base = Date.now().toString(36);
       var novos = escolhidos.map(function (x, i) {
         return { id: slug(x.nome) + '-' + base + i, nome: x.nome, categoria: x.categoria, preco: x.preco, descricao: x.descricao,
-          dim: { largura: 5, profundidade: 5, altura: 5 }, modelo: '', ilustrativo: true };
+          dim: { largura: 5, profundidade: 5, altura: 5 }, modelo: '', ilustrativo: true, ingredientes: x.ingredientes || '', alergenos: [], tamanhos: [] };
       });
       rascunho.produtos = substituir ? novos : rascunho.produtos.concat(novos);
       abertoNoAdmin = null;
@@ -3104,8 +3415,6 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     if (e.target.id === 'foto-arquivo' && e.target.files[0]) {
       var arq = e.target.files[0];
       if (!/^image\//.test(arq.type) && !/\.(jpe?g|png|webp|heic)$/i.test(arq.name)) { renderFotoInicio('Escolha um arquivo de imagem.'); return; }
-      var cod = ($('#foto-codigo') || {}).value;
-      if (cod) guardarCodigo(cod);
       reduzirImagem(arq).then(function (r) {
         foto.imagem = r.base64; foto.previa = r.dataUrl;
         renderFotoInicio();
@@ -3168,7 +3477,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
         (g3d.fotos.length < 4 ? '<label class="g3d-add">' + ICONES.camera + '<span>' + (g3d.fotos.length ? 'Adicionar foto' : 'Tirar 1ª foto (frente)') + '</span>' +
           '<input type="file" accept="image/*" id="g3d-arquivo" ' + (g3d.fotos.length ? 'multiple ' : '') + 'hidden></label>' : '') +
       '</div>' +
-      campo('Código de acesso', '<input id="g3d-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">') +
+
       '<p class="mini">Cada geração usa créditos da sua conta na Meshy e leva de 2 a 5 minutos.</p>' +
       (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível gerar</strong>' + esc(erro) + '</div>' : '');
     $('#g3d-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="g3d-gerar"' + (g3d.fotos.length ? '' : ' disabled') + '>Gerar modelo 3D</button>';
@@ -3188,17 +3497,15 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   }
 
   function iniciarG3d() {
-    var codigo = (($('#g3d-codigo') || {}).value || '').trim();
     var x = produtoG3d();
     var dimNova = { largura: Number($('#g3d-largura').value), profundidade: Number($('#g3d-profundidade').value), altura: Number($('#g3d-altura').value) };
     if (!(dimNova.largura > 0 && dimNova.profundidade > 0 && dimNova.altura > 0)) { renderG3dInicio('Preencha as três medidas reais, em centímetros.'); return; }
     x.dim = dimNova;
-    if (!codigo) { renderG3dInicio('Digite o código de acesso.'); $('#g3d-codigo').focus(); return; }
-    guardarCodigo(codigo);
+    if (!credenciais()) { renderG3dInicio(LOJA ? 'Entre na conta do estabelecimento.' : 'Preencha o código de acesso no topo do painel.'); return; }
     renderG3dProgresso(2, 'Enviando fotos…');
-    fetch('api/modelo-3d', {
+    fetch(comLoja('api/modelo-3d'), {
       method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-menureal-codigo': codigo },
+      headers: cabecalhos(),
       body: JSON.stringify({ imagens: g3d.fotos.map(function (f) { return f.base64; }) })
     }).then(function (r) {
       return r.json().catch(function () { return { erro: 'Servidor de modelos 3D não encontrado (' + r.status + ').' }; })
@@ -3221,7 +3528,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
       if (!$('#dlg-3d').open || !produtoG3d() || produtoG3d().id !== idProd) return;
       var q = '?tarefa=' + encodeURIComponent(pend.tarefa) + '&produto=' + encodeURIComponent(slug(x.nome)) +
         '&largura=' + pend.dim.largura + '&profundidade=' + pend.dim.profundidade + '&altura=' + pend.dim.altura;
-      fetch('api/modelo-3d' + q, { headers: { 'x-menureal-codigo': lerCodigo() }, cache: 'no-store' })
+      fetch(comLoja('api/modelo-3d' + q), { headers: cabecalhos(), cache: 'no-store' })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
         .then(function (j) {
           if (j.status === 'SUCCEEDED') { guardarTarefa(idProd, null); g3d.resultado = j; renderG3dPronto(); return; }
@@ -3253,8 +3560,6 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     if (e.target.id !== 'g3d-arquivo' || !e.target.files.length) return;
     var arquivos = Array.prototype.slice.call(e.target.files, 0, 4 - g3d.fotos.length);
     ['largura', 'profundidade', 'altura'].forEach(function (k) { var v = Number(($('#g3d-' + k) || {}).value); if (v > 0) produtoG3d().dim[k] = v; });
-    var cod = ($('#g3d-codigo') || {}).value;
-    if (cod) guardarCodigo(cod);
     Promise.all(arquivos.map(function (a) { return reduzirImagem(a).catch(function () { return null; }); })).then(function (rs) {
       rs.forEach(function (r) { if (r) g3d.fotos.push({ base64: r.base64, previa: r.dataUrl }); });
       renderG3dInicio(rs.some(function (r) { return !r; }) ? 'Uma das fotos não abriu. Use JPG ou tire pela câmera.' : '');
@@ -3278,18 +3583,93 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
   });
   $('#dlg-3d').addEventListener('close', function () { clearTimeout(g3d.timer); });
 
+  function lojaNaoEncontrada(msg) {
+    dados = clonar(VAZIO);
+    dados.padaria.nome = 'Cardápio não encontrado';
+    dados.padaria.slogan = msg || 'Confira o endereço digitado.';
+    CATEGORIAS = [];
+    renderTudo();
+    $('#grade').innerHTML = '<div class="vazio"><strong>Não encontramos este cardápio</strong>O endereço “/' + esc(LOJA) + '” não corresponde a nenhum estabelecimento.</div>';
+  }
+
+  // Painel do dono da plataforma: contas dos estabelecimentos
+  function carregarLojas() {
+    var alvo = $('#lojas');
+    if (!lerCodigo()) { toast('Preencha o código de acesso'); return; }
+    alvo.innerHTML = '<p class="mini">Carregando…</p>';
+    fetch('api/contas', { headers: cabecalhos(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        alvo.innerHTML =
+          (j.contas.length
+            ? '<ul class="lojas">' + j.contas.map(function (c) {
+                return '<li><div><strong>' + esc(c.nome) + '</strong><small>' + esc(c.email) + '</small></div>' +
+                  '<a class="btn btn--fantasma btn--p" href="/' + esc(c.slug) + '" target="_blank" rel="noopener">/' + esc(c.slug) + '</a></li>';
+              }).join('') + '</ul>'
+            : '<p class="mini">Nenhum estabelecimento ainda.</p>') +
+          '<div class="nova-loja"><h4>Novo estabelecimento (ou nova senha)</h4>' +
+            campo('Nome', '<input id="nl-nome" maxlength="60" placeholder="Confeitaria Doce Lar">') +
+            campo('Endereço do cardápio', '<input id="nl-slug" maxlength="40" placeholder="doce-lar" autocapitalize="off">', location.host + '/<endereço>') +
+            campo('E-mail do dono', '<input id="nl-email" type="email" maxlength="120">') +
+            campo('Senha inicial (8+ caracteres)', '<input id="nl-senha" type="text" maxlength="120" autocomplete="off">') +
+            '<div class="linha-acoes"><button class="btn btn--primario" type="button" id="loja-criar">Criar conta</button>' +
+            '<button class="btn btn--fantasma" type="button" id="lojas-atualizar">Atualizar lista</button></div>' +
+          '</div>';
+        var nome = $('#nl-nome'), sl = $('#nl-slug');
+        nome.addEventListener('input', function () { if (!sl.dataset.mexido) sl.value = slug(nome.value).slice(0, 40); });
+        sl.addEventListener('input', function () { sl.dataset.mexido = '1'; });
+      })
+      .catch(function (e) { alvo.innerHTML = '<div class="ar-indisp" role="alert">' + esc(e.message) + '</div><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Tentar de novo</button>'; });
+  }
+  function criarLoja() {
+    var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value };
+    var b = $('#loja-criar');
+    b.disabled = true;
+    fetch('api/contas', { method: 'POST', headers: cabecalhos(), body: JSON.stringify(corpo) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        toast((j.atualizado ? 'Conta atualizada: ' : 'Conta criada: ') + location.host + '/' + j.slug);
+        carregarLojas();
+      })
+      .catch(function (e) { b.disabled = false; toast(e.message); });
+  }
+
+  function gerarTamanhos3d(botao, x) {
+    if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
+    if (!x.modelo) { toast('Gere ou defina o 3D do produto primeiro'); return; }
+    botao.disabled = true;
+    var i = 0;
+    function proximo() {
+      if (i >= x.tamanhos.length) {
+        abertoNoAdmin = x.id; renderAdmin();
+        toast('3D de cada tamanho pronto. Toque em “Salvar alterações” para publicar.');
+        return;
+      }
+      var t = x.tamanhos[i];
+      botao.textContent = 'Ajustando ' + t.nome + '… (' + (i + 1) + '/' + x.tamanhos.length + ')';
+      fetch(comLoja('api/modelo-3d'), { method: 'POST', headers: cabecalhos(),
+        body: JSON.stringify({ acao: 'reescalar', url: x.modelo, dim: t.dim, produto: slug(x.nome + '-' + t.nome) }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+        .then(function (j) { t.modelo = j.url; i++; proximo(); })
+        .catch(function (e) { abertoNoAdmin = x.id; renderAdmin(); toast('Tamanho ' + t.nome + ': ' + e.message); });
+    }
+    proximo();
+  }
+
   // Cardápio publicado na nuvem (site na Netlify com funções)
   function carregarNuvem() {
     if (location.protocol === 'file:' || MODELOS_EMBUTIDOS) return;
-    fetch('api/cardapio', { cache: 'no-store' }).then(function (r) {
+    fetch(comLoja('api/cardapio'), { cache: 'no-store' }).then(function (r) {
       var ehJson = /json/.test(r.headers.get('content-type') || '');
-      if (!ehJson) return null;
+      if (!ehJson) { if (LOJA) lojaNaoEncontrada('O servidor do MenuReal não respondeu.'); return null; }
       servidor = true;
+      if (r.status === 404 && LOJA) { lojaNaoEncontrada(); return null; }
       return r.ok ? r.json() : null;
     }).then(function (d) {
       var v = d && validarDados(d);
       if (!v || JSON.stringify(v) === JSON.stringify(dados)) return;
       dados = v;
+      CATEGORIAS = dados.categorias;
       gravar(CHAVE_DADOS, dados);
       salvarCarrinho();
       renderTudo();
@@ -3329,6 +3709,7 @@ var PC=function(t,e,i,n){for(var r,s=arguments.length,a=s<3?e:null===n?n=Object.
     if (!b || b.disabled) return;
     var id = b.closest('.card').getAttribute('data-id');
     var acao = b.getAttribute('data-acao');
+    if (acao === 'escolher') { abrirViewer(id, '3d'); return; }
     if (acao === 'add') {
       adicionar(id);
       var original = b.innerHTML;

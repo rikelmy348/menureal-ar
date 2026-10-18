@@ -6,7 +6,7 @@ import { loja, json } from '../lib/comum.mjs';
 
 export default async (req) => {
   const chave = decodeURIComponent(new URL(req.url).pathname.replace(/^\/api\/arquivo\//, ''));
-  if (!/^modelos\/[\w.-]+\.glb$/.test(chave)) return json({ erro: 'Arquivo inválido.' }, 400);
+  if (!/^(modelos|combos)\/(?:[a-z0-9-]+\/)?[\w.-]+\.glb$/.test(chave) || chave.includes('..')) return json({ erro: 'Arquivo inválido.' }, 400);
   const dados = await loja().get(chave, { type: 'stream' });
   if (!dados) return json({ erro: 'Modelo não encontrado.' }, 404);
   return new Response(dados, {

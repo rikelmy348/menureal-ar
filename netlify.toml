@@ -4,3 +4,15 @@
 
 [functions]
   directory = "netlify/functions"
+
+# Cardápio de cada estabelecimento: https://site/<endereço>
+# (arquivos existentes e as funções em /api têm prioridade)
+[[redirects]]
+  from = "/:loja/"
+  to = "/:loja"
+  status = 301
+
+[[redirects]]
+  from = "/:loja"
+  to = "/index.html"
+  status = 200

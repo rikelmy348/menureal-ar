@@ -137,3 +137,146 @@ export function escalarGlb(buf, dimCm) {
   });
   return { glb: escreverGlb(json, bin), medidasCm: tam.map((t) => t * s * 100) };
 }
+
+// ---------------------------------------------------------------------------
+// Contas por estabelecimento: senha (scrypt) e token assinado (HMAC)
+// ---------------------------------------------------------------------------
+import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from 'node:crypto';
+
+export const SLUG_OK = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
+const RESERVADOS = new Set(['api', 'assets', 'vendor', 'netlify', 'tools', 'index', 'admin', 'entrar', 'menureal']);
+export function slugValido(s) { return SLUG_OK.test(s || '') && !RESERVADOS.has(s); }
+
+function segredo() {
+  return process.env.MENUREAL_SEGREDO || ('menureal:' + (process.env.MENUREAL_CODIGO || ''));
+}
+export function hashSenha(senha) {
+  const sal = randomBytes(16);
+  const h = scryptSync(String(senha), sal, 32);
+  return 'scrypt$' + sal.toString('base64') + '$' + h.toString('base64');
+}
+export function conferirSenha(senha, guardado) {
+  const [, sal, h] = String(guardado || '').split('$');
+  if (!sal || !h) return false;
+  const calc = scryptSync(String(senha), Buffer.from(sal, 'base64'), 32);
+  const esperado = Buffer.from(h, 'base64');
+  return calc.length === esperado.length && timingSafeEqual(calc, esperado);
+}
+export function criarToken(slug, dias = 30) {
+  const corpo = Buffer.from(JSON.stringify({ s: slug, e: Date.now() + dias * 864e5 })).toString('base64url');
+  const assin = createHmac('sha256', segredo()).update(corpo).digest('base64url');
+  return corpo + '.' + assin;
+}
+export function lerToken(token) {
+  const [corpo, assin] = String(token || '').split('.');
+  if (!corpo || !assin) return null;
+  const certo = createHmac('sha256', segredo()).update(corpo).digest('base64url');
+  if (certo.length !== assin.length || !timingSafeEqual(Buffer.from(certo), Buffer.from(assin))) return null;
+  try {
+    const d = JSON.parse(Buffer.from(corpo, 'base64url').toString());
+    return d.e > Date.now() ? d.s : null;
+  } catch { return null; }
+}
+
+/** Mestre = código MENUREAL_CODIGO (dono da plataforma). Loja = token da própria loja. */
+export function ehMestre(req) {
+  const c = process.env.MENUREAL_CODIGO;
+  return Boolean(c) && (req.headers.get('x-menureal-codigo') || '') === c;
+}
+/**
+ * Autoriza a edição de uma loja ('' = cardápio de demonstração da raiz).
+ * Devolve null se autorizado, ou uma Response de erro.
+ */
+export function autorizar(req, slug) {
+  if (ehMestre(req)) return null;
+  const auth = req.headers.get('authorization') || '';
+  const s = lerToken(auth.replace(/^Bearer\s+/i, ''));
+  if (s && slug && s === slug) return null;
+  if (!process.env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO na Netlify.' }, 500);
+  return json({ erro: s ? 'Sem permissão para esta loja.' : slug ? 'Entre na conta do estabelecimento.' : 'Código de acesso incorreto.' }, 401);
+}
+export function chaveCardapio(slug) { return slug ? 'cardapios/' + slug : 'cardapio'; }
+export function hashCurto(texto) { return createHash('sha256').update(texto).digest('hex').slice(0, 20); }
+
+// ---------------------------------------------------------------------------
+// Combo: junta vários GLB lado a lado em um único arquivo
+// ---------------------------------------------------------------------------
+function remapTexturas(obj, off) {
+  if (!obj || typeof obj !== 'object') return;
+  for (const k of Object.keys(obj)) {
+    const v = obj[k];
+    if (v && typeof v === 'object') {
+      if (/texture$/i.test(k) && typeof v.index === 'number') v.index += off;
+      remapTexturas(v, off);
+    }
+  }
+}
+
+export function juntarGlbs(lista, folgaM = 0.02) {
+  const saida = { asset: { version: '2.0', generator: 'MenuReal AR combo' }, scene: 0, scenes: [{ nodes: [] }],
+    nodes: [], meshes: [], materials: [], textures: [], images: [], samplers: [], accessors: [], bufferViews: [], buffers: [{ byteLength: 0 }] };
+  const usados = new Set(), exigidos = new Set();
+  const partes = [];
+  let binTotal = 0;
+  const larguras = lista.map((buf) => { const { json } = lerGlb(buf); const { mn, mx } = caixaGlb(json); return { mn, mx }; });
+  const total = larguras.reduce((s, c) => s + (c.mx[0] - c.mn[0]), 0) + folgaM * (lista.length - 1);
+  let x = -total / 2;
+  lista.forEach((buf, i) => {
+    const { json, bin } = lerGlb(buf);
+    const c = larguras[i];
+    const off = { bv: saida.bufferViews.length, acc: saida.accessors.length, img: saida.images.length, smp: saida.samplers.length,
+      tex: saida.textures.length, mat: saida.materials.length, mesh: saida.meshes.length, node: saida.nodes.length };
+    const binOff = binTotal;
+    if (bin) { partes.push(bin); binTotal += bin.length; const pad = (4 - (binTotal % 4)) % 4; if (pad) { partes.push(new Uint8Array(pad)); binTotal += pad; } }
+    (json.bufferViews || []).forEach((v) => saida.bufferViews.push({ ...v, buffer: 0, byteOffset: (v.byteOffset || 0) + binOff }));
+    (json.accessors || []).forEach((a) => {
+      const n = { ...a };
+      if (n.bufferView != null) n.bufferView += off.bv;
+      if (n.sparse) { n.sparse = JSON.parse(JSON.stringify(n.sparse)); n.sparse.indices.bufferView += off.bv; n.sparse.values.bufferView += off.bv; }
+      saida.accessors.push(n);
+    });
+    (json.images || []).forEach((im) => saida.images.push(im.bufferView != null ? { ...im, bufferView: im.bufferView + off.bv } : { ...im }));
+    (json.samplers || []).forEach((s) => saida.samplers.push({ ...s }));
+    (json.textures || []).forEach((t) => {
+      const n = JSON.parse(JSON.stringify(t));
+      if (n.source != null) n.source += off.img;
+      if (n.sampler != null) n.sampler += off.smp;
+      if (n.extensions) for (const e of Object.values(n.extensions)) if (e && typeof e.source === 'number') e.source += off.img;
+      saida.textures.push(n);
+    });
+    (json.materials || []).forEach((m) => { const n = JSON.parse(JSON.stringify(m)); remapTexturas(n, off.tex); saida.materials.push(n); });
+    (json.meshes || []).forEach((m) => {
+      const n = JSON.parse(JSON.stringify(m));
+      n.primitives.forEach((p) => {
+        for (const k of Object.keys(p.attributes)) p.attributes[k] += off.acc;
+        if (p.indices != null) p.indices += off.acc;
+        if (p.material != null) p.material += off.mat;
+        (p.targets || []).forEach((t) => { for (const k of Object.keys(t)) t[k] += off.acc; });
+        if (p.extensions) delete p.extensions.KHR_draco_mesh_compression;
+      });
+      saida.meshes.push(n);
+    });
+    (json.nodes || []).forEach((nd) => {
+      const n = { ...nd };
+      delete n.camera; delete n.skin;
+      if (n.mesh != null) n.mesh += off.mesh;
+      if (n.children) n.children = n.children.map((c2) => c2 + off.node);
+      saida.nodes.push(n);
+    });
+    const cena = (json.scenes || [])[json.scene || 0] || { nodes: [] };
+    const cx = (c.mn[0] + c.mx[0]) / 2, cz = (c.mn[2] + c.mx[2]) / 2, larg = c.mx[0] - c.mn[0];
+    saida.nodes.push({ name: 'item_' + (i + 1), translation: [x + larg / 2 - cx, -c.mn[1], -cz], children: cena.nodes.map((k) => k + off.node) });
+    saida.scenes[0].nodes.push(saida.nodes.length - 1);
+    x += larg + folgaM;
+    (json.extensionsUsed || []).forEach((e) => usados.add(e));
+    (json.extensionsRequired || []).forEach((e) => exigidos.add(e));
+  });
+  if (usados.has('KHR_draco_mesh_compression')) throw new Error('Modelo comprimido com Draco não pode ser combinado.');
+  if (usados.size) saida.extensionsUsed = [...usados];
+  if (exigidos.size) saida.extensionsRequired = [...exigidos];
+  for (const k of ['meshes', 'materials', 'textures', 'images', 'samplers']) if (!saida[k].length) delete saida[k];
+  const bin = new Uint8Array(binTotal);
+  let p = 0; for (const parte of partes) { bin.set(parte, p); p += parte.length; }
+  saida.buffers[0].byteLength = binTotal;
+  return escreverGlb(saida, bin);
+}

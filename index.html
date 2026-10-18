@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
+  <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MenuReal AR — Padaria Sabor da Vila</title>
   <meta name="description" content="Cardápio digital com visualização 3D e realidade aumentada. Veja antes de pedir.">
@@ -72,7 +73,7 @@
     <p class="resultado" id="resultado" aria-live="polite"></p>
     <section class="grade" id="grade" aria-label="Produtos"></section>
 
-    <section class="nota" aria-labelledby="nota-titulo">
+    <section class="nota" id="nota-demo" aria-labelledby="nota-titulo">
       <h2 id="nota-titulo">Sobre esta demonstração</h2>
       <p>Preços, medidas e modelos 3D são <strong>demonstrativos</strong>. Os modelos são ilustrações originais, criadas no tamanho das medidas cadastradas — não são digitalizações de alimentos reais.</p>
       <p>A realidade aumentada depende do aparelho e do navegador: Android com Chrome e Google Play Services para RA, ou iPhone/iPad com Safari. Em computadores, a visualização 3D continua disponível.</p>
@@ -103,6 +104,7 @@
       </div>
 
       <div class="viewer__painel">
+        <div class="tamanhos" id="viewer-tamanhos" role="group" aria-label="Tamanho" hidden></div>
         <div class="abas" role="tablist" aria-label="Modo de visualização">
           <button class="aba" role="tab" id="aba-3d" aria-selected="true" aria-controls="painel-3d" type="button">Ver em 3D</button>
           <button class="aba" role="tab" id="aba-ar" aria-selected="false" aria-controls="painel-ar" type="button">Ver em tamanho real</button>
@@ -116,6 +118,7 @@
           </dl>
           <p class="escala" id="viewer-escala" hidden></p>
           <p class="viewer__desc" id="viewer-desc"></p>
+          <dl class="viewer__info" id="viewer-info" hidden></dl>
         </div>
 
         <div id="painel-ar" role="tabpanel" aria-labelledby="aba-ar" hidden>

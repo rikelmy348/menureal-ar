@@ -1,5 +1,8 @@
 # MenuReal AR — Cardápio digital com 3D e realidade aumentada
 
+Plataforma para qualquer negócio de comida (padarias, confeitarias, cafeterias,
+lanchonetes, restaurantes): cada estabelecimento tem conta e endereço próprios.
+
 Demonstração funcional de um cardápio para padarias, lanchonetes e cafeterias:
 o cliente gira o alimento em 3D e, em aparelhos compatíveis, abre a câmera para
 vê-lo **em escala fixa** sobre a mesa. Padaria de exemplo: **Padaria Sabor da Vila**.
@@ -24,7 +27,10 @@ menureal-ar/
 │   ├── empada.glb         8 × 8 × 4 cm
 │   └── brigadeiro.glb     3 × 3 × 3 cm
 ├── netlify/functions/ler-cardapio.mjs  servidor: lê a foto do cardápio com a API do Claude
-├── netlify/functions/cardapio.mjs      servidor: cardápio publicado na nuvem (GET/PUT)
+├── netlify/functions/cardapio.mjs      servidor: cardápio de cada loja na nuvem (GET/PUT)
+├── netlify/functions/contas.mjs        servidor: dono da plataforma cria contas das lojas
+├── netlify/functions/entrar.mjs        servidor: login do estabelecimento (e-mail e senha)
+├── netlify/functions/combo.mjs         servidor: junta os itens do pedido em um só 3D
 ├── netlify/functions/modelo-3d.mjs     servidor: gera modelo 3D realista por fotos (Meshy)
 ├── netlify/functions/arquivo.mjs       servidor: entrega os modelos 3D guardados na nuvem
 ├── netlify/lib/comum.mjs               utilidades: Netlify Blobs, código de acesso, escala do GLB
@@ -251,6 +257,43 @@ gere a chave em *API* e cadastre `MESHY_API_KEY` na Netlify. Cada modelo com
 textura custa cerca de 30 créditos (confira a página de preços da Meshy).
 Qualidade depende das fotos: fundo liso, boa luz, produto inteiro no quadro.
 
+## 7c. Plataforma para vários estabelecimentos
+
+**Endereços:** a página inicial (`/`) é a demonstração. Cada cliente tem o
+cardápio em `https://SEU-SITE/<endereço>`, por exemplo `/doce-lar`.
+
+**Criar a conta de um cliente (você, dono da plataforma):** na página inicial,
+*Admin* → código de acesso (`MENUREAL_CODIGO`) → *Ver e criar
+estabelecimentos* → nome, endereço, e-mail e senha inicial → *Criar conta*.
+Usar o mesmo endereço de novo redefine o e-mail e a senha.
+
+**O cliente edita o próprio cardápio:** abre `/<endereço>` → *Admin* → entra
+com e-mail e senha. Ele só consegue alterar a própria loja. O login vale 30
+dias neste aparelho. Senhas ficam guardadas com hash (scrypt), nunca em texto.
+
+**Categorias:** cada loja define as suas (ex.: Bolos, Tortas, Doces, Bebidas)
+no painel, separadas por vírgula. A leitura de cardápio por foto usa essas
+categorias.
+
+**Ingredientes e alérgicos:** cada produto tem campo de ingredientes e a
+lista de alérgenos de declaração obrigatória (RDC Anvisa 26/2015, agrupada):
+glúten, leite, ovos, soja, amendoim, castanhas e nozes, peixes, crustáceos e
+látex natural. Aparecem no card (“Contém: …”) e no visualizador.
+
+**Tamanhos (P, M, G…):** cada produto pode ter até 8 tamanhos com preço e
+medidas próprios. Depois de ter o 3D do produto, *Gerar 3D de cada tamanho*
+cria um arquivo na escala de cada tamanho (sem gastar créditos). O cliente
+escolhe o tamanho no visualizador, vê o preço e o tamanho real na câmera, e o
+pedido registra o tamanho.
+
+**Combo na mesa:** no carrinho, com 2 ou mais itens com 3D, *Ver o pedido na
+mesa (3D)* junta os itens (até 8 unidades) lado a lado num único arquivo, em
+tamanho real, com o preço total. Funciona também no Scene Viewer e no Quick Look.
+
+Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os
+logins. Sem ela, a assinatura usa o `MENUREAL_CODIGO`; trocar qualquer um dos
+dois desconecta todas as lojas.
+
 ## 8. O que ainda depende de backend ou serviços externos
 
 | Recurso | Situação atual | O que falta |
@@ -258,7 +301,7 @@ Qualidade depende das fotos: fundo liso, boa luz, produto inteiro no quadro.
 | Pedidos | Demonstrativos; nada é enviado | API de pedidos + painel da cozinha |
 | Pagamento | Não existe (intencional) | Gateway (Pix, cartão) com conformidade |
 | WhatsApp | Link `wa.me` opcional com o resumo | Número oficial; WhatsApp Business API para automação |
-| Administração | Na nuvem (Netlify Blobs) com código de acesso compartilhado | Login individual e várias padarias (banco de dados) |
+| Administração | Na nuvem (Netlify Blobs), login por estabelecimento | Recuperação de senha por e-mail; banco de dados quando houver muitas lojas |
 | Cardápio por foto | Funciona com a função da Netlify + chave da Anthropic | Login por padaria em vez de código compartilhado |
 | Cardápio entre aparelhos | Exportar/Importar JSON manual | Banco de dados ou CMS |
 | Modelos 3D | Arquivos estáticos | Armazenamento/CDN e fluxo de upload |

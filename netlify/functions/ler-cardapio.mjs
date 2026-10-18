@@ -14,11 +14,13 @@
    leituras de até 60 s na Netlify.
    ========================================================================= */
 
-const CATEGORIAS = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
+import { autorizar, slugValido } from '../lib/comum.mjs';
+
+const CATEGORIAS_PADRAO = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
 const TIPOS = ['image/jpeg', 'image/png', 'image/webp'];
 const LIMITE_BASE64 = 5_000_000; // ~3,7 MB de imagem; o navegador já reduz para bem menos
 
-const ESQUEMA = {
+const esquema = (CATEGORIAS) => ({
   type: 'object',
   properties: {
     itens: {
@@ -30,9 +32,10 @@ const ESQUEMA = {
           preco: { anyOf: [{ type: 'number' }, { type: 'null' }], description: 'Preço em reais (8,50 → 8.5). null se ilegível ou ausente' },
           descricao: { type: 'string', description: 'Descrição do cardápio, ou string vazia' },
           categoria: { type: 'string', enum: CATEGORIAS },
+          ingredientes: { type: 'string', description: 'Ingredientes listados no cardápio, ou string vazia' },
           observacao: { type: 'string', description: 'Dúvida de leitura sobre este item, ou string vazia' }
         },
-        required: ['nome', 'preco', 'descricao', 'categoria', 'observacao'],
+        required: ['nome', 'preco', 'descricao', 'categoria', 'ingredientes', 'observacao'],
         additionalProperties: false
       }
     },
@@ -40,15 +43,16 @@ const ESQUEMA = {
   },
   required: ['itens', 'aviso'],
   additionalProperties: false
-};
+});
 
-const INSTRUCOES = `Você transcreve cardápios de padarias, lanchonetes e cafeterias brasileiras a partir de fotos.
+const instrucoes = (CATEGORIAS) => `Você transcreve cardápios de estabelecimentos de comida brasileiros (padarias, confeitarias, cafeterias, lanchonetes, restaurantes) a partir de fotos.
 
 Regras:
 - Transcreva apenas o que está escrito e legível. Nunca invente produtos, preços ou descrições.
 - Preço: número em reais (R$ 8,50 → 8.5). Se o preço estiver ilegível ou não existir, use null.
 - Descrição: use a do cardápio, se houver; caso contrário, string vazia.
-- Categoria: escolha a mais adequada entre Salgados, Doces, Pães e Bebidas. Se nenhuma servir bem, escolha a mais próxima e explique em "observacao".
+- Categoria: escolha a mais adequada entre ${CATEGORIAS.join(', ')}. Se nenhuma servir bem, escolha a mais próxima e explique em "observacao".
+- Ingredientes: copie se o cardápio listar; caso contrário, string vazia. Não deduza ingredientes.
 - Um produto com tamanhos ou preços diferentes vira um item por variação, com a variação no nome (ex.: "Café com leite (grande)").
 - Ignore o que não é produto: endereço, telefone, horários, slogans.
 - Se tiver dúvida sobre um item, escreva o motivo em "observacao".
@@ -101,9 +105,10 @@ export default async (req) => {
   if (!chave || !codigo) {
     return json({ erro: 'Servidor não configurado: defina ANTHROPIC_API_KEY e MENUREAL_CODIGO nas variáveis de ambiente da Netlify e publique de novo.' }, 500);
   }
-  if ((req.headers.get('x-menureal-codigo') || '') !== codigo) {
-    return json({ erro: 'Código de acesso incorreto.' }, 401);
-  }
+  const slug = (new URL(req.url).searchParams.get('loja') || '').toLowerCase();
+  if (slug && !slugValido(slug)) return json({ erro: 'Loja inválida.' }, 400);
+  const negado = autorizar(req, slug);
+  if (negado) return negado;
 
   let corpo;
   try { corpo = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
@@ -113,6 +118,9 @@ export default async (req) => {
     return json({ erro: 'Envie uma imagem JPG, PNG ou WebP.' }, 400);
   }
   if (imagem.length > LIMITE_BASE64) return json({ erro: 'Imagem grande demais. Use uma foto menor.' }, 413);
+  let CATEGORIAS = Array.isArray(corpo.categorias)
+    ? [...new Set(corpo.categorias.map((c) => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 20) : [];
+  if (!CATEGORIAS.length) CATEGORIAS = CATEGORIAS_PADRAO;
 
   let resp;
   try {
@@ -127,7 +135,7 @@ export default async (req) => {
         model: process.env.MENUREAL_MODELO || 'claude-haiku-5-5',
         max_tokens: 8000,
         stream: true,
-        system: INSTRUCOES,
+        system: instrucoes(CATEGORIAS),
         messages: [{
           role: 'user',
           content: [
@@ -135,7 +143,7 @@ export default async (req) => {
             { type: 'text', text: 'Transcreva os produtos deste cardápio.' }
           ]
         }],
-        output_config: { format: { type: 'json_schema', schema: ESQUEMA } }
+        output_config: { format: { type: 'json_schema', schema: esquema(CATEGORIAS) } }
       })
     });
   } catch (e) {
