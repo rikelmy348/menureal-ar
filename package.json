@@ -1,9 +1,12 @@
 {
   "name": "menureal-ar",
   "private": true,
-  "description": "MenuReal AR: cardápio digital com 3D e realidade aumentada",
-  "dependencies": {
-    "@netlify/blobs": "10.7.13",
-    "@netlify/database": "2.0.1"
+  "description": "MenuReal AR: cardápio e catálogo digital com 3D e realidade aumentada",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.147.0"
   }
 }

@@ -20,34 +20,33 @@ vê-lo **em escala fixa** sobre a mesa. Padaria de exemplo: **Padaria Sabor da V
 
 ```
 menureal-ar/
-├── index.html                      página do cardápio
-├── style.css                       identidade visual (creme, verde-escuro, verde-limão)
-├── app.js                          lógica: cardápio, busca, 3D/RA, carrinho, admin
-├── assets/models/                  modelos GLB (glTF 2.0 binário, unidade = metro)
-│   ├── coxinha.glb        5 × 5 × 9 cm  (em pé; altura 9 cm)
-│   ├── pao-de-queijo.glb  5 × 5 × 4 cm
-│   ├── pastel.glb        12 × 8 × 3 cm
-│   ├── croissant.glb     12 × 7 × 5 cm
-│   ├── empada.glb         8 × 8 × 4 cm
-│   └── brigadeiro.glb     3 × 3 × 3 cm
-├── netlify/functions/ler-cardapio.mjs  servidor: lê a foto do cardápio com a API do Claude
-├── netlify/functions/cardapio.mjs      servidor: cardápio de cada loja na nuvem (GET/PUT)
-├── netlify/functions/contas.mjs        servidor: dono da plataforma cria contas das lojas
-├── netlify/functions/entrar.mjs        servidor: login do estabelecimento (e-mail e senha)
-├── netlify/functions/combo.mjs         servidor: junta os itens do pedido em um só 3D
-├── netlify/functions/modelo-3d.mjs     servidor: gera modelo 3D realista por fotos (Meshy)
-├── netlify/functions/arquivo.mjs       servidor: entrega os modelos 3D guardados na nuvem
-├── netlify/lib/comum.mjs               utilidades: Netlify Blobs, login, escala e combo de GLB
-├── netlify/lib/banco.mjs               acesso ao banco de dados (lojas, produtos, tarefas 3D)
-├── netlify/database/migrations/        esquema do banco (SQL), aplicado a cada publicação
-├── package.json                        dependência @netlify/blobs
-├── netlify.toml                    configuração da Netlify (site + funções)
-├── vendor/model-viewer.min.js      cópia local do <model-viewer> 4.4.0 (reserva offline)
-├── vendor/model-viewer-LICENSE.txt licença Apache-2.0 do model-viewer
-├── vendor/fontes/                   fonte Bricolage Grotesque (SIL Open Font License)
-├── tools/gerar_modelos.py          gera os 6 GLBs (Python + numpy + Pillow)
-├── tools/gerar_arquivo_unico.py    gera a versão de arquivo único
-├── menureal-ar-arquivo-unico.html  tudo em um arquivo (abre com duplo clique)
+├── public/                          tudo o que o navegador baixa
+│   ├── index.html                   página do cardápio/catálogo
+│   ├── style.css                    identidade visual (claro e escuro)
+│   ├── app.js                       lógica: cardápio, busca, 3D/RA, carrinho, admin
+│   ├── assets/models/               modelos GLB de demonstração (unidade = metro)
+│   │   ├── coxinha.glb        5 × 5 × 9 cm  (em pé; altura 9 cm)
+│   │   ├── pao-de-queijo.glb  5 × 5 × 4 cm
+│   │   ├── pastel.glb        12 × 8 × 3 cm
+│   │   ├── croissant.glb     12 × 7 × 5 cm
+│   │   ├── empada.glb         8 × 8 × 4 cm
+│   │   └── brigadeiro.glb     3 × 3 × 3 cm
+│   └── vendor/                      <model-viewer> 4.4.0 (reserva) e fonte Bricolage Grotesque
+├── src/                             servidor (Cloudflare Worker)
+│   ├── worker.mjs                   entrada: /api/* vai para as funções, o resto para public/
+│   ├── api/cardapio.mjs             cardápio de cada loja (GET público / PUT com login)
+│   ├── api/contas.mjs               dono da plataforma cria contas das lojas
+│   ├── api/entrar.mjs               login do estabelecimento (e-mail e senha)
+│   ├── api/ler-cardapio.mjs         lê a foto do cardápio com a API do Claude
+│   ├── api/modelo-3d.mjs            gera modelo 3D realista por fotos (Meshy)
+│   ├── api/combo.mjs                junta os itens do pedido em um só 3D
+│   ├── api/arquivo.mjs              entrega os modelos 3D guardados no KV
+│   ├── lib/banco.mjs                banco de dados D1 (cria as tabelas sozinho)
+│   └── lib/comum.mjs                login (WebCrypto), escala e combo de GLB
+├── wrangler.jsonc                   configuração da Cloudflare (site, banco, arquivos 3D)
+├── package.json                     ferramenta de publicação (wrangler)
+├── tools/gerar_modelos.py           gera os 6 GLBs (Python + numpy + Pillow)
+├── tools/gerar_arquivo_unico.py     gera menureal-ar-arquivo-unico.html (tudo em um arquivo)
 └── README.md
 ```
 
@@ -58,8 +57,9 @@ em pé, por isso aparece como 5 × 5 × 9 cm (as mesmas medidas de 9 × 5 × 5 c
 - HTML5, CSS3 e JavaScript puro (sem frameworks, sem build).
 - [`<model-viewer>`](https://modelviewer.dev/) **4.4.0** (Google, Apache-2.0),
   carregado do CDN jsDelivr — `https://cdn.jsdelivr.net/npm/@google/model-viewer@4.4.0/dist/model-viewer.min.js` —
-  com a cópia em `vendor/` como reserva automática se o CDN falhar.
-- Fonte Bricolage Grotesque hospedada no próprio site (`vendor/fontes/`).
+  com a cópia em `public/vendor/` como reserva automática se o CDN falhar.
+- Fonte Bricolage Grotesque hospedada no próprio site (`public/vendor/fontes/`).
+- Servidor: **Cloudflare Workers** + **D1** (banco SQLite) + **KV** (arquivos 3D).
 
 ---
 
@@ -97,45 +97,52 @@ arquivo (`getDimensions()`) e compara com o cadastro. Se a diferença passar de
 
 ## 3. Executar localmente
 
-Os modelos 3D precisam ser servidos por HTTP (abrir o `index.html` direto do
-disco bloqueia o carregamento dos GLBs — a página avisa quando isso acontece).
+Com Node.js 20 ou mais novo:
 
 ```bash
 cd menureal-ar
-python3 -m http.server 8080        # ou: npx serve .
+npm install
+npx wrangler dev          # site + servidor + banco local em http://localhost:8787
 ```
-Abra **http://localhost:8080**.
 
-**Sem servidor:** dê duplo clique em `menureal-ar-arquivo-unico.html`. Tudo
-funciona (cardápio, 3D, carrinho, admin), exceto a RA, que exige HTTPS.
+O `wrangler dev` cria um banco D1 e um KV **locais** (pasta `.wrangler/`), sem
+precisar de conta. Para as chaves, crie um arquivo `.dev.vars` (já ignorado
+pelo Git) com, por exemplo, `MENUREAL_CODIGO=um-codigo-de-teste`.
 
-Para testar no celular na mesma rede Wi-Fi, use `http://IP-do-computador:8080`
-— o 3D funciona, mas a RA **não** (exige HTTPS). Use a publicação abaixo.
+**Só a interface, sem servidor:** gere e abra o arquivo único:
+`python3 tools/gerar_arquivo_unico.py` → duplo clique em
+`menureal-ar-arquivo-unico.html`. Cardápio, 3D, carrinho e admin local
+funcionam; a RA exige HTTPS.
 
 ---
 
-## 4. Publicar grátis em HTTPS
+## 4. Publicar na Cloudflare (grátis, HTTPS)
 
-Qualquer hospedagem de site estático serve. Três opções gratuitas:
+O site e o servidor saem do mesmo **Worker**, publicado a partir do GitHub.
+Não precisa de cartão de crédito.
 
-**Netlify Drop (mais simples, sem conta técnica)**
-1. Acesse https://app.netlify.com/drop
-2. Arraste a pasta `menureal-ar` inteira (ou o zip com o `index.html` na raiz).
-3. Você recebe um endereço `https://….netlify.app`.
+1. Crie a conta em https://dash.cloudflare.com/sign-up e confirme o e-mail.
+2. *Compute (Workers) → Workers & Pages → Create → Import a repository* (ou
+   *Continue with GitHub*) → autorize o GitHub → escolha `menureal-ar`.
+3. Confira: nome `menureal-ar`, comando de build **vazio**, comando de deploy
+   `npx wrangler deploy`. Clique em **Deploy**.
+   Na primeira publicação a Cloudflare **cria sozinha** o banco D1 `menureal`
+   e o KV dos modelos 3D, e liga os dois ao Worker.
+4. No Worker: *Settings → Variables and Secrets → Add*, tipo **Secret**, uma por vez
+   (tabela na seção 7). Salve com **Deploy**.
+5. Endereço: `https://menureal-ar.SEU-SUBDOMINIO.workers.dev`. Cada `git push`
+   na branch `main` publica de novo sozinho.
 
-> O Netlify Drop publica só o site. A **leitura de cardápio por foto** precisa
-> da função de servidor, que só roda em sites publicados a partir do GitHub
-> (ou pela Netlify CLI). Veja a seção 7.
+> Se a criação automática do banco falhar: *Storage & Databases → D1 → Create*
+> com o nome `menureal`; copie o *Database ID* e coloque
+> `"database_id": "..."` dentro de `d1_databases` no `wrangler.jsonc`. Faça o
+> mesmo com *KV → Create* (`"id": "..."` em `kv_namespaces`). IDs não são secretos.
 
-**GitHub Pages**
-1. Crie um repositório e envie os arquivos (mantendo as pastas).
-2. *Settings → Pages → Deploy from a branch → main / (root)*.
-3. Endereço: `https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/`.
-
-**Cloudflare Pages** — *Workers & Pages → Create → Pages → Upload assets*, envie a pasta.
-
-GLB é servido corretamente por essas hospedagens. Em outros servidores,
-configure o tipo `model/gltf-binary` para `.glb`.
+**Limites do plano gratuito (Workers Free):** 100 mil requisições por dia,
+10 ms de processamento por requisição, D1 com 5 GB, KV com 1 GB e 1.000
+gravações por dia. Para uma ou poucas lojas sobra. Se a geração de 3D de
+arquivos grandes falhar por limite de processamento (“Exceeded CPU”), o
+**Workers Paid** (US$ 5/mês) libera 30 s por requisição e limites bem maiores.
 
 ---
 
@@ -196,7 +203,7 @@ Dica: confira o arquivo em https://modelviewer.dev/editor/ antes de publicar.
 
 No painel administrativo, **Criar a partir de uma foto do cardápio** permite
 fotografar o cardápio impresso. A foto é reduzida no próprio celular (até
-2000 px), enviada para `netlify/functions/ler-cardapio.mjs`, que chama a API
+2000 px), enviada para `src/api/ler-cardapio.mjs`, que chama a API
 do Claude (modelo **Claude Haiku 5.5**, saída em JSON estruturado). Os itens
 aparecem numa tela de revisão: o dono corrige nome, preço e categoria,
 desmarca o que não quiser e escolhe **Adicionar** ou **Substituir**. Depois,
@@ -207,26 +214,26 @@ desmarca o que não quiser e escolhe **Adicionar** ou **Substituir**. Depois,
    adicione créditos e gere uma chave em *API Keys*. O uso é pago por leitura
    (com o Haiku 5.5, uma foto custa uma fração de centavo de dólar; veja
    https://claude.com/pricing).
-2. **Repositório no GitHub** com os arquivos do projeto (o Netlify Drop não roda funções).
-3. **Site na Netlify importado do GitHub**: *Add new site → Import an existing
-   project → GitHub →* escolha o repositório. Deixe o comando de build vazio;
-   o `netlify.toml` já indica a pasta de publicação e a das funções.
-4. **Variáveis de ambiente** em *Site configuration → Environment variables*:
+2. **Repositório no GitHub** ligado ao Worker na Cloudflare (seção 4).
+3. **Variáveis e segredos** do Worker em *Settings → Variables and Secrets*
+   (tipo *Secret*; nunca coloque chaves no código nem as envie por chat):
    | Nome | Valor |
    |---|---|
-   | `ANTHROPIC_API_KEY` | a chave da Anthropic (secreta) |
+   | `ANTHROPIC_API_KEY` | a chave da Anthropic |
    | `MENUREAL_CODIGO` | um código de acesso que você inventa (ex.: 8+ caracteres) |
-   | `MENUREAL_MODELO` | opcional; ex.: `claude-sonnet-5-5` para cardápios difíceis |
    | `MESHY_API_KEY` | chave da API da Meshy, para gerar modelos 3D realistas por fotos |
-   | `ANTHROPIC_WORKSPACE_ID` | só se a chave valer para vários workspaces (começa com `sk-ant-usr-`): o ID do workspace, `wrkspc_...` |
-5. Após salvar as variáveis: *Deploys → Trigger deploy → Deploy site*.
+   | `ANTHROPIC_WORKSPACE_ID` | só se a chave valer para vários workspaces (começa com `sk-ant-usr-`): o ID `wrkspc_...` |
+   | `MENUREAL_SEGREDO` | opcional: texto longo aleatório para assinar os logins |
+   | `MENUREAL_MODELO` | opcional; ex.: `claude-sonnet-5-5` para cardápios difíceis |
+4. Ao salvar, a Cloudflare publica de novo com as variáveis. O `wrangler.jsonc`
+   tem `keep_vars`, então os próximos `git push` não apagam nada.
 
 ### Diagnóstico
-Abra `https://SEU-SITE.netlify.app/api/ler-cardapio` no navegador. Se o
-servidor estiver publicado, aparece um texto com `"servidor":"ok"` e se a
-chave e o código estão configurados (sem mostrar os valores). Se aparecer a
-página "Page not found" da Netlify, a função não foi publicada: confira se o
-site foi importado do GitHub, não pelo Netlify Drop.
+Abra `https://SEU-SITE/api/ler-cardapio` no navegador. Aparece um texto com
+`"servidor":"ok"`, `"hospedagem":"cloudflare"`, se a chave e o código estão
+configurados (sem mostrar os valores), `"banco_de_dados_ok"` e
+`"arquivos_3d_ok"`. Se der erro 404 ou a página do cardápio, o Worker não foi
+publicado a partir do repositório: confira *Deployments* no painel.
 
 ### Segurança
 - A chave da Anthropic fica só no servidor; nunca vai para o navegador.
@@ -238,7 +245,6 @@ site foi importado do GitHub, não pelo Netlify Drop.
 
 ### Limites conhecidos
 - Uma foto por vez; cardápios grandes, uma foto por página.
-- Funções de streaming da Netlify têm limite de 60 s por leitura.
 - Fotos HEIC do iPhone podem não abrir em alguns navegadores; use a câmera
   pelo site ou JPG.
 - Produtos importados entram sem modelo 3D (card compacto, só com o pedido).
@@ -249,18 +255,18 @@ site foi importado do GitHub, não pelo Netlify Drop.
 
 **Publicação para todos:** no painel, com o código de acesso preenchido,
 *Salvar alterações* envia o cardápio para `/api/cardapio`, guardado no
-**Netlify Blobs**. Ao abrir o site, todo cliente carrega essa versão.
+**banco D1**. Ao abrir o site, todo cliente carrega essa versão.
 
 **Modelo 3D por fotos:** em cada produto, *Gerar 3D realista com fotos*.
 O dono tira de 1 a 4 fotos (a primeira de frente). O servidor envia as fotos
 para a API *Multi-Image to 3D* da **Meshy**, acompanha o progresso, baixa o
 GLB, **ajusta a escala** para que a maior dimensão seja a maior medida
-cadastrada (mantendo as proporções), apoia a base no chão, guarda o arquivo na
-nuvem e devolve o endereço `api/arquivo/modelos/...glb`. Depois: *Usar este
+cadastrada (mantendo as proporções), apoia a base no chão, guarda o arquivo no
+**KV** da Cloudflare (até 25 MB por modelo) e devolve o endereço `api/arquivo/modelos/...glb`. Depois: *Usar este
 modelo* → *Salvar alterações*.
 
 Para ativar: crie conta em https://www.meshy.ai, compre créditos de API,
-gere a chave em *API* e cadastre `MESHY_API_KEY` na Netlify. Cada modelo com
+gere a chave em *API* e cadastre `MESHY_API_KEY` no Worker. Cada modelo com
 textura custa cerca de 30 créditos (confira a página de preços da Meshy).
 Qualidade depende das fotos: fundo liso, boa luz, produto inteiro no quadro.
 
@@ -276,7 +282,7 @@ Usar o mesmo endereço de novo redefine o e-mail e a senha.
 
 **O cliente edita o próprio cardápio:** abre `/<endereço>` → *Admin* → entra
 com e-mail e senha. Ele só consegue alterar a própria loja. O login vale 30
-dias neste aparelho. Senhas ficam guardadas com hash (scrypt), nunca em texto.
+dias neste aparelho. Senhas ficam guardadas com hash (PBKDF2-SHA256), nunca em texto.
 
 **Categorias:** cada loja define as suas (ex.: Bolos, Tortas, Doces, Bebidas)
 no painel, separadas por vírgula. A leitura de cardápio por foto usa essas
@@ -303,32 +309,32 @@ dois desconecta todas as lojas.
 
 ## 7d. Banco de dados
 
-Os dados ficam num **PostgreSQL** gerenciado pela própria Netlify (**Netlify
-Database**), criado automaticamente na publicação a partir do pacote
-`@netlify/database` e das migrações em `netlify/database/migrations/`.
+Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são
+criadas **sozinhas** na primeira requisição (`src/lib/banco.mjs`); não há
+comando de migração para rodar.
 
 | Tabela | Conteúdo |
 |---|---|
-| `lojas` | uma linha por loja: endereço, nome, login (e-mail e senha com hash), tipo, horário, WhatsApp, categorias. A demonstração da página inicial é a linha `_demo` |
-| `produtos` | produtos de cada loja: preço, medidas, modelo 3D, ingredientes, alérgicos, tamanhos |
-| `tarefas_3d` | resultado das gerações 3D (evita gerar duas vezes) |
-| `configuracao` | controles internos (ex.: importação já feita) |
+| `lojas` | uma linha por loja: endereço, nome, login (e-mail e senha com hash), tipo, horário, WhatsApp, categorias (JSON). A demonstração da página inicial é a linha `_demo` |
+| `produtos` | produtos de cada loja: preço, medidas, modelo 3D, ingredientes, alérgicos e tamanhos (JSON) |
+| `tarefas_3d` | resultado das gerações 3D (evita gerar e cobrar duas vezes) |
+| `configuracao` | versão do esquema e controles internos |
 
-Os **arquivos 3D** continuam no Netlify Blobs (armazenamento de arquivos).
+Os **arquivos 3D** gerados ficam no **KV** (`MODELOS`) e são entregues em
+`/api/arquivo/...` com cache longo.
 
-**Importação automática:** na primeira chamada depois da publicação, o
-servidor copia para o banco as lojas e cardápios que estavam no Netlify Blobs
-(versão anterior) e marca a importação como feita.
+**Salvar é atômico:** o cardápio inteiro é gravado numa única transação; se
+algo falhar, a versão anterior continua valendo.
 
 **Conferir:** `https://SEU-SITE/api/ler-cardapio` mostra `"banco_de_dados_ok": true`.
+O conteúdo das tabelas aparece em *Storage & Databases → D1 → menureal → Explore Data*.
 
-**Mudar o esquema:** crie um novo arquivo `000N_descricao.sql` na pasta de
-migrações (nunca edite um já publicado). A Netlify aplica antes de publicar; se
-a migração falhar, a publicação é bloqueada e o site antigo continua no ar.
+**Mudar o esquema:** acrescente o comando em `ESQUEMA` (use `ALTER TABLE …`
+para colunas novas) e aumente `VERSAO_ESQUEMA` em `src/lib/banco.mjs`.
 
-**Plano Netlify:** disponível nos planos por créditos. No plano gratuito há
-limites mensais de processamento e transferência do banco (veja a página de
-cobrança da Netlify); para começar, são suficientes.
+**Vindo da Netlify:** contas e cardápios não são copiados automaticamente.
+Recrie as contas pelo painel mestre (*Ver e criar estabelecimentos*); cada
+loja pode usar *Exportar/Importar JSON* no painel para levar o cardápio.
 
 ## 8. O que ainda depende de backend ou serviços externos
 
@@ -337,10 +343,9 @@ cobrança da Netlify); para começar, são suficientes.
 | Pedidos | Demonstrativos; nada é enviado | API de pedidos + painel da cozinha |
 | Pagamento | Não existe (intencional) | Gateway (Pix, cartão) com conformidade |
 | WhatsApp | Link `wa.me` opcional com o resumo | Número oficial; WhatsApp Business API para automação |
-| Administração | Banco de dados PostgreSQL, login por loja | Recuperação de senha por e-mail; cadastro feito pela própria loja |
-| Cardápio por foto | Funciona com a função da Netlify + chave da Anthropic | Login por padaria em vez de código compartilhado |
-| Cardápio entre aparelhos | Exportar/Importar JSON manual | Banco de dados ou CMS |
-| Modelos 3D | Arquivos estáticos | Armazenamento/CDN e fluxo de upload |
+| Administração | Banco de dados D1, login por loja | Recuperação de senha por e-mail; cadastro feito pela própria loja |
+| Cardápio por foto | Funciona com o Worker + chave da Anthropic, login por loja | Limite de leituras por loja |
+| Modelos 3D | Gerados por fotos (Meshy) e guardados no KV | Upload direto de GLB próprio |
 | Estoque, horário real, métricas | Horário demonstrativo | Integração com PDV/sistema da padaria |
 | Fontes e biblioteca 3D | CDN público (com reserva local) | Opcional: servir tudo do próprio domínio |
 
@@ -389,6 +394,6 @@ cobrança da Netlify); para começar, são suficientes.
 ---
 
 ## Licenças
-- Código do MenuReal AR e modelos em `assets/models/`: originais deste projeto (modelos em CC0 1.0).
+- Código do MenuReal AR e modelos em `public/assets/models/`: originais deste projeto (modelos em CC0 1.0).
 - `<model-viewer>`: Apache-2.0, © Google LLC (inclui three.js, MIT).
-- Fonte Bricolage Grotesque: SIL Open Font License (`vendor/fontes/OFL.txt`).
+- Fonte Bricolage Grotesque: SIL Open Font License (`public/vendor/fontes/OFL.txt`).

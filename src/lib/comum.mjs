@@ -1,13 +1,7 @@
 /* =========================================================================
-   MenuReal AR — utilidades compartilhadas pelas funções de servidor
+   MenuReal AR — utilidades do servidor (Cloudflare Workers)
+   Respostas JSON, login (WebCrypto), escala e combo de modelos GLB.
    ========================================================================= */
-import { getStore } from '@netlify/blobs';
-
-export const LOJA = 'menureal';
-
-export function loja() {
-  return getStore({ name: LOJA, consistency: 'strong' });
-}
 
 export function json(dados, status = 200) {
   return new Response(JSON.stringify(dados), {
@@ -16,11 +10,108 @@ export function json(dados, status = 200) {
   });
 }
 
-/** Confere o código de acesso do painel. Devolve uma Response de erro, ou null se estiver ok. */
-export function exigirCodigo(req) {
-  const codigo = process.env.MENUREAL_CODIGO;
-  if (!codigo) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO na Netlify.' }, 500);
-  if ((req.headers.get('x-menureal-codigo') || '') !== codigo) return json({ erro: 'Código de acesso incorreto.' }, 401);
+export function erroComStatus(msg, status) { const e = new Error(msg); e.status = status; return e; }
+
+// ---------------------------------------------------------------------------
+// Endereços das lojas
+// ---------------------------------------------------------------------------
+export const SLUG_OK = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
+const RESERVADOS = new Set(['api', 'assets', 'vendor', 'tools', 'index', 'admin', 'entrar', 'menureal', 'demo']);
+export function slugValido(s) { return SLUG_OK.test(s || '') && !RESERVADOS.has(s); }
+export function lerSlug(req) {
+  const s = (new URL(req.url).searchParams.get('loja') || '').toLowerCase();
+  if (s && !slugValido(s)) throw erroComStatus('Loja inválida.', 400);
+  return s;
+}
+
+// ---------------------------------------------------------------------------
+// Senhas (PBKDF2-SHA256) e token de login (HMAC-SHA256), só com WebCrypto
+// ---------------------------------------------------------------------------
+const enc = new TextEncoder();
+const ITERACOES = 20000; // leve o bastante para o plano gratuito; o número fica gravado no hash
+
+function b64(bytes) { let s = ''; for (const b of new Uint8Array(bytes)) s += String.fromCharCode(b); return btoa(s); }
+function deB64(t) { return Uint8Array.from(atob(t), (c) => c.charCodeAt(0)); }
+function b64url(bytes) { return b64(bytes).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function deB64url(t) { return deB64(t.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((t.length + 3) % 4)); }
+
+async function pbkdf2(senha, sal, iteracoes) {
+  const chave = await crypto.subtle.importKey('raw', enc.encode(String(senha)), 'PBKDF2', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: sal, iterations: iteracoes }, chave, 256));
+}
+function iguais(a, b) {
+  if (a.length !== b.length) return false;
+  let d = 0; for (let i = 0; i < a.length; i++) d |= a[i] ^ b[i];
+  return d === 0;
+}
+export async function hashSenha(senha) {
+  const sal = crypto.getRandomValues(new Uint8Array(16));
+  return 'pbkdf2$' + ITERACOES + '$' + b64(sal) + '$' + b64(await pbkdf2(senha, sal, ITERACOES));
+}
+export async function conferirSenha(senha, guardado) {
+  const [tipo, it, sal, h] = String(guardado || '').split('$');
+  if (tipo !== 'pbkdf2' || !sal || !h) return false;
+  return iguais(await pbkdf2(senha, deB64(sal), Number(it)), deB64(h));
+}
+
+function segredo(env) { return env.MENUREAL_SEGREDO || ('menureal:' + (env.MENUREAL_CODIGO || '')); }
+async function chaveHmac(env) {
+  return crypto.subtle.importKey('raw', enc.encode(segredo(env)), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign', 'verify']);
+}
+export async function criarToken(env, slug, dias = 30) {
+  const corpo = b64url(enc.encode(JSON.stringify({ s: slug, e: Date.now() + dias * 864e5 })));
+  const assin = b64url(await crypto.subtle.sign('HMAC', await chaveHmac(env), enc.encode(corpo)));
+  return corpo + '.' + assin;
+}
+export async function lerToken(env, token) {
+  const [corpo, assin] = String(token || '').split('.');
+  if (!corpo || !assin) return null;
+  let ok = false;
+  try { ok = await crypto.subtle.verify('HMAC', await chaveHmac(env), deB64url(assin), enc.encode(corpo)); } catch { return null; }
+  if (!ok) return null;
+  try {
+    const d = JSON.parse(new TextDecoder().decode(deB64url(corpo)));
+    return d.e > Date.now() ? d.s : null;
+  } catch { return null; }
+}
+
+/** Mestre = código MENUREAL_CODIGO (dono da plataforma). */
+export function ehMestre(req, env) {
+  const c = env.MENUREAL_CODIGO;
+  return Boolean(c) && (req.headers.get('x-menureal-codigo') || '') === c;
+}
+/** Autoriza a edição de uma loja ('' = demonstração). Lança erro com status se negado. */
+export async function autorizar(req, env, slug) {
+  if (ehMestre(req, env)) return;
+  const s = await lerToken(env, (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, ''));
+  if (s && slug && s === slug) return;
+  if (!env.MENUREAL_CODIGO) throw erroComStatus('Servidor não configurado: defina MENUREAL_CODIGO nas variáveis da Cloudflare.', 500);
+  throw erroComStatus(s ? 'Sem permissão para esta loja.' : slug ? 'Entre na conta do estabelecimento.' : 'Código de acesso incorreto.', 401);
+}
+
+export async function hashCurto(texto) {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode(texto)));
+  return [...h].map((b) => b.toString(16).padStart(2, '0')).join('').slice(0, 20);
+}
+
+// ---------------------------------------------------------------------------
+// Modelos 3D guardados no KV (binding MODELOS)
+// ---------------------------------------------------------------------------
+export const PREFIXO_ARQUIVO = 'api/arquivo/';
+export async function guardarModelo(env, chave, bytes, meta = {}) {
+  await env.MODELOS.put(chave, bytes, { metadata: meta });
+  return PREFIXO_ARQUIVO + chave;
+}
+/** Lê um modelo: da nuvem (api/arquivo/...) ou dos arquivos do site (assets/models/...). */
+export async function lerModelo(env, url) {
+  url = String(url || '').replace(/^\//, '');
+  if (url.includes('..')) return null;
+  const nuvem = /^api\/arquivo\/((?:modelos|combos)\/(?:[a-z0-9-]+\/)?[\w.-]+\.glb)$/.exec(url);
+  if (nuvem) { const ab = await env.MODELOS.get(nuvem[1], 'arrayBuffer'); return ab ? new Uint8Array(ab) : null; }
+  if (/^assets\/models\/[\w.-]+\.glb$/.test(url)) {
+    const r = await env.ASSETS.fetch(new Request('https://site/' + url));
+    return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
+  }
   return null;
 }
 
@@ -137,66 +228,6 @@ export function escalarGlb(buf, dimCm) {
   });
   return { glb: escreverGlb(json, bin), medidasCm: tam.map((t) => t * s * 100) };
 }
-
-// ---------------------------------------------------------------------------
-// Contas por estabelecimento: senha (scrypt) e token assinado (HMAC)
-// ---------------------------------------------------------------------------
-import { scryptSync, randomBytes, timingSafeEqual, createHmac, createHash } from 'node:crypto';
-
-export const SLUG_OK = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-const RESERVADOS = new Set(['api', 'assets', 'vendor', 'netlify', 'tools', 'index', 'admin', 'entrar', 'menureal']);
-export function slugValido(s) { return SLUG_OK.test(s || '') && !RESERVADOS.has(s); }
-
-function segredo() {
-  return process.env.MENUREAL_SEGREDO || ('menureal:' + (process.env.MENUREAL_CODIGO || ''));
-}
-export function hashSenha(senha) {
-  const sal = randomBytes(16);
-  const h = scryptSync(String(senha), sal, 32);
-  return 'scrypt$' + sal.toString('base64') + '$' + h.toString('base64');
-}
-export function conferirSenha(senha, guardado) {
-  const [, sal, h] = String(guardado || '').split('$');
-  if (!sal || !h) return false;
-  const calc = scryptSync(String(senha), Buffer.from(sal, 'base64'), 32);
-  const esperado = Buffer.from(h, 'base64');
-  return calc.length === esperado.length && timingSafeEqual(calc, esperado);
-}
-export function criarToken(slug, dias = 30) {
-  const corpo = Buffer.from(JSON.stringify({ s: slug, e: Date.now() + dias * 864e5 })).toString('base64url');
-  const assin = createHmac('sha256', segredo()).update(corpo).digest('base64url');
-  return corpo + '.' + assin;
-}
-export function lerToken(token) {
-  const [corpo, assin] = String(token || '').split('.');
-  if (!corpo || !assin) return null;
-  const certo = createHmac('sha256', segredo()).update(corpo).digest('base64url');
-  if (certo.length !== assin.length || !timingSafeEqual(Buffer.from(certo), Buffer.from(assin))) return null;
-  try {
-    const d = JSON.parse(Buffer.from(corpo, 'base64url').toString());
-    return d.e > Date.now() ? d.s : null;
-  } catch { return null; }
-}
-
-/** Mestre = código MENUREAL_CODIGO (dono da plataforma). Loja = token da própria loja. */
-export function ehMestre(req) {
-  const c = process.env.MENUREAL_CODIGO;
-  return Boolean(c) && (req.headers.get('x-menureal-codigo') || '') === c;
-}
-/**
- * Autoriza a edição de uma loja ('' = cardápio de demonstração da raiz).
- * Devolve null se autorizado, ou uma Response de erro.
- */
-export function autorizar(req, slug) {
-  if (ehMestre(req)) return null;
-  const auth = req.headers.get('authorization') || '';
-  const s = lerToken(auth.replace(/^Bearer\s+/i, ''));
-  if (s && slug && s === slug) return null;
-  if (!process.env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO na Netlify.' }, 500);
-  return json({ erro: s ? 'Sem permissão para esta loja.' : slug ? 'Entre na conta do estabelecimento.' : 'Código de acesso incorreto.' }, 401);
-}
-export function chaveCardapio(slug) { return slug ? 'cardapios/' + slug : 'cardapio'; }
-export function hashCurto(texto) { return createHash('sha256').update(texto).digest('hex').slice(0, 20); }
 
 // ---------------------------------------------------------------------------
 // Combo: junta vários GLB lado a lado em um único arquivo

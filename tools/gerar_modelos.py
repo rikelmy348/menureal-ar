@@ -18,7 +18,7 @@ demonstrativas. Não representam com precisão nenhum alimento real.
 
 Uso:
     pip install numpy pillow
-    python3 tools/gerar_modelos.py            # grava em assets/models/
+    python3 tools/gerar_modelos.py            # grava em public/assets/models/
     python3 tools/gerar_modelos.py --saida pasta/
 """
 import argparse
@@ -548,7 +548,7 @@ def volume_assinado(partes):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "..", "assets", "models"))
+    ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "..", "public", "assets", "models"))
     args = ap.parse_args()
     os.makedirs(args.saida, exist_ok=True)
     for nome, fn in MODELOS.items():

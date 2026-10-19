@@ -1,0 +1,21 @@
+// MenuReal AR — configuração do Cloudflare Workers
+// O site (pasta public) e as funções (/api/*) saem do mesmo Worker.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "menureal-ar",
+  "main": "src/worker.mjs",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  // Banco de dados (lojas, contas, produtos). A Cloudflare cria sozinha na 1ª publicação.
+  "d1_databases": [{ "binding": "DB", "database_name": "menureal" }],
+  // Arquivos 3D gerados (até 25 MB cada). Também criado sozinho na 1ª publicação.
+  "kv_namespaces": [{ "binding": "MODELOS" }],
+  // Mantém as chaves cadastradas no painel a cada nova publicação
+  "keep_vars": true,
+  "observability": { "enabled": true }
+}

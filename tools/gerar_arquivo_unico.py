@@ -25,13 +25,13 @@ def seguro(js):
     return js.replace("</script", "<\\/script").replace("<!--", "<\\!--")
 
 
-html = ler("index.html")
-css = ler("style.css")
-app = ler("app.js")
-mv = ler("vendor/model-viewer.min.js")
+html = ler("public/index.html")
+css = ler("public/style.css")
+app = ler("public/app.js")
+mv = ler("public/vendor/model-viewer.min.js")
 
 modelos = {}
-pasta = os.path.join(RAIZ, "assets", "models")
+pasta = os.path.join(RAIZ, "public", "assets", "models")
 for nome in sorted(os.listdir(pasta)):
     if nome.endswith(".glb"):
         with open(os.path.join(pasta, nome), "rb") as f:
@@ -40,7 +40,7 @@ for nome in sorted(os.listdir(pasta)):
 
 mapa = ",\n".join('  "%s": "%s"' % (k, v) for k, v in modelos.items())
 
-with open(os.path.join(RAIZ, "vendor", "fontes", "bricolage-grotesque.woff2"), "rb") as f:
+with open(os.path.join(RAIZ, "public", "vendor", "fontes", "bricolage-grotesque.woff2"), "rb") as f:
     fonte = "data:font/woff2;base64," + base64.b64encode(f.read()).decode("ascii")
 css = css.replace('url("vendor/fontes/bricolage-grotesque.woff2")', 'url("' + fonte + '")')
 html = re.sub(r'\s*<link rel="preload"[^>]*>', "", html)

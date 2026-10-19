@@ -813,7 +813,7 @@
   function verCombo(botao) {
     var urls = itensCom3d();
     if (urls.length < 2) return;
-    if (!servidor) { toast('O combo em 3D funciona no site publicado na Netlify.'); return; }
+    if (!servidor) { toast('O combo em 3D funciona no site publicado (Cloudflare).'); return; }
     botao.disabled = true;
     botao.textContent = 'Montando seu pedido em 3D…';
     fetch('api/combo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ itens: urls }) })
@@ -937,12 +937,12 @@
     var p = rascunho.padaria;
     var h =
       (!servidor
-        ? '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Netlify para salvar na nuvem.</div>'
+        ? '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Cloudflare para salvar na nuvem.</div>'
         : LOJA
           ? '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>“Salvar alterações” publica o ' + termo() + ' para todos os clientes.</span>' +
               '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>'
           : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita a demonstração e cria as contas das lojas clientes (comida, objetos, móveis, o que for).</div>' +
-            campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Netlify (MENUREAL_CODIGO).') +
+            campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Cloudflare (MENUREAL_CODIGO).') +
             '<section class="secao-admin"><h3>Estabelecimentos clientes</h3><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver e criar estabelecimentos</button></div></section>') +
       '<section class="secao-admin"><h3>Estabelecimento</h3><div class="campos">' +
         campo('Nome do estabelecimento', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
@@ -1274,7 +1274,7 @@
   });
 
   // ---------------------------------------------------------------------
-  // Criar cardápio por foto (precisa do servidor: netlify/functions)
+  // Criar cardápio por foto (precisa do servidor: src/api)
   // ---------------------------------------------------------------------
   var API_FOTO = 'api/ler-cardapio';
   var CHAVE_CODIGO = 'menureal:codigo-acesso';
@@ -1386,7 +1386,7 @@
       var tipo = r.headers.get('content-type') || '';
       if (!r.ok || tipo.indexOf('text/event-stream') === -1) {
         if (r.status === 404 || r.status === 405 || tipo.indexOf('text/html') > -1) {
-          throw new Error('O servidor de leitura não foi encontrado. Este recurso só funciona no site publicado na Netlify a partir do GitHub, com a chave configurada (veja o README).');
+          throw new Error('O servidor de leitura não foi encontrado. Este recurso só funciona no site publicado na Cloudflare a partir do GitHub, com a chave configurada (veja o README).');
         }
         return r.json().then(function (j) { throw new Error(j.erro || 'Erro ' + r.status); },
           function () { throw new Error('Erro ' + r.status + ' no servidor.'); });
@@ -1744,7 +1744,7 @@
     proximo();
   }
 
-  // Cardápio publicado na nuvem (site na Netlify com funções)
+  // Cardápio publicado na nuvem (Cloudflare Worker)
   function carregarNuvem() {
     if (location.protocol === 'file:' || MODELOS_EMBUTIDOS) return;
     fetch(comLoja('api/cardapio'), { cache: 'no-store' }).then(function (r) {
