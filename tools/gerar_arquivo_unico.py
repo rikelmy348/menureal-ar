@@ -38,6 +38,9 @@ for nome in sorted(os.listdir(pasta)):
             b64 = base64.b64encode(f.read()).decode("ascii")
         modelos["assets/models/" + nome] = "data:model/gltf-binary;base64," + b64
 
+with open(os.path.join(RAIZ, "public", "assets", "estudio.hdr"), "rb") as f:
+    modelos["assets/estudio.hdr"] = "data:application/octet-stream;base64," + base64.b64encode(f.read()).decode("ascii") + "#.hdr"  # o model-viewer reconhece HDR pelo final ".hdr"
+
 mapa = ",\n".join('  "%s": "%s"' % (k, v) for k, v in modelos.items())
 
 with open(os.path.join(RAIZ, "public", "vendor", "fontes", "bricolage-grotesque.woff2"), "rb") as f:

@@ -206,8 +206,27 @@ export function caixaGlb(json) {
  * para que a maior dimensão do modelo seja a maior medida cadastrada; apoia a
  * base em y=0 e centraliza em x/z. dimCm = { largura, profundidade, altura }.
  */
-export function escalarGlb(buf, dimCm) {
+/**
+ * Materiais mais realistas: o padrão do glTF para "metálico" é 1 (vira espelho escuro) quando
+ * o arquivo não informa; e comida nunca é metal (evita aspecto de plástico/cromado).
+ */
+export function ajustarMateriais(json, { comida = false } = {}) {
+  for (const m of json.materials || []) {
+    const pbr = (m.pbrMetallicRoughness = m.pbrMetallicRoughness || {});
+    if (comida) {
+      pbr.metallicFactor = 0;
+      // sem mapa: fosco moderado; com mapa: usa o mapa sem deixar tudo brilhando
+      if (pbr.roughnessFactor != null && pbr.roughnessFactor < 0.45) pbr.roughnessFactor = pbr.metallicRoughnessTexture ? 1 : 0.6;
+      else if (pbr.roughnessFactor == null && !pbr.metallicRoughnessTexture) pbr.roughnessFactor = 0.6;
+    } else if (!pbr.metallicRoughnessTexture && pbr.metallicFactor == null) {
+      pbr.metallicFactor = 0;
+    }
+  }
+}
+
+export function escalarGlb(buf, dimCm, opcoes = {}) {
   const { json, bin } = lerGlb(buf);
+  ajustarMateriais(json, opcoes);
   const { mn, mx } = caixaGlb(json);
   const tam = [mx[0] - mn[0], mx[1] - mn[1], mx[2] - mn[2]];
   const alvoMax = Math.max(dimCm.largura, dimCm.profundidade, dimCm.altura) / 100;

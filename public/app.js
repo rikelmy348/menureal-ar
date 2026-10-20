@@ -100,6 +100,9 @@
   }
   function apagar(chave) { try { localStorage.removeItem(chave); } catch (e) { /* ignora */ } }
 
+  // Luz de estúdio fotográfico (HDR criado para o projeto: tools/gerar_estudio_hdr.py)
+  function ESTUDIO() { return urlModelo('assets/estudio.hdr'); }
+
   function urlModelo(caminho) {
     if (!caminho) return '';
     if (MODELOS_EMBUTIDOS && MODELOS_EMBUTIDOS[caminho]) return MODELOS_EMBUTIDOS[caminho];
@@ -406,7 +409,7 @@
     var vitrine = temModelo
       ? '<button class="card__palco" type="button" data-acao="3d" aria-label="Girar ' + esc(p.nome) + ' em 3D">' +
           '<model-viewer src="' + esc(urlModelo(p.modelo)) + '" alt="Modelo 3D de ' + esc(p.nome) + '" loading="lazy" reveal="auto"' +
-          ' camera-orbit="28deg 70deg auto" shadow-intensity="1.1" shadow-softness="0.8" environment-image="neutral" exposure="1.05"' +
+          ' camera-orbit="28deg 70deg auto" shadow-intensity="1.25" shadow-softness="0.55" tone-mapping="neutral" environment-image="' + esc(ESTUDIO()) + '" exposure="1"' +
           ' interaction-prompt="none" disable-zoom disable-tap tabindex="-1"></model-viewer>' +
           '<span class="card__estado" data-estado><span class="carregando"><span class="spinner" aria-hidden="true"></span><span class="barra"><i></i></span></span></span>' +
         '</button>' +
@@ -629,10 +632,11 @@
       'touch-action': 'pan-y',
       'camera-orbit': '28deg 68deg auto',
       'interaction-prompt': 'auto',
-      'shadow-intensity': '1',
-      'shadow-softness': '0.85',
-      'environment-image': 'neutral',
-      exposure: '1.05',
+      'shadow-intensity': '1.25',
+      'shadow-softness': '0.55',
+      'tone-mapping': 'neutral',
+      'environment-image': ESTUDIO(),
+      exposure: '1',
       'interpolation-decay': reduzMovimento ? '20' : '120'
     };
     if (!reduzMovimento) { attrs['auto-rotate'] = ''; attrs['auto-rotate-delay'] = '2500'; attrs['rotation-per-second'] = '18deg'; }
@@ -1771,7 +1775,7 @@
   // Gerar modelo 3D realista a partir de fotos (servidor + Meshy)
   // ---------------------------------------------------------------------
   var CHAVE_TAREFAS = 'menureal:tarefas3d';
-  var g3d = { i: null, fotos: [], timer: null, resultado: null };
+  var g3d = { i: null, fotos: [], timer: null, resultado: null, qualidade: 'alta' };
 
   function tarefas3d() { return ler(CHAVE_TAREFAS) || {}; }
   function guardarTarefa(id, t) { var x = tarefas3d(); if (t) x[id] = t; else delete x[id]; gravar(CHAVE_TAREFAS, x); }
@@ -1809,7 +1813,11 @@
           '<input type="file" accept="image/*" id="g3d-arquivo" ' + (g3d.fotos.length ? 'multiple ' : '') + 'hidden></label>' : '') +
       '</div>' +
 
-      '<p class="mini">Cada geração usa créditos da sua conta na Meshy e leva de 2 a 5 minutos.</p>' +
+      '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Qualidade do modelo</legend><div class="fontes-op">' +
+        '<label class="fonte-op"><input type="radio" name="g3d-qualidade" value="alta"' + (g3d.qualidade !== 'padrao' ? ' checked' : '') + '><span class="fonte-op__amostra" style="font-size:17px">Alta</span><small>Mais detalhe e realismo. Arquivo maior.</small></label>' +
+        '<label class="fonte-op"><input type="radio" name="g3d-qualidade" value="padrao"' + (g3d.qualidade === 'padrao' ? ' checked' : '') + '><span class="fonte-op__amostra" style="font-size:17px">Padrão</span><small>Mais leve, abre rápido em internet fraca.</small></label>' +
+      '</div></fieldset>' +
+      '<p class="mini">Cada geração usa créditos da sua conta na Meshy (a qualidade alta pode custar mais; confira no painel da Meshy) e leva de 2 a 5 minutos.</p>' +
       (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível gerar</strong>' + esc(erro) + '</div>' : '');
     $('#g3d-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="g3d-gerar"' + (g3d.fotos.length ? '' : ' disabled') + '>Gerar modelo 3D</button>';
   }
@@ -1837,7 +1845,7 @@
     fetch(comLoja('api/modelo-3d'), {
       method: 'POST',
       headers: cabecalhos(),
-      body: JSON.stringify({ imagens: g3d.fotos.map(function (f) { return f.base64; }) })
+      body: JSON.stringify({ imagens: g3d.fotos.map(function (f) { return f.base64; }), qualidade: g3d.qualidade === 'padrao' ? 'padrao' : 'alta' })
     }).then(function (r) {
       return r.json().catch(function () { return { erro: 'Servidor de modelos 3D não encontrado (' + r.status + ').' }; })
         .then(function (j) { if (!r.ok || !j.tarefa) throw new Error(j.erro || 'Erro ' + r.status); return j; });
@@ -1879,7 +1887,7 @@
     var r = g3d.resultado;
     $('#g3d-corpo').innerHTML =
       '<div class="g3d-previa"><model-viewer src="' + esc(r.url) + '" alt="Prévia do modelo 3D gerado" camera-controls touch-action="pan-y" ' +
-        (reduzMovimento ? '' : 'auto-rotate ') + 'shadow-intensity="1" environment-image="neutral" exposure="1.05"></model-viewer></div>' +
+        (reduzMovimento ? '' : 'auto-rotate ') + 'shadow-intensity="1.25" shadow-softness="0.55" tone-mapping="neutral" environment-image="' + esc(ESTUDIO()) + '" exposure="1"></model-viewer></div>' +
       '<p class="escala ok">✓ Modelo pronto e guardado na nuvem. Medidas finais: ' +
         esc(dimTexto({ largura: r.medidasCm[0], altura: r.medidasCm[1], profundidade: r.medidasCm[2] })) + ' (' + esc(String(r.tamanhoMb)) + ' MB).</p>' +
       '<p class="mini">Gire a prévia para conferir. Se não ficou bom, gere de novo com fotos mais nítidas e fundo liso.</p>';
@@ -1888,6 +1896,7 @@
   }
 
   $('#dlg-3d').addEventListener('change', function (e) {
+    if (e.target.name === 'g3d-qualidade') { g3d.qualidade = e.target.value; return; }
     if (e.target.id !== 'g3d-arquivo' || !e.target.files.length) return;
     var arquivos = Array.prototype.slice.call(e.target.files, 0, 4 - g3d.fotos.length);
     ['largura', 'profundidade', 'altura'].forEach(function (k) { var v = Number(($('#g3d-' + k) || {}).value); if (v > 0) produtoG3d().dim[k] = v; });

@@ -198,6 +198,10 @@ export async function salvarConta(env, { slug, nome, email, senhaHash, tipo }) {
 // ---------------------------------------------------------------------------
 // Tarefas de geração 3D e configuração
 // ---------------------------------------------------------------------------
+export async function tipoLoja(env, slug) {
+  const r = await env.DB.prepare('SELECT tipo FROM lojas WHERE slug = ?').bind(slugBanco(slug)).first();
+  return r ? r.tipo : 'alimentos';
+}
 export async function lerTarefa(env, id) {
   const t = await env.DB.prepare('SELECT resultado FROM tarefas_3d WHERE id = ?').bind(id).first();
   return t ? lerJson(t.resultado, null) : null;

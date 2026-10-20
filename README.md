@@ -266,6 +266,16 @@ cadastrada (mantendo as proporções), apoia a base no chão, guarda o arquivo n
 **KV** da Cloudflare (até 25 MB por modelo) e devolve o endereço `api/arquivo/modelos/...glb`. Depois: *Usar este
 modelo* → *Salvar alterações*.
 
+**Qualidade:** *Alta* (padrão) pede à Meshy geometria detalhada (`geometry_resolution: 2k`,
+~100 mil triângulos), texturas 2K com PBR e remoção da luz das fotos (`remove_lighting`), para
+que a iluminação venha da cena e da câmera na RA. *Padrão* gera ~40 mil triângulos e abre mais
+rápido em internet fraca. Ao guardar, o servidor ajusta os materiais: comida nunca fica
+metálica nem brilhante demais (evita aspecto de plástico).
+
+**Iluminação:** os visualizadores usam `public/assets/estudio.hdr`, uma luz de estúdio
+fotográfico criada para o projeto (`tools/gerar_estudio_hdr.py`, CC0), com mapeamento de tons
+neutro (cores fiéis) e sombra de contato mais firme. Na câmera (RA), a luz é a do ambiente real.
+
 Para ativar: crie conta em https://www.meshy.ai, compre créditos de API,
 gere a chave em *API* e cadastre `MESHY_API_KEY` no Worker. Cada modelo com
 textura custa cerca de 30 créditos (confira a página de preços da Meshy).

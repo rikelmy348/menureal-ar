@@ -4,7 +4,7 @@
         acompanha; quando pronto, ajusta a escala, guarda no KV e devolve { url }
    Autorização: conta da loja (token) ou código mestre. Variável: MESHY_API_KEY. */
 import { json, autorizar, lerSlug, escalarGlb, lerModelo, guardarModelo, erroComStatus } from '../lib/comum.mjs';
-import { lerTarefa, salvarTarefa } from '../lib/banco.mjs';
+import { lerTarefa, salvarTarefa, tipoLoja } from '../lib/banco.mjs';
 
 const API = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
 const LIMITE_GLB = 24_000_000; // KV aceita até 25 MiB por arquivo
@@ -53,7 +53,7 @@ export default async function modelo3d(req, env) {
       let atual = null;
       try { atual = await lerModelo(env, corpo.url); } catch (e) { console.error('reescalar: falha ao ler', corpo.url, e); }
       if (!atual) return json({ erro: 'Modelo 3D não encontrado. Gere o 3D do produto primeiro.' }, 404);
-      const { glb, medidasCm } = escalarGlb(atual, dim);
+      const { glb, medidasCm } = escalarGlb(atual, dim, { comida: (await tipoLoja(env, slug)) !== 'produtos' });
       const chave = pasta(slug) + nomeArq(corpo.produto) + '-' + Date.now().toString(36) + '.glb';
       return json({ url: await guardarModelo(env, chave, glb, { dim }), medidasCm });
     }
@@ -67,10 +67,16 @@ export default async function modelo3d(req, env) {
       body: JSON.stringify({
         image_urls: imagens.map((b) => 'data:image/jpeg;base64,' + b),
         ai_model: 'latest',
+        // "alta": forma com mais detalhe (2k) e mais polígonos; "padrao": arquivo menor, carrega mais rápido
+        geometry_resolution: corpo.qualidade === 'padrao' ? 'standard' : '2k',
         should_texture: true,
         enable_pbr: true,
+        texture_resolution: '2k',     // nítido no celular sem pesar demais
+        remove_lighting: true,        // tira sombras e brilhos da foto: a luz vem da cena e da câmera (RA)
+        image_enhancement: true,
         should_remesh: true,
-        target_polycount: 40000, // leve o bastante para celulares
+        topology: 'triangle',
+        target_polycount: corpo.qualidade === 'padrao' ? 40000 : 100000,
         target_formats: ['glb']
       })
     });
@@ -97,7 +103,7 @@ export default async function modelo3d(req, env) {
     if (!urlGlb) return json({ status: 'FAILED', erro: 'A Meshy não devolveu o arquivo GLB.' });
     const r = await fetch(urlGlb);
     if (!r.ok) return json({ status: 'FAILED', erro: 'Não foi possível baixar o modelo gerado.' });
-    const { glb, medidasCm } = escalarGlb(new Uint8Array(await r.arrayBuffer()), dim);
+    const { glb, medidasCm } = escalarGlb(new Uint8Array(await r.arrayBuffer()), dim, { comida: (await tipoLoja(env, slug)) !== 'produtos' });
     if (glb.length > LIMITE_GLB) return json({ status: 'FAILED', erro: 'O modelo gerado ficou pesado demais (' + (glb.length / 1e6).toFixed(1) + ' MB).' });
 
     const chave = pasta(slug) + nomeArq(u.searchParams.get('produto')) + '-' + Date.now().toString(36) + '.glb';
