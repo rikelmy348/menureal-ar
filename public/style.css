@@ -569,6 +569,8 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
   transition: opacity var(--dur), transform var(--dur) var(--ease);
 }
 .toast.ver { opacity: 1; transform: translate(-50%, 0); }
+/* a mensagem fica na camada de cima, acima das janelas abertas */
+.toast[popover] { inset: auto; width: max-content; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); margin: 0; border: 0; overflow: visible; }
 
 /* ------------------------ Movimento reduzido ---------------------- */
 @media (prefers-reduced-motion: reduce) {

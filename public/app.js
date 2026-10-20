@@ -1712,14 +1712,20 @@
   function criarLoja() {
     var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value, tipo: $('#nl-tipo').value };
     var b = $('#loja-criar');
-    b.disabled = true;
+    b.disabled = true; b.textContent = 'Criando…';
     fetch('api/contas', { method: 'POST', headers: cabecalhos(), body: JSON.stringify(corpo) })
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null; try { j = JSON.parse(t); } catch (e) { /* resposta não-JSON */ }
+          if (!r.ok || !j) throw new Error((j && j.erro) || 'Erro do servidor (' + r.status + '). Tente de novo em instantes.');
+          return j;
+        });
+      })
       .then(function (j) {
         toast((j.atualizado ? 'Conta atualizada: ' : 'Conta criada: ') + location.host + '/' + j.slug);
         carregarLojas();
       })
-      .catch(function (e) { b.disabled = false; toast(e.message); });
+      .catch(function (e) { b.disabled = false; b.textContent = 'Criar conta'; toast(e.message); });
   }
 
   function gerarTamanhos3d(botao, x) {
@@ -1784,9 +1790,17 @@
   function toast(msg) {
     var t = $('#toast');
     t.textContent = msg;
-    t.classList.add('ver');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { t.classList.remove('ver'); }, 2600);
+    // popover = camada de cima: aparece mesmo com o painel (dialog) aberto
+    if (t.showPopover) {
+      try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch (e) { /* navegador antigo */ }
+      void t.offsetWidth;
+    }
+    t.classList.add('ver');
+    toastTimer = setTimeout(function () {
+      t.classList.remove('ver');
+      toastTimer = setTimeout(function () { try { if (t.hidePopover) t.hidePopover(); } catch (e) { /* ok */ } }, 400);
+    }, msg.length > 60 ? 5000 : 3000);
   }
 
   // ---------------------------------------------------------------------
