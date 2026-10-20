@@ -112,11 +112,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--tinta); }
+.logo { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--tinta); min-width: 0; flex: 0 1 auto; }
 .logo__mark { width: 26px; height: 26px; color: var(--tinta); }
 .logo__txt { font-weight: 720; font-size: 18px; letter-spacing: -.01em; font-variation-settings: "opsz" 24; }
 .logo__ar { font-size: 11px; font-weight: 800; background: var(--limao); color: var(--sobre-limao); padding: 2px 6px; border-radius: 6px; }
-.topbar__acoes { display: flex; gap: 8px; }
+.topbar__acoes { display: flex; gap: 8px; flex-shrink: 0; }
 .icone-btn {
   position: relative; display: inline-flex; align-items: center; gap: 7px;
   min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--linha);
@@ -584,8 +584,8 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 
 /* ------------------- Aparência escolhida pela loja ---------------- */
 .hero__nome, .card__nome, .viewer__nome, .painel__topo h2, .login .login__loja, .confirmacao h3, .logo__loja { font-family: var(--fonte-titulo); }
-.logo__img { height: 38px; width: auto; max-width: min(170px, 42vw); object-fit: contain; }
-.logo__loja { font-weight: 760; font-size: 19px; letter-spacing: -.01em; line-height: 1.05; max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.logo__img { height: 38px; width: auto; max-width: 100%; min-width: 0; object-fit: contain; object-position: left center; }
+.logo__loja { display: block; min-width: 0; font-weight: 760; font-size: 18px; letter-spacing: -.01em; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero__capa { margin: 0 0 20px; border-radius: var(--raio-g); overflow: hidden; aspect-ratio: 16 / 8; max-height: 360px; width: 100%; background: var(--palco-b); }
 .hero__capa img { width: 100%; height: 100%; object-fit: cover; }
 .rodape a { font-weight: 700; color: var(--tinta); }
