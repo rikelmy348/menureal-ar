@@ -118,6 +118,26 @@
   // ---------------------------------------------------------------------
   // Estado
   // ---------------------------------------------------------------------
+  var COR_OK = /^#[0-9a-f]{6}$/i;
+  var FONTES_LOJA = {
+    moderno: { nome: 'Moderno', css: 'var(--fonte)' },
+    elegante: { nome: 'Elegante', css: '"Playfair Display MR", Georgia, serif' },
+    divertido: { nome: 'Divertido', css: '"Fredoka MR", ui-rounded, system-ui, sans-serif' },
+    classico: { nome: 'Clássico', css: '"Lora MR", Georgia, serif' }
+  };
+  var PALETAS = [
+    { nome: 'Padrão', cor: '', destaque: '' },
+    { nome: 'Vinho', cor: '#6B1E2E', destaque: '#E8B04A' },
+    { nome: 'Café', cor: '#4A2C1D', destaque: '#F2C14E' },
+    { nome: 'Oceano', cor: '#1D3B6E', destaque: '#FF8A3D' },
+    { nome: 'Confeitaria', cor: '#B83A6B', destaque: '#FFC7DA' },
+    { nome: 'Oliva', cor: '#4B5A2A', destaque: '#EBDDA8' },
+    { nome: 'Noite', cor: '#161616', destaque: '#FFD23F' },
+    { nome: 'Terracota', cor: '#B5502F', destaque: '#F6D6A8' },
+    { nome: 'Uva', cor: '#4B2A7B', destaque: '#8FF0C8' }
+  ];
+  var COR_PADRAO = '#10402D', DESTAQUE_PADRAO = '#C6F25A';
+
   var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
   var dados = validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO)));
   CATEGORIAS = dados.categorias;
@@ -137,7 +157,8 @@
       fecha: /^\d{2}:\d{2}$/.test(p.fecha) ? p.fecha : PADRAO.padaria.fecha,
       dias: Array.isArray(p.dias) ? p.dias.filter(function (x) { return x >= 0 && x <= 6; }) : PADRAO.padaria.dias.slice(),
       whatsapp: String(p.whatsapp || '').replace(/\D/g, ''),
-      tipo: p.tipo === 'produtos' ? 'produtos' : 'alimentos' // alimentos = cardápio; produtos = catálogo de objetos
+      tipo: p.tipo === 'produtos' ? 'produtos' : 'alimentos', // alimentos = cardápio; produtos = catálogo de objetos
+      visual: validarVisual(p.visual)
     };
     var categorias = [];
     (Array.isArray(d.categorias) ? d.categorias : CATEGORIAS_PADRAO).forEach(function (c) {
@@ -177,6 +198,87 @@
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
+  }
+
+  // ---------------------------------------------------------------------
+  // Aparência da loja: cores, estilo de letra, logo, capa e marca MenuReal
+  // ---------------------------------------------------------------------
+  function validarVisual(v) {
+    v = v && typeof v === 'object' ? v : {};
+    var img = function (u) { u = String(u || ''); return /^api\/arquivo\/imagens\/[a-z0-9_-]+\/[\w.-]+\.(webp|png|jpg)$/.test(u) ? u : ''; };
+    return {
+      cor: COR_OK.test(v.cor) ? v.cor.toUpperCase() : '',
+      destaque: COR_OK.test(v.destaque) ? v.destaque.toUpperCase() : '',
+      fonte: FONTES_LOJA[v.fonte] ? v.fonte : 'moderno',
+      logo: img(v.logo),
+      capa: img(v.capa),
+      marca: v.marca !== false
+    };
+  }
+
+  function rgb(h) { var n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+  function hex(c) { return '#' + c.map(function (x) { return ('0' + Math.round(Math.max(0, Math.min(255, x))).toString(16)).slice(-2); }).join('').toUpperCase(); }
+  function misturar(a, b, t) { var x = rgb(a), y = rgb(b); return hex([0, 1, 2].map(function (i) { return x[i] + (y[i] - x[i]) * t; })); }
+  function luminancia(h) {
+    var c = rgb(h).map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function contraste(a, b) { var x = luminancia(a), y = luminancia(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+  function textoSobre(h) { return contraste(h, '#FFFFFF') >= contraste(h, '#111411') ? '#FFFFFF' : '#111411'; }
+  function clarearAte(h, fundo, alvo) { var t = 0; var r = h; while (contraste(r, fundo) < alvo && t < 1) { t += 0.08; r = misturar(h, '#FFFFFF', t); } return r; }
+
+  function cssVisual(v) {
+    var css = ':root{--fonte-titulo:' + FONTES_LOJA[v.fonte].css + ';}';
+    if (!v.cor && !v.destaque) return css;
+    var cor = v.cor || COR_PADRAO, dest = v.destaque || DESTAQUE_PADRAO;
+    var claro = {
+      '--fundo': misturar('#F5F5F2', cor, 0.05), '--tinta': misturar('#131613', cor, 0.12), '--tinta-2': misturar('#585D58', cor, 0.15),
+      '--verde': cor, '--verde-2': misturar(cor, '#000000', 0.18), '--sobre-verde': textoSobre(cor),
+      '--limao': dest, '--sobre-limao': textoSobre(dest), '--limao-suave': misturar(dest, '#FFFFFF', 0.72),
+      '--linha': misturar('#DEE0DA', cor, 0.07), '--linha-forte': misturar('#C7CAC3', cor, 0.08),
+      '--palco-b': misturar('#E7E8E3', cor, 0.07)
+    };
+    var fundoE = misturar('#0C0F0D', cor, 0.10);
+    var acao = contraste(dest, fundoE) >= 3 ? dest : clarearAte(cor, fundoE, 3);
+    var destE = contraste(dest, fundoE) >= 3 ? dest : acao;
+    var escuro = {
+      '--fundo': fundoE, '--superficie': misturar('#141915', cor, 0.10), '--tinta': '#EEF0EC', '--tinta-2': '#AEB4AE',
+      '--verde': acao, '--verde-2': misturar(acao, '#FFFFFF', 0.15), '--sobre-verde': textoSobre(acao),
+      '--limao': destE, '--sobre-limao': textoSobre(destE), '--limao-suave': misturar(fundoE, destE, 0.22),
+      '--linha': misturar('#262C27', cor, 0.10), '--linha-forte': misturar('#38403A', cor, 0.10),
+      '--palco-a': misturar('#1E241F', cor, 0.10), '--palco-b': misturar('#101411', cor, 0.10)
+    };
+    var bloco = function (o) { return Object.keys(o).map(function (k) { return k + ':' + o[k]; }).join(';'); };
+    return css + ':root{' + bloco(claro) + '}' +
+      '@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){' + bloco(escuro) + '}}' +
+      ':root[data-theme="dark"]{' + bloco(escuro) + '}';
+  }
+
+  function aplicarVisual(p) {
+    p = p || dados.padaria;
+    var v = p.visual || validarVisual(null);
+    var st = document.getElementById('tema-loja');
+    if (!st) { st = document.createElement('style'); st.id = 'tema-loja'; document.head.appendChild(st); }
+    st.textContent = cssVisual(v);
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && v.cor) meta.setAttribute('content', misturar('#F5F5F2', v.cor, 0.05));
+    // Topo: na página de uma loja aparece a marca dela, não a do MenuReal
+    var logo = $('#logo');
+    if (LOJA && logo) {
+      logo.setAttribute('aria-label', p.nome + ', início');
+      logo.innerHTML = v.logo ? '<img class="logo__img" src="' + esc(v.logo) + '" alt="' + esc(p.nome) + '">' : '<span class="logo__loja">' + esc(p.nome) + '</span>';
+    }
+    var capa = $('#hero-capa');
+    if (capa) {
+      capa.hidden = !v.capa;
+      var im = capa.querySelector('img');
+      if (v.capa && im.getAttribute('src') !== v.capa) im.setAttribute('src', v.capa);
+    }
+    var rod = $('#rodape');
+    if (rod && LOJA) {
+      rod.hidden = !v.marca;
+      rod.innerHTML = '<p>' + (ehAlimento({ padaria: p }) ? 'Cardápio' : 'Catálogo') + ' em 3D por <a href="/">MenuReal</a></p>';
+    }
   }
 
   // Vocabulário conforme o tipo de negócio
@@ -256,7 +358,8 @@
     var p = dados.padaria;
     $('#nome-padaria').textContent = p.nome;
     $('#slogan-padaria').textContent = p.slogan;
-    document.title = 'MenuReal AR — ' + p.nome;
+    document.title = LOJA ? p.nome + ' — ' + (ehAlimento() ? 'Cardápio' : 'Catálogo') : 'MenuReal AR — ' + p.nome;
+    aplicarVisual(p);
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
     $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
     $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar coxinha, pão de queijo…') : 'Buscar produtos…';
@@ -963,6 +1066,7 @@
         campo('Categorias', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">',
           'Separe por vírgulas, na ordem em que devem aparecer. Ex.: Bolos, Doces, Bebidas · Sofás, Mesas, Decoração.') +
       '</div></section>' +
+      htmlAparencia(p) +
       '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
         '<button class="btn btn--contorno btn--bloco destaque-foto" type="button" id="admin-foto">' + ICONES.camera +
           '<span><strong>Criar a partir de uma foto</strong><small>Fotografe um cardápio, catálogo ou tabela de preços e revise os itens lidos</small></span></button>' +
@@ -975,6 +1079,146 @@
       '</section>';
     $('#admin-corpo').innerHTML = h;
   }
+
+  function htmlAparencia(p) {
+    var v = p.visual;
+    var podeEnviar = servidor;
+    function imagem(uso, rotulo, ajuda) {
+      var url = v[uso];
+      return '<div class="campo"><span>' + rotulo + '</span><div class="img-loja">' +
+        '<div class="img-loja__previa' + (uso === 'capa' ? ' img-loja__previa--capa' : '') + '">' + (url ? '<img src="' + esc(url) + '" alt="">' : 'Sem imagem') + '</div>' +
+        '<div class="img-loja__acoes">' +
+          (podeEnviar
+            ? '<label class="btn btn--sec btn--p" style="cursor:pointer">' + (url ? 'Trocar' : 'Enviar') + '<input type="file" accept="image/png,image/jpeg,image/webp,image/*" data-img="' + uso + '" hidden></label>' +
+              (url ? '<button class="btn btn--fantasma btn--p" type="button" data-img-remover="' + uso + '">Remover</button>' : '')
+            : '<small>Disponível no site publicado.</small>') +
+        '</div></div><small>' + ajuda + '</small></div>';
+    }
+    return '<section class="secao-admin" id="aparencia"><h3>Aparência da página</h3><div class="campos">' +
+      '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Cores</legend><div class="paletas">' +
+        PALETAS.map(function (x, i) {
+          var ativo = (x.cor || '') === (v.cor || '') && (x.destaque || '') === (v.destaque || '');
+          return '<button type="button" class="paleta" data-paleta="' + i + '" aria-pressed="' + ativo + '"><span class="paleta__cores"><i style="background:' + (x.cor || COR_PADRAO) + '"></i><i style="background:' + (x.destaque || DESTAQUE_PADRAO) + '"></i></span>' + x.nome + '</button>';
+        }).join('') +
+      '</div></fieldset>' +
+      '<div class="campos campos--2">' +
+        campo('Cor principal', '<input type="color" data-v="cor" value="' + (v.cor || COR_PADRAO).toLowerCase() + '">', 'Botões e ações.') +
+        campo('Cor de destaque', '<input type="color" data-v="destaque" value="' + (v.destaque || DESTAQUE_PADRAO).toLowerCase() + '">', 'Régua de medidas e detalhes.') +
+      '</div>' +
+      '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Estilo das letras dos títulos</legend><div class="fontes-op">' +
+        Object.keys(FONTES_LOJA).map(function (k) {
+          return '<label class="fonte-op"><input type="radio" name="v-fonte" value="' + k + '"' + (v.fonte === k ? ' checked' : '') + '>' +
+            '<span class="fonte-op__amostra" style="font-family:' + esc(FONTES_LOJA[k].css) + '">' + esc(p.nome || 'Sua loja') + '</span><small>' + FONTES_LOJA[k].nome + '</small></label>';
+        }).join('') +
+      '</div></fieldset>' +
+      imagem('logo', 'Logo', 'Aparece no topo da página. PNG com fundo transparente fica melhor.') +
+      imagem('capa', 'Foto de capa', 'Foto horizontal no topo: fachada, vitrine ou um produto em destaque.') +
+      '<label class="checar"><input type="checkbox" data-v="marca"' + (v.marca ? ' checked' : '') + '> Mostrar “' + (ehAlimento(rascunho) ? 'Cardápio' : 'Catálogo') + ' em 3D por MenuReal” no rodapé</label>' +
+      '<p class="mini">As mudanças aparecem na hora; toque em “Salvar alterações” para publicar.</p>' +
+    '</div></section>';
+  }
+
+  function visualRascunho(mudou) {
+    var v = rascunho.padaria.visual;
+    if (mudou) mudou(v);
+    rascunho.padaria.visual = validarVisual(v);
+    aplicarVisual(rascunho.padaria);
+  }
+  function renderAparencia() {
+    coletarAdmin();
+    var sec = $('#aparencia');
+    if (!sec) return;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = htmlAparencia(rascunho.padaria);
+    sec.replaceWith(tmp.firstChild);
+  }
+
+  function reduzirParaEnvio(arquivo, ladoMax, transparente) {
+    return new Promise(function (ok, falha) {
+      var url = URL.createObjectURL(arquivo);
+      var img = new Image();
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        var lado = ladoMax, tentativa = 0;
+        function gerar() {
+          var k = Math.min(1, lado / Math.max(img.naturalWidth, img.naturalHeight));
+          var c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.naturalWidth * k));
+          c.height = Math.max(1, Math.round(img.naturalHeight * k));
+          var g = c.getContext('2d');
+          if (!transparente) { g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); }
+          g.drawImage(img, 0, 0, c.width, c.height);
+          var d = c.toDataURL('image/webp', 0.86), tipo = 'image/webp';
+          if (d.indexOf('data:image/webp') !== 0) { tipo = transparente ? 'image/png' : 'image/jpeg'; d = c.toDataURL(tipo, 0.86); }
+          var b64 = d.split(',')[1];
+          if (b64.length > 1400000 && tentativa++ < 4) { lado = Math.round(lado * 0.75); return gerar(); }
+          ok({ base64: b64, tipo: tipo });
+        }
+        gerar();
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); falha(new Error('Não foi possível abrir esta imagem. Use JPG ou PNG.')); };
+      img.src = url;
+    });
+  }
+
+  function enviarImagemLoja(uso, arquivo) {
+    var cod = $('#admin-codigo');
+    if (cod && cod.value.trim()) guardarCodigo(cod.value.trim());
+    if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
+    toast('Enviando imagem…');
+    reduzirParaEnvio(arquivo, uso === 'logo' ? 640 : 1800, uso === 'logo')
+      .then(function (r) {
+        return fetch(comLoja('api/imagem'), { method: 'POST', headers: cabecalhos(), body: JSON.stringify({ imagem: r.base64, tipo: r.tipo, uso: uso }) });
+      })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null; try { j = JSON.parse(t); } catch (e) { /* não-JSON */ }
+          if (!r.ok || !j) throw new Error((j && j.erro) || 'Erro do servidor (' + r.status + ').');
+          return j;
+        });
+      })
+      .then(function (j) {
+        visualRascunho(function (v) { v[uso] = j.url; });
+        renderAparencia();
+        toast((uso === 'logo' ? 'Logo enviada' : 'Capa enviada') + '. Toque em “Salvar alterações” para publicar.');
+      })
+      .catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
+  }
+
+  $('#admin-corpo').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-paleta]');
+    if (b) {
+      var x = PALETAS[Number(b.getAttribute('data-paleta'))];
+      visualRascunho(function (v) { v.cor = x.cor; v.destaque = x.destaque; });
+      renderAparencia();
+      return;
+    }
+    var rm = e.target.closest('[data-img-remover]');
+    if (rm) {
+      var uso = rm.getAttribute('data-img-remover');
+      visualRascunho(function (v) { v[uso] = ''; });
+      renderAparencia();
+    }
+  });
+  $('#admin-corpo').addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.matches('input[type="color"][data-v]')) {
+      visualRascunho(function (v) {
+        v[t.getAttribute('data-v')] = t.value.toUpperCase();
+        if (!v.cor) v.cor = COR_PADRAO;
+        if (!v.destaque) v.destaque = DESTAQUE_PADRAO;
+      });
+      $$('.paleta', $('#aparencia')).forEach(function (p) { p.setAttribute('aria-pressed', 'false'); });
+    }
+  });
+  $('#admin-corpo').addEventListener('change', function (e) {
+    var t = e.target;
+    if (t.name === 'v-fonte') { visualRascunho(function (v) { v.fonte = t.value; }); return; }
+    if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
+    if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
+  });
+  // Fechou o painel sem salvar: volta à aparência publicada
+  $('#dlg-admin').addEventListener('close', function () { aplicarVisual(dados.padaria); });
 
   function htmlProdutoAdmin(x, i) {
     var aberto = abertoNoAdmin === x.id;

@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 1;
+const VERSAO_ESQUEMA = 2; // 2: coluna lojas.visual (cores, letras, logo, capa)
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -21,6 +21,7 @@ const ESQUEMA = [
      dias          TEXT NOT NULL DEFAULT '[1,2,3,4,5,6]',   -- JSON
      whatsapp      TEXT NOT NULL DEFAULT '',
      categorias    TEXT NOT NULL DEFAULT '[]',              -- JSON
+     visual        TEXT NOT NULL DEFAULT '{}',              -- JSON: aparência da página
      criada_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
      atualizada_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
@@ -62,8 +63,13 @@ export async function garantirEsquema(env) {
     const r = await env.DB.prepare("SELECT valor FROM configuracao WHERE chave = 'esquema'").first();
     if (r && Number(r.valor) >= VERSAO_ESQUEMA) { esquemaPronto = true; return; }
   } catch { /* tabelas ainda não existem */ }
+  await env.DB.batch(ESQUEMA.map((s) => env.DB.prepare(s)));
+  // bancos criados na versão 1 não têm a coluna visual
+  const { results: colunas } = await env.DB.prepare('PRAGMA table_info(lojas)').all();
+  if (!colunas.some((c) => c.name === 'visual')) {
+    await env.DB.prepare("ALTER TABLE lojas ADD COLUMN visual TEXT NOT NULL DEFAULT '{}'").run();
+  }
   await env.DB.batch([
-    ...ESQUEMA.map((s) => env.DB.prepare(s)),
     env.DB.prepare("INSERT INTO configuracao (chave, valor) VALUES ('esquema', ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor").bind(String(VERSAO_ESQUEMA))
   ]);
   esquemaPronto = true;
@@ -75,6 +81,25 @@ const texto = (v, max) => String(v == null ? '' : v).slice(0, max);
 const dimOk = (d, k) => { const v = Number(d && d[k]); return v > 0 && v < 100000 ? Math.round(v * 100) / 100 : 5; };
 const slugBanco = (slug) => slug || DEMO;
 
+export const FONTES = ['moderno', 'elegante', 'divertido', 'classico'];
+const COR = /^#[0-9a-f]{6}$/i;
+/** Aparência da página da loja. Imagens só da pasta da própria loja no KV. */
+export function limparVisual(v, slug) {
+  v = v && typeof v === 'object' ? v : {};
+  const img = (u) => {
+    u = String(u || '');
+    return new RegExp('^api/arquivo/imagens/' + slugBanco(slug).replace(/[^a-z0-9_-]/g, '') + '/[\\w.-]+\\.(webp|png|jpg)$').test(u) ? u : '';
+  };
+  return {
+    cor: COR.test(v.cor) ? v.cor.toUpperCase() : '',
+    destaque: COR.test(v.destaque) ? v.destaque.toUpperCase() : '',
+    fonte: FONTES.includes(v.fonte) ? v.fonte : 'moderno',
+    logo: img(v.logo),
+    capa: img(v.capa),
+    marca: v.marca !== false
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Cardápio / catálogo
 // ---------------------------------------------------------------------------
@@ -83,7 +108,8 @@ export async function lerCardapio(env, slug) {
   if (!l) return null;
   const { results } = await env.DB.prepare('SELECT * FROM produtos WHERE loja = ? ORDER BY posicao').bind(l.slug).all();
   return {
-    padaria: { nome: l.nome, slogan: l.slogan, abre: l.abre, fecha: l.fecha, dias: lerJson(l.dias, []), whatsapp: l.whatsapp, tipo: l.tipo },
+    padaria: { nome: l.nome, slogan: l.slogan, abre: l.abre, fecha: l.fecha, dias: lerJson(l.dias, []), whatsapp: l.whatsapp, tipo: l.tipo,
+      visual: limparVisual(lerJson(l.visual, {}), slug) },
     categorias: lerJson(l.categorias, []),
     produtos: results.map((p) => ({
       id: p.id, nome: p.nome, categoria: p.categoria, preco: p.preco, descricao: p.descricao,
@@ -112,11 +138,11 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
   }
 
   const comandos = [
-    env.DB.prepare(`UPDATE lojas SET nome = ?, slogan = ?, abre = ?, fecha = ?, dias = ?, whatsapp = ?, tipo = ?, categorias = ?, atualizada_em = ?
+    env.DB.prepare(`UPDATE lojas SET nome = ?, slogan = ?, abre = ?, fecha = ?, dias = ?, whatsapp = ?, tipo = ?, categorias = ?, visual = ?, atualizada_em = ?
                     WHERE slug = ?`).bind(
       texto(p.nome, 60) || 'Loja', texto(p.slogan, 90), /^\d{2}:\d{2}$/.test(p.abre) ? p.abre : '08:00',
       /^\d{2}:\d{2}$/.test(p.fecha) ? p.fecha : '18:00', JSON.stringify(dias), String(p.whatsapp || '').replace(/\D/g, '').slice(0, 15),
-      tipo, JSON.stringify(categorias), atual, s),
+      tipo, JSON.stringify(categorias), JSON.stringify(limparVisual(p.visual, slug)), atual, s),
     env.DB.prepare('DELETE FROM produtos WHERE loja = ?').bind(s)
   ];
   const inserir = env.DB.prepare(`INSERT INTO produtos (loja, id, posicao, nome, categoria, preco, descricao, largura_cm, profundidade_cm, altura_cm,

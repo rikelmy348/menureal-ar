@@ -20,7 +20,7 @@
 
   <header class="topbar">
     <div class="topbar__in">
-      <a class="logo" href="#" aria-label="MenuReal AR, início">
+      <a class="logo" id="logo" href="#" aria-label="MenuReal AR, início">
         <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true">
           <path d="M16 3.5 27 9.8v12.4L16 28.5 5 22.2V9.8z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
           <path d="M5 9.8 16 16l11-6.2M16 16v12.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/>
@@ -43,6 +43,7 @@
 
   <main id="cardapio">
     <section class="hero" aria-labelledby="nome-padaria">
+      <div class="hero__capa" id="hero-capa" hidden><img alt="" decoding="async"></div>
       <h1 class="hero__nome" id="nome-padaria">Padaria Sabor da Vila</h1>
       <p class="hero__slogan" id="slogan-padaria">Veja antes de pedir</p>
       <div class="hero__regua" aria-hidden="true"></div>
@@ -74,7 +75,7 @@
     </section>
   </main>
 
-  <footer class="rodape">
+  <footer class="rodape" id="rodape">
     <p>Feito com <strong>MenuReal AR</strong>. Visualização 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a>.</p>
   </footer>
 

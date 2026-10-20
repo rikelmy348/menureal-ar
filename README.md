@@ -40,7 +40,8 @@ menureal-ar/
 │   ├── api/ler-cardapio.mjs         lê a foto do cardápio com a API do Claude
 │   ├── api/modelo-3d.mjs            gera modelo 3D realista por fotos (Meshy)
 │   ├── api/combo.mjs                junta os itens do pedido em um só 3D
-│   ├── api/arquivo.mjs              entrega os modelos 3D guardados no KV
+│   ├── api/arquivo.mjs              entrega os modelos 3D e as imagens guardados no KV
+│   ├── api/imagem.mjs               recebe a logo e a foto de capa da loja
 │   ├── lib/banco.mjs                banco de dados D1 (cria as tabelas sozinho)
 │   └── lib/comum.mjs                login (WebCrypto), escala e combo de GLB
 ├── wrangler.jsonc                   configuração da Cloudflare (site, banco, arquivos 3D)
@@ -303,6 +304,16 @@ pedido registra o tamanho.
 mesa (3D)* junta os itens (até 8 unidades) lado a lado num único arquivo, em
 tamanho real, com o preço total. Funciona também no Scene Viewer e no Quick Look.
 
+**Aparência de cada loja:** no painel, *Aparência da página*:
+- **Cores**: 9 combinações prontas ou cor principal (botões) e de destaque (régua) livres.
+  O site calcula sozinho a cor do texto sobre cada cor e a versão do modo escuro.
+- **Estilo das letras dos títulos**: Moderno (Bricolage Grotesque), Elegante
+  (Playfair Display), Divertido (Fredoka) ou Clássico (Lora). Todas hospedadas no site.
+- **Logo** (topo da página) e **foto de capa**: o celular reduz a imagem antes de
+  enviar; ficam no KV em `/api/arquivo/imagens/<loja>/...`.
+- **Marca MenuReal**: a loja escolhe se mostra “Cardápio em 3D por MenuReal” no rodapé.
+  Na página da loja, o topo mostra a logo ou o nome dela, nunca o MenuReal.
+
 Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os
 logins. Sem ela, a assinatura usa o `MENUREAL_CODIGO`; trocar qualquer um dos
 dois desconecta todas as lojas.
@@ -396,4 +407,4 @@ loja pode usar *Exportar/Importar JSON* no painel para levar o cardápio.
 ## Licenças
 - Código do MenuReal AR e modelos em `public/assets/models/`: originais deste projeto (modelos em CC0 1.0).
 - `<model-viewer>`: Apache-2.0, © Google LLC (inclui three.js, MIT).
-- Fonte Bricolage Grotesque: SIL Open Font License (`public/vendor/fontes/OFL.txt`).
+- Fontes Bricolage Grotesque, Playfair Display, Fredoka e Lora: SIL Open Font License (`public/vendor/fontes/OFL.txt` e `CREDITOS.txt`).

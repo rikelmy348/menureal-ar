@@ -11,6 +11,10 @@
   src: url("vendor/fontes/bricolage-grotesque.woff2") format("woff2");
   font-weight: 200 800; font-stretch: 75% 100%; font-style: normal; font-display: swap;
 }
+/* Estilos de letra que cada loja pode escolher (só baixam quando usados) */
+@font-face { font-family: "Playfair Display MR"; src: url("vendor/fontes/playfair-display.woff2") format("woff2"); font-weight: 400 900; font-display: swap; }
+@font-face { font-family: "Fredoka MR"; src: url("vendor/fontes/fredoka.woff2") format("woff2"); font-weight: 300 700; font-display: swap; }
+@font-face { font-family: "Lora MR"; src: url("vendor/fontes/lora.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
 
 :root {
   --fundo: #F3F5F1;          /* off-white frio, levemente esverdeado */
@@ -33,6 +37,7 @@
   --ok: #2E9E4F;
 
   --fonte: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fonte-titulo: var(--fonte);   /* trocada pelo estilo de letra da loja */
   --raio-g: 26px;
   --raio: 18px;
   --raio-p: 12px;
@@ -576,3 +581,31 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
+
+/* ------------------- Aparência escolhida pela loja ---------------- */
+.hero__nome, .card__nome, .viewer__nome, .painel__topo h2, .login .login__loja, .confirmacao h3, .logo__loja { font-family: var(--fonte-titulo); }
+.logo__img { height: 38px; width: auto; max-width: min(170px, 42vw); object-fit: contain; }
+.logo__loja { font-weight: 760; font-size: 19px; letter-spacing: -.01em; line-height: 1.05; max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero__capa { margin: 0 0 20px; border-radius: var(--raio-g); overflow: hidden; aspect-ratio: 16 / 8; max-height: 360px; width: 100%; background: var(--palco-b); }
+.hero__capa img { width: 100%; height: 100%; object-fit: cover; }
+.rodape a { font-weight: 700; color: var(--tinta); }
+
+.paletas { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 8px; }
+.paleta { display: grid; justify-items: center; gap: 4px; padding: 8px 4px 6px; border-radius: var(--raio-p); border: 1.5px solid var(--linha); background: var(--superficie); font-size: 11.5px; font-weight: 650; color: var(--tinta-2); line-height: 1.15; text-align: center; }
+.paleta[aria-pressed="true"] { border-color: var(--tinta); color: var(--tinta); box-shadow: 0 0 0 2px var(--tinta) inset; }
+.paleta__cores { display: flex; }
+.paleta__cores i { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--superficie); box-shadow: 0 0 0 1px var(--linha-forte); }
+.paleta__cores i + i { margin-left: -8px; }
+.campo input[type="color"] { height: 48px; padding: 4px; cursor: pointer; }
+.fontes-op { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fonte-op { position: relative; display: grid; gap: 2px; padding: 12px; border-radius: var(--raio-p); border: 1.5px solid var(--linha); background: var(--superficie); cursor: pointer; }
+.fonte-op input { position: absolute; opacity: 0; pointer-events: none; }
+.fonte-op:has(input:checked) { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--tinta) inset; }
+.fonte-op:has(input:focus-visible) { outline: 3px solid var(--limao); outline-offset: 2px; }
+.fonte-op__amostra { font-size: 22px; line-height: 1.05; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tinta); }
+.fonte-op small { color: var(--tinta-2); font-size: 12.5px; }
+.img-loja { display: grid; grid-template-columns: 88px 1fr; gap: 12px; align-items: center; }
+.img-loja__previa { width: 88px; height: 66px; border-radius: var(--raio-p); border: 1px dashed var(--linha-forte); background: var(--palco-b); display: grid; place-items: center; overflow: hidden; color: var(--tinta-2); font-size: 11.5px; text-align: center; }
+.img-loja__previa img { width: 100%; height: 100%; object-fit: contain; }
+.img-loja__previa--capa img { object-fit: cover; }
+.img-loja__acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
