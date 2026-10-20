@@ -733,16 +733,18 @@
 
   function animarLinhas(mv) {
     cancelAnimationFrame(quadroMedidas);
-    var linhas = $$('.med-linhas line', mv);
+    var linhas = $$('.med-linhas line', mv).map(function (l) { return { el: l, de: 'hotspot-' + l.getAttribute('data-de'), ate: 'hotspot-' + l.getAttribute('data-ate'), v: [] }; });
     function quadro() {
       if (!mv.isConnected) return;
       if (!mv.classList.contains('sem-medidas')) {
         linhas.forEach(function (l) {
-          var a = mv.queryHotspot('hotspot-' + l.getAttribute('data-de'));
-          var b = mv.queryHotspot('hotspot-' + l.getAttribute('data-ate'));
+          var a = mv.queryHotspot(l.de), b = mv.queryHotspot(l.ate);
           if (!a || !b) return;
-          l.setAttribute('x1', a.canvasPosition.x); l.setAttribute('y1', a.canvasPosition.y);
-          l.setAttribute('x2', b.canvasPosition.x); l.setAttribute('y2', b.canvasPosition.y);
+          // arredonda e só mexe no desenho quando a linha realmente mudou (alivia a câmera/RA)
+          var n = [Math.round(a.canvasPosition.x), Math.round(a.canvasPosition.y), Math.round(b.canvasPosition.x), Math.round(b.canvasPosition.y)];
+          if (n[0] === l.v[0] && n[1] === l.v[1] && n[2] === l.v[2] && n[3] === l.v[3]) return;
+          l.v = n;
+          l.el.setAttribute('x1', n[0]); l.el.setAttribute('y1', n[1]); l.el.setAttribute('x2', n[2]); l.el.setAttribute('y2', n[3]);
         });
       }
       quadroMedidas = requestAnimationFrame(quadro);
