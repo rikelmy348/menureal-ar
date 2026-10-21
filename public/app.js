@@ -673,11 +673,26 @@
       $('#ar-indisp').hidden = false;
       $('#ar-indisp').innerHTML = '<strong>Realidade aumentada indisponível</strong>O modelo 3D deste produto não carregou.';
     });
+    // Antes de abrir a câmera: esconde avisos na camada de cima (podem atrapalhar a tela cheia da RA)
+    mv.querySelector('.botao-ar').addEventListener('click', function () {
+      var t = $('#toast');
+      clearTimeout(toastTimer);
+      t.classList.remove('ver');
+      try { if (t.hidePopover && t.matches(':popover-open')) t.hidePopover(); } catch (err) { /* ok */ }
+    }, true);
+    var tentouSemMedidas = false;
     mv.addEventListener('ar-status', function (e) {
-      if (e.detail.status === 'failed') {
-        toast('Não foi possível abrir a câmera em RA neste aparelho. Continue no 3D.');
-        trocarAba('3d');
+      if (e.detail.status !== 'failed') return;
+      // A RA com medidas (WebXR) falhou: tenta de novo pelo app de RA do Google, que é mais estável
+      if (!tentouSemMedidas && /^webxr/.test(mv.getAttribute('ar-modes') || '')) {
+        tentouSemMedidas = true;
+        mv.setAttribute('ar-modes', 'scene-viewer quick-look');
+        toast('Abrindo a câmera sem as etiquetas de medida…');
+        setTimeout(function () { try { mv.activateAR(); } catch (err) { /* segue no 3D */ } }, 60);
+        return;
       }
+      toast('Não foi possível abrir a câmera em RA neste aparelho. Continue no 3D.');
+      trocarAba('3d');
     });
     if (mvStatus === 'carregando') {
       estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando visualizador 3D…</span></div>');
