@@ -3,7 +3,7 @@
    Público, como o combo; o resultado fica guardado (mesma escolha = mesmo arquivo). */
 import { json, hashCurto, lerModelo, guardarModelo, montarAcai, ADICIONAIS_3D, PREFIXO_ARQUIVO } from '../lib/comum.mjs';
 
-const VERSAO = 'v2-vidro';
+const VERSAO = 'v3-ajudantes';
 
 export default async function montagem(req, env) {
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);

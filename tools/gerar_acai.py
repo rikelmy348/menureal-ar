@@ -128,8 +128,11 @@ def tubo_achatado(C, larg, alt, nu=12, fechar=True):
     tg = np.gradient(C, axis=0)
     tg /= np.linalg.norm(tg, axis=1, keepdims=True)
     b1 = np.cross(tg, [0, 1, 0])
+    vertical = np.linalg.norm(b1, axis=1) < 0.2          # caminho de pé (jato): usa outro eixo
+    b1[vertical] = np.cross(tg[vertical], [1, 0, 0])
     b1 /= np.linalg.norm(b1, axis=1, keepdims=True) + 1e-9
     b2 = np.cross(b1, tg)
+    b2 /= np.linalg.norm(b2, axis=1, keepdims=True) + 1e-9
     th = np.linspace(0, TAU, nu + 1)
     L = np.asarray(larg)[:, None, None]
     A = np.asarray(alt)[:, None, None]
@@ -480,7 +483,11 @@ def camada_calda(material, rot, seed, larg=0.026, alt=0.009, escorre=(1, 3, 4, 6
         p = tubo_achatado(C[a:b], w[a:b], h[a:b])
         p.material = material
         p.uv[:] = 0.5
-        grupos.append(grupo([p], {"anim": "calda", "atraso": round(0.04 + 0.85 * k / nseg, 3)}))
+        ex = {"anim": "calda", "atraso": round(0.04 + 0.85 * (k + 1) / nseg, 3)}
+        if k == 0:  # caminho do bico do frasco: [tempo, x, y, z] ao longo da calda
+            idx = np.linspace(0, len(C) - 1, 64).astype(int)
+            ex["caminho"] = [[round(0.04 + 0.85 * i / (len(C) - 1), 3)] + [round(float(v), 4) for v in C[i]] for i in idx]
+        grupos.append(grupo([p], ex))
     # escorridos pelo vidro nas pontas do zigue-zague
     for j in escorre:
         a = math.atan2(ctrl[j][1], ctrl[j][0])
@@ -628,6 +635,114 @@ def copo(rt, rb, H):
 
 
 # ---------------------------------------------------------------------------
+# Ajudantes da animação: mão que coloca os pedaços e frasco de vidro que despeja a calda.
+# Ficam na mesma escala das coberturas e só aparecem na animação da tela.
+# ---------------------------------------------------------------------------
+def capsula(pontos, raios, nu=14, n=40):
+    """Dedo/peça arredondada: tubo ao longo de pontos com raio variável e pontas fechadas."""
+    C = catmull(pontos, max(4, n // max(1, len(pontos) - 1)))
+    t = np.linspace(0, 1, len(C))
+    r = np.interp(t, np.linspace(0, 1, len(raios)), raios)
+    ponta = np.clip(np.minimum(t, 1 - t) / 0.06, 0, 1)
+    r = r * np.sqrt(1 - (1 - ponta) ** 2)
+    return tubo_achatado(C, r, r, nu=nu)
+
+
+def mao():
+    """Mão direita, palma para baixo, fazendo pinça (polegar + indicador) na origem."""
+    R = rot_eixos(ax=0.5)                        # punho para cima e para trás; dedos descem até a pinça
+    def tr(p):
+        return np.asarray(p, float) @ R.T
+    partes = []
+    palma = blob(np.zeros(3), (0.34, 0.12, 0.37), 7000, nt=18, nu=28, amp=0.04)
+    palma.pos = tr(palma.pos + np.array([0.0, 0.34, -0.58])); palma.nrm = palma.nrm @ R.T
+    partes.append(palma)
+    # dedos: indicador e polegar fazem a pinça; os outros relaxados, um pouco abertos
+    dedos = [
+        ([[0.19, 0.34, -0.26], [0.17, 0.25, -0.1], [0.09, 0.1, -0.01], [0.025, 0.0, 0.01]], [0.082, 0.075, 0.066, 0.058]),
+        ([[0.06, 0.36, -0.22], [0.05, 0.26, -0.04], [0.03, 0.11, 0.01], [0.0, 0.0, -0.06]], [0.084, 0.077, 0.068, 0.06]),
+        ([[-0.07, 0.36, -0.24], [-0.08, 0.27, -0.08], [-0.1, 0.13, -0.05], [-0.12, 0.04, -0.12]], [0.08, 0.073, 0.064, 0.056]),
+        ([[-0.2, 0.34, -0.3], [-0.23, 0.27, -0.17], [-0.26, 0.16, -0.15], [-0.27, 0.1, -0.22]], [0.068, 0.062, 0.055, 0.048]),
+        ([[0.3, 0.27, -0.66], [0.32, 0.15, -0.38], [0.15, 0.04, -0.1], [0.045, -0.005, 0.0]], [0.1, 0.088, 0.074, 0.064]),   # polegar
+    ]
+    for pts, rs in dedos:
+        partes.append(capsula(tr(pts), rs))
+    pulso = capsula(tr([[0.0, 0.36, -0.86], [0.0, 0.4, -1.12], [0.0, 0.44, -1.4]]), [0.21, 0.19, 0.18])
+    partes.append(pulso)
+    pele = juntar(partes, "pele")
+    # unhas
+    unhas = []
+    for pts, rs in dedos:
+        a, b = np.asarray(tr(pts[-1])), np.asarray(tr(pts[-2]))
+        eixo = (a - b) / np.linalg.norm(a - b)
+        cima = np.cross(eixo, [1.0, 0, 0]); cima = cima / (np.linalg.norm(cima) + 1e-9)
+        if cima[1] < 0:
+            cima = -cima
+        c = a - eixo * rs[-1] * 0.7 + cima * rs[-1] * 0.82
+        u = blob(c, (rs[-1] * 0.62, rs[-1] * 0.16, rs[-1] * 0.75), 7100 + len(unhas), nt=8, nu=12, amp=0.0)
+        unhas.append(u)
+    unha = juntar(unhas, "unha")
+    manga = capsula(tr([[0.0, 0.42, -1.2], [0.0, 0.47, -1.5], [0.0, 0.52, -1.9]]), [0.25, 0.27, 0.28])
+    manga.material = "manga"
+    return [grupo([pele, unha, manga], {"ajudante": "mao"}, np.zeros(3))], {
+        "manga": dict(tex=tex_ruido("#3A1145", "#2A0B33", 43, 40), rough=0.8, relevo=relevo(44, 80), forca=2),
+        "pele": dict(tex=tex_ruido("#E9B48E", "#D9997A", 41, 14), rough=0.52, relevo=relevo(42, 60), forca=1.5),
+        "unha": dict(cor=[0.97, 0.84, 0.8, 1], rough=0.25),
+    }
+
+
+def frasco(cor_calda, nome_mat):
+    """Frasco de vidro de calda, virado, com o bico na origem; jato de calda descendo."""
+    th = np.linspace(0, TAU, 65)
+    # perfil (raio, altura) a partir do bico (y=0) até o fundo (y=1,55)
+    perfil = np.array([[0.035, 0.0], [0.05, 0.02], [0.06, 0.12], [0.075, 0.2], [0.14, 0.28], [0.27, 0.4], [0.33, 0.52],
+                       [0.34, 0.7], [0.34, 1.35], [0.32, 1.5], [0.26, 1.55], [0.0, 1.56]])
+    t = np.linspace(0, 1, 60)
+    ks = np.linspace(0, 1, len(perfil))
+    raio = np.interp(t, ks, perfil[:, 0])
+    alt = np.interp(t, ks, perfil[:, 1])
+    vidro_ext = superficie(raio, alt, th, "frasco_vidro", fora=True)
+    # calda dentro do frasco (encosta no bico, ocupa a parte de baixo do vidro virado)
+    raio_in = np.maximum(raio - 0.022, 0.012)
+    fim = 0.62
+    m = t <= fim
+    calda_in = superficie(raio_in[m], alt[m], th, nome_mat, fora=True)
+    tampa = disco(float(raio_in[m][-1]), float(alt[m][-1]), th, nome_mat, True)
+    rotulo = superficie(np.full(10, 0.343), np.linspace(0.82, 1.18, 10), th, "rotulo", fora=True)
+    R = rot_eixos(ax=-0.72)                      # corpo para cima e para trás; bico para baixo
+    for p in (vidro_ext, calda_in, tampa, rotulo):
+        p.pos = p.pos @ R.T
+        p.nrm = p.nrm @ R.T
+    jato = capsula([[0, 0.02, 0], [0, -0.5, 0], [0, -1.02, 0]], [0.04, 0.032, 0.036], nu=12)
+    jato.material = nome_mat
+    for p in (calda_in, tampa, jato):
+        p.uv[:] = 0.5
+    mats = {
+        "frasco_vidro": dict(cor=[0.95, 0.97, 1.0, 0.22], rough=0.03, alfa=True, duplo=False, vidro=True),
+        nome_mat: dict(cor=cor_calda, rough=0.12),
+        "rotulo": dict(tex=tex_rotulo(), rough=0.5),
+    }
+    # o jato tem 1 unidade de comprimento para baixo: a montagem estica até o açaí
+    return [grupo([calda_in, tampa, rotulo, vidro_ext], {"ajudante": "frasco"}, np.zeros(3)),
+            grupo([jato], {"ajudante": "jato"}, np.zeros(3))], mats
+
+
+def tex_rotulo(T=256):
+    u, v = grade_uv(T)
+    cor = mix(hexrgb("#F4EBDD"), hexrgb("#E8DCC6"), fbm(T, T, 51, base=8))
+    faixa = (np.abs(v - 0.5) < 0.12)
+    cor = np.where(faixa[..., None], mix(hexrgb("#6B1E2E"), hexrgb("#7E2738"), fbm(T, T, 52, base=10)), cor)
+    return cor
+
+
+AJUDANTES = {
+    "_mao": mao,
+    "_frasco_leite_condensado": lambda: frasco([0.95, 0.9, 0.78, 1], "leite_condensado"),
+    "_frasco_calda_chocolate": lambda: frasco([0.13, 0.055, 0.025, 1], "calda_chocolate"),
+}
+
+
+# ---------------------------------------------------------------------------
 # Escrita GLB com vários nós (um por pedaço)
 # ---------------------------------------------------------------------------
 def escrever(caminho, nome, grupos, materiais, extras):
@@ -741,6 +856,11 @@ def main():
                                                "aviso": "Modelo ilustrativo; medidas de copos comuns de 300, 500 e 700 ml."})
         ntri = sum(len(p.idx) for p in grupos[0]["partes"])
         print(f"{nome:18s} {d[0]:.1f} × {d[2]:.1f} × {d[1]:.1f} cm  {ntri:6d} tri  {os.path.getsize(destino) / 1024:5.0f} KB")
+    for nome, fn in AJUDANTES.items():
+        grupos, mats = fn()
+        destino = os.path.join(RAIZ, "adicionais", nome + ".glb")
+        escrever(destino, nome, grupos, mats, {"menureal": "ajudante da animação (escala das coberturas)"})
+        print(f"ajudante {nome:26s} {os.path.getsize(destino) / 1024:5.0f} KB")
     for tipo, fn in CAMADAS.items():
         grupos, mats = fn()
         destino = os.path.join(RAIZ, "adicionais", tipo + ".glb")

@@ -333,7 +333,9 @@ junta copo e coberturas num arquivo só (`/api/montagem`, guardado no KV) e o a�
 na mesa, no tamanho real. Os copos de vidro de 300, 500 e 700 ml (com o açaí aparecendo pelo vidro e a calda
 escorrendo por dentro) e as coberturas são modelos ilustrativos originais (`tools/gerar_acai.py`, CC0).
 Cada pedaço é animado: frutas e granola caem girando e quicam, a calda é "desenhada"
-sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho; o copo também pode ser o 3D gerado pela foto da loja.
+sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho. Na tela, uma **mão** chega por trás do copo e solta frutas, granola e
+confetes da pinça, e um **frasco de vidro** passa por cima despejando as caldas
+(`public/assets/adicionais/_mao.glb` e `_frasco_*.glb`; não vão para a câmera); o copo também pode ser o 3D gerado pela foto da loja.
 O tipo de loja *Sorveteria e açaí* já cria as categorias Açaí, Sorvetes, Picolés, Milkshakes e Bebidas.
 
 Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os

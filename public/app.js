@@ -806,17 +806,22 @@
       return;
     }
     if (MODELOS_EMBUTIDOS) return; // versão de arquivo único: sem montagem
-    Promise.all([carregarModuloGlb(), baixarArquivo(urlModelo(ef.modelo))].concat(tipos.map(function (t) { return baixarArquivo('assets/adicionais/' + t + '.glb'); })))
+    var animar = animarTipo && tipos.indexOf(animarTipo) > -1 && !reduzMovimento ? animarTipo : null;
+    carregarModuloGlb().then(function (m) {
+      // ajudante da animação: mão que coloca os pedaços ou frasco de vidro que despeja a calda
+      var ajuda = animar ? baixarArquivo('assets/adicionais/' + m.ajudanteDe(animar) + '.glb').catch(function () { return null; }) : null;
+      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda].concat(tipos.map(function (t) { return baixarArquivo('assets/adicionais/' + t + '.glb'); })));
+    })
       .then(function (r) {
         if (seq !== seqMontagem || !mv.isConnected) return;
-        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: new Uint8Array(r[i + 2]) }; });
-        var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animarTipo && tipos.indexOf(animarTipo) > -1 ? animarTipo : null });
+        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: new Uint8Array(r[i + 3]) }; });
+        var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animar, ajudante: r[2] ? new Uint8Array(r[2]) : null });
         var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
         var antigo = blobAtual;
         blobAtual = url;
         if (antigo) setTimeout(function () { URL.revokeObjectURL(antigo); }, 5000);
         mv.dataset.montagem = '1';
-        if (animarTipo && !reduzMovimento) mv.dataset.animar = '1';
+        if (animar) mv.dataset.animar = '1';
         mv.src = url;
       })
       .catch(function (e) { console.warn('[MenuReal] montagem', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });

@@ -223,6 +223,16 @@ export const ADICIONAIS_3D = {
  * Devolve o GLB montado (bytes). A posição de descanso fica nos nós, então sem tocar a
  * animação o açaí já aparece pronto (é o que a câmera do Google mostra).
  */
+export const CALDAS = ['leite_condensado', 'calda_chocolate'];
+/** Arquivo do ajudante da animação: frasco de vidro para caldas, mão para o resto. */
+export function ajudanteDe(tipo) { return CALDAS.includes(tipo) ? '_frasco_' + tipo : '_mao'; }
+
+/**
+ * base: GLB do copo (bytes). camadas: [{ tipo, buf }].
+ * opcoes.animar: tipo que entra com animação; opcoes.ajudante: bytes da mão ou do frasco.
+ * Devolve o GLB montado. A pose de descanso dos nós é o açaí pronto (é o que a câmera
+ * mostra); a animação só existe na tela.
+ */
 export function montarAcai(base, camadas, opcoes = {}) {
   const baseGlb = lerGlb(base);
   const { mn, mx } = caixaGlb(baseGlb.json);
@@ -232,8 +242,10 @@ export function montarAcai(base, camadas, opcoes = {}) {
   const lista = camadas.filter((c) => ADICIONAIS_3D[c.tipo])
     .sort((a, b) => ADICIONAIS_3D[a.tipo].ordem - ADICIONAIS_3D[b.tipo].ordem);
   const itens = [{ glb: baseGlb, no: { name: 'copo' } }];
+  const angulos = [];
   lista.forEach((c, k) => {
     const ang = (ADICIONAIS_3D[c.tipo].ordem * 0.83) % (Math.PI * 2);
+    angulos.push(ang);
     itens.push({
       buf: c.buf,
       no: {
@@ -244,9 +256,21 @@ export function montarAcai(base, camadas, opcoes = {}) {
       }
     });
   });
-  const c = combinar(itens, 'MenuReal AR · monte seu açaí');
   const k = lista.findIndex((x) => x.tipo === opcoes.animar);
-  if (k > -1) animarEntrada(c, c.json.nodes[c.nos[k + 1]].children || []);
+  let ajudante = null;
+  if (k > -1 && opcoes.ajudante) {
+    const frasco = CALDAS.includes(lista[k].tipo);
+    const camada = itens[k + 1].no;
+    // a mão fica de frente para a câmera (sem girar junto com a camada); o frasco segue a calda
+    itens.push({ buf: opcoes.ajudante, no: { name: 'ajudante', translation: camada.translation, scale: camada.scale,
+      rotation: frasco ? camada.rotation : [0, 0, 0, 1] } });
+    ajudante = { frasco, ang: frasco ? 0 : angulos[k] };
+  }
+  const c = combinar(itens, 'MenuReal AR · monte seu açaí');
+  if (k > -1) {
+    const nosAjudante = ajudante ? c.json.nodes[c.nos[c.nos.length - 1]].children || [] : [];
+    animarEntrada(c, c.json.nodes[c.nos[k + 1]].children || [], ajudante, nosAjudante);
+  }
   return finalizar(c);
 }
 
@@ -254,9 +278,10 @@ export function montarAcai(base, camadas, opcoes = {}) {
  * Animação de entrada de uma cobertura. Cada pedaço traz em "extras" como deve entrar
  * (tools/gerar_acai.py): "peca" cai girando e quica; "calda" aparece em trechos, como se
  * fosse desenhada; "escorrido" desce pelo vidro; "monte" (leite em pó) cresce.
- * A pose final é a de descanso dos nós: sem animação, tudo já aparece no lugar.
+ * Com ajudante: a mão chega por trás do copo e solta cada pedaço da pinça; o frasco de
+ * vidro passa por cima despejando a calda. Unidades: as da cobertura.
  */
-function animarEntrada(c, nos) {
+function animarEntrada(c, nos, ajudante, nosAjudante) {
   const acc = c.json.accessors;
   const samplers = [], channels = [];
   const MIN = 1e-4;
@@ -272,24 +297,53 @@ function animarEntrada(c, nos) {
     samplers.push({ input: add(tempos, 'SCALAR'), output: add(valores, tipo), interpolation: interp });
     channels.push({ sampler: samplers.length - 1, target: { node: no, path } });
   };
-  for (const no of nos) {
+  const suave = (u) => u * u * (3 - 2 * u);
+  const lerp = (a, b, u) => a.map((v, i) => v + (b[i] - v) * u);
+  const ext = (no) => c.json.nodes[no].extras || {};
+  const atrasos = nos.map((no) => Math.max(0.02, Number(ext(no).atraso) || 0));
+  const ultimo = Math.max(0.1, ...atrasos);
+  const E = ajudante ? 0.45 : 0;          // tempo para o ajudante chegar
+
+  // --- mão: caminho da pinça (espaço da mão) e conversão para o espaço da camada
+  const PARTIDA = [0.7, 2.7, -2.2], SAIDA = [-0.5, 2.9, -2.3];
+  const pairar = (t) => {
+    const f = (t - E) / 0.8;
+    return [0.24 * Math.sin(f * Math.PI * 2), 0.85 + 0.05 * Math.sin(f * Math.PI * 4), -0.36 + 0.06 * Math.cos(f * Math.PI * 2)];
+  };
+  const fimAjuda = E + ultimo + 0.15;
+  const pinca = (t) => {
+    if (t <= E) return lerp(PARTIDA, pairar(E), suave(Math.max(0, t / E)));
+    if (t <= fimAjuda) return pairar(t);
+    return lerp(pairar(fimAjuda), SAIDA, suave(Math.min(1, (t - fimAjuda) / 0.45)));
+  };
+  const naCamada = (p) => {
+    const a = ajudante ? ajudante.ang : 0, co = Math.cos(a), si = Math.sin(a);
+    return [p[0] * co - p[2] * si, p[1], p[0] * si + p[2] * co];
+  };
+
+  let r = 1;
+  const aleat = () => { r = (r * 16807) % 2147483647; return (r - 1) / 2147483646; };
+  nos.forEach((no, i) => {
     const n = c.json.nodes[no];
-    const ex = n.extras || {};
-    const d = Math.max(0.02, Number(ex.atraso) || 0);
+    const ex = ext(no);
+    const d = atrasos[i] + E;
     const t = n.translation || [0, 0, 0];
     const e = n.scale || [1, 1, 1];
-    const r = n.rotation || [0, 0, 0, 1];
+    const rot = n.rotation || [0, 0, 0, 1];
     if (ex.anim === 'peca') {
-      const q = Number(ex.queda) || 1.5;
       const g = Array.isArray(ex.giro) && ex.giro.length === 4 ? ex.giro : [0, 0, 0, 1];
-      const T = [0, d, d + 0.14, d + 0.26, d + 0.33, d + 0.4, d + 0.45];
-      const Y = [q, q, q * 0.72, 0, q * 0.025, 0, 0];
-      canal(no, 'translation', T, T.flatMap((_, i) => [t[0], t[1] + Y[i], t[2]]), 'VEC3');
-      const R = [g, g, g, r, r, r, r];
-      canal(no, 'rotation', T, R.flat(), 'VEC4');
-      // invisível até a hora de cair; achata um pouco ao bater no açaí
+      const ini = ajudante && !ajudante.frasco
+        ? naCamada(pinca(d)).map((v, j) => v + (j === 1 ? -0.05 : (aleat() - 0.5) * 0.06))
+        : [t[0], t[1] + (Number(ex.queda) || 1.5), t[2]];
+      const F = 0.3;
+      const us = [0, 0.33, 0.66, 1];
+      const T = [0, ...us.map((u) => d + F * u), d + F + 0.07, d + F + 0.14];
+      const P = [ini, ...us.map((u) => [ini[0] + (t[0] - ini[0]) * u, ini[1] + (t[1] - ini[1]) * u * u, ini[2] + (t[2] - ini[2]) * u]),
+        [t[0], t[1] + 0.03, t[2]], t];
+      canal(no, 'translation', T, P.flat(), 'VEC3');
+      canal(no, 'rotation', [0, d, d + F], [...g, ...g, ...rot], 'VEC4');
       const amassa = [e[0] * 1.07, e[1] * 0.84, e[2] * 1.07];
-      canal(no, 'scale', [0, d - 0.005, d, d + 0.26, d + 0.31, d + 0.38],
+      canal(no, 'scale', [0, d - 0.005, d, d + F, d + F + 0.05, d + F + 0.12],
         [MIN, MIN, MIN, MIN, MIN, MIN, ...e, ...e, ...amassa, ...e], 'VEC3');
     } else if (ex.anim === 'calda') {
       canal(no, 'scale', [0, d], [MIN, MIN, MIN, e[0], e[1], e[2]], 'VEC3', 'STEP');
@@ -297,6 +351,45 @@ function animarEntrada(c, nos) {
       canal(no, 'scale', [0, d - 0.01, d, d + 0.9], [MIN, MIN, MIN, MIN, MIN, MIN, e[0], e[1] * 0.04, e[2], e[0], e[1], e[2]], 'VEC3');
     } else if (ex.anim === 'monte') {
       canal(no, 'scale', [0, d, d + 0.5, d + 0.6], [MIN, MIN, MIN, e[0] * 0.3, e[1] * 0.1, e[2] * 0.3, e[0] * 1.05, e[1] * 0.92, e[2] * 1.05, e[0], e[1], e[2]], 'VEC3');
+    }
+  });
+
+  if (ajudante && !ajudante.frasco) {
+    const [mao] = nosAjudante;
+    if (mao != null) {
+      const T = [], P = [], R = [];
+      const fim = fimAjuda + 0.45;
+      for (let t = 0; t <= fim + 1e-6; t += 0.04) {
+        T.push(+t.toFixed(3));
+        P.push(...pinca(t));
+        // pulso dá um toque a cada pedaço solto
+        const toque = t > E && t < fimAjuda ? 0.09 * Math.max(0, Math.sin(((t - E) / 0.16) * Math.PI * 2)) : 0;
+        R.push(Math.sin(toque / 2), 0, 0, Math.cos(toque / 2));
+      }
+      canal(mao, 'translation', T, P, 'VEC3');
+      canal(mao, 'rotation', T, R, 'VEC4');
+      canal(mao, 'scale', [0, +(fim + 0.02).toFixed(3)], [1, 1, 1, MIN, MIN, MIN], 'VEC3', 'STEP');
+    }
+  }
+  if (ajudante && ajudante.frasco) {
+    const [frasco, jato] = nosAjudante;
+    // o bico do frasco segue o caminho da calda (gravado no primeiro trecho pelo gerador)
+    const comCaminho = nos.map((no) => ext(no).caminho).find((x) => Array.isArray(x) && x.length > 1);
+    if (frasco != null && comCaminho) {
+      const ALT = 0.5;
+      const T = [0], P = [[0.2, 2.6, -1.6]];
+      comCaminho.forEach(([tt, x, y, z]) => {
+        const d = tt + E;
+        if (d > T[T.length - 1] + 0.005) { T.push(+d.toFixed(3)); P.push([x, y + ALT, z]); }
+      });
+      const fimC = T[T.length - 1];
+      T.push(+(fimC + 0.45).toFixed(3)); P.push([-0.3, 2.8, -1.7]);
+      canal(frasco, 'translation', T, P.flat(), 'VEC3');
+      canal(frasco, 'scale', [0, +(fimC + 0.47).toFixed(3)], [1, 1, 1, MIN, MIN, MIN], 'VEC3', 'STEP');
+      if (jato != null) {
+        canal(jato, 'translation', T, P.flat(), 'VEC3');
+        canal(jato, 'scale', [0, T[1], +(fimC + 0.06).toFixed(3)], [MIN, MIN, MIN, 1, ALT + 0.03, 1, MIN, MIN, MIN], 'VEC3', 'STEP');
+      }
     }
   }
   if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }];
