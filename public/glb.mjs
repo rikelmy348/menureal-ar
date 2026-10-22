@@ -206,7 +206,7 @@ export function juntarGlbs(lista, folgaM = 0.02) {
 // As camadas de public/assets/adicionais/*.glb ocupam um círculo de 1 m de diâmetro,
 // apoiadas numa cúpula de altura DOMO (tools/gerar_acai.py usa os mesmos valores).
 export const DOMO = 0.08;
-export const AREA = 0.80;
+export const AREA = 0.88;
 export const ADICIONAIS_3D = {
   granola: { nome: 'Granola', ordem: 1 },
   pacoca: { nome: 'Paçoca', ordem: 2 },

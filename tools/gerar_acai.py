@@ -24,7 +24,7 @@ from gerar_modelos import (Parte, S, TAU, escrever_glb, fbm, grade, hexrgb, mix,
                            normais)
 
 DOMO = 0.08          # altura da cúpula da cobertura / diâmetro da área coberta
-AREA = 0.80          # diâmetro da área coberta / largura do copo (igual em public/glb.mjs)
+AREA = 0.88          # diâmetro da área coberta / largura do copo (igual em public/glb.mjs)
 RAIZ = os.path.join(os.path.dirname(__file__), "..", "public", "assets")
 
 
@@ -154,36 +154,53 @@ def pontos_no_disco(r, n, raio_max=0.44, dist_min=0.05):
 # ---------------------------------------------------------------------------
 # Texturas
 # ---------------------------------------------------------------------------
-def tex_ruido(c1, c2, seed, base=10):
-    return mix(hexrgb(c1), hexrgb(c2), fbm(S, S, seed, base=base, octaves=5))
+def tex_ruido(c1, c2, seed, base=10, tam=256):
+    return mix(hexrgb(c1), hexrgb(c2), fbm(tam, tam, seed, base=base, octaves=5))
+
+
+def relevo(seed, base=24, tam=256, octaves=5):
+    return fbm(tam, tam, seed, base=base, octaves=octaves)
+
+
+def grade_uv(tam=S):
+    v = np.linspace(0, 1, tam)[:, None] * np.ones((1, tam))
+    u = np.ones((tam, 1)) * np.linspace(0, 1, tam, endpoint=False)[None, :]
+    return u, v
 
 
 def tex_banana():
-    v = np.linspace(0, 1, S)[:, None] * np.ones((1, S))
-    u = np.ones((S, 1)) * np.linspace(0, 1, S)[None, :]
-    cor = mix(hexrgb("#FBF1C9"), hexrgb("#F3DE9B"), fbm(S, S, 81, base=12) * 0.8)
-    # topo (v 0–0.5): centro → borda. Anel de sementes perto do centro
-    rad = v / 0.5
-    anel = np.exp(-((rad - 0.32) / 0.07) ** 2) * (0.5 + 0.5 * np.sin(u * TAU * 3))
-    cor = mix(cor, hexrgb("#E7CF8A"), np.where(v < 0.5, anel * 0.9, 0))
+    u, v = grade_uv()
+    n = fbm(S, S, 81, base=14)
+    rad = np.clip(v / 0.5, 0, 1)                         # topo: 0 = centro, 1 = borda
+    miolo = mix(hexrgb("#FFF4CC"), hexrgb("#F4DC86"), rad ** 1.4)
+    miolo = mix(miolo, hexrgb("#EED178"), n * 0.35)
+    # "estrela" central e anel de sementes
+    estrela = np.exp(-((rad - 0.18) / 0.06) ** 2) * (0.5 + 0.5 * np.cos(u * TAU * 3))
+    miolo = mix(miolo, hexrgb("#E2C26A"), estrela * 0.8)
     r = np.random.default_rng(5)
-    for _ in range(26):
-        cu, cv = r.uniform(0, 1), r.uniform(0.13, 0.19)
-        d = ((u - cu) * 3) ** 2 + ((v - cv) * 9) ** 2
-        cor = mix(cor, hexrgb("#6B4A2B"), np.exp(-d * 900) * 0.9)
-    cor = mix(cor, hexrgb("#EAD9A0"), np.where((v > 0.5) & (v < 0.6), 0.6, 0))  # casca/borda
-    return cor
+    for _ in range(30):
+        cu, cr = r.uniform(0, 1), r.uniform(0.26, 0.36)
+        d = ((np.minimum(abs(u - cu), 1 - abs(u - cu))) * 6) ** 2 + ((rad - cr) * 9) ** 2
+        miolo = mix(miolo, hexrgb("#5E3B1E"), np.exp(-d * 260) * 0.95)
+    borda = mix(hexrgb("#F0D98C"), hexrgb("#E2C774"), n)
+    return np.where((v < 0.5)[..., None], miolo, borda)
 
 
 def tex_morango():
-    v = np.linspace(0, 1, S)[:, None] * np.ones((1, S))
+    u, v = grade_uv()
     rad = np.clip(v / 0.5, 0, 1)
-    miolo = mix(hexrgb("#FCE3E3"), hexrgb("#F28C93"), rad ** 1.6)
-    veios = 0.5 + 0.5 * np.sin(np.linspace(0, 1, S)[None, :] * TAU * 9 + rad * 3)
-    miolo = mix(miolo, hexrgb("#FFF2F2"), (1 - rad) * veios * 0.35)
-    cor = np.where((v < 0.5)[..., None], mix(miolo, hexrgb("#C8102E"), np.clip((rad - 0.78) / 0.22, 0, 1)), hexrgb("#C21A2C"))
-    n = fbm(S, S, 91, base=20)
-    return mix(cor, hexrgb("#9E0F22"), np.where(v >= 0.5, n * 0.5, 0))
+    miolo = mix(hexrgb("#FFE9EA"), hexrgb("#F07D88"), rad ** 1.5)
+    veios = 0.5 + 0.5 * np.sin(u * TAU * 9 + rad * 4)
+    miolo = mix(miolo, hexrgb("#FFF6F6"), (1 - rad) * veios * 0.45)
+    miolo = mix(miolo, hexrgb("#D0122F"), np.clip((rad - 0.8) / 0.2, 0, 1))
+    n = fbm(S, S, 91, base=22)
+    casca = mix(hexrgb("#D3142E"), hexrgb("#A20F24"), n)
+    r = np.random.default_rng(9)
+    for _ in range(70):  # sementinhas
+        cu, cv = r.uniform(0, 1), r.uniform(0.62, 0.98)
+        d = ((np.minimum(abs(u - cu), 1 - abs(u - cu))) * 14) ** 2 + ((v - cv) * 40) ** 2
+        casca = mix(casca, hexrgb("#F2D36B"), np.exp(-d * 30) * 0.9)
+    return np.where((v < 0.5)[..., None], miolo, casca)
 
 
 def tex_confete():
@@ -196,32 +213,35 @@ def tex_confete():
     return img
 
 
+T2 = 1024  # texturas do copo em alta resolução
+
+
 def tex_copo():
-    v = np.linspace(0, 1, S)[:, None] * np.ones((1, S))
-    base = mix(hexrgb("#1E0620"), hexrgb("#3A0E3E"), v)       # mais escuro embaixo (v=0)
-    n = fbm(S, S, 101, base=6, octaves=4)
-    cor = mix(base, hexrgb("#55205A"), n * 0.4)
-    brilho = np.exp(-((np.linspace(0, 1, S)[None, :] - 0.18) / 0.025) ** 2) * 0.35  # reflexo vertical do plástico
-    return mix(cor, hexrgb("#E8D8EC"), brilho * np.ones((S, 1)))
+    u, v = grade_uv(T2)          # v: 0 = fundo, 1 = borda
+    base = mix(hexrgb("#0E0212"), hexrgb("#240728"), v)
+    # açaí encostado no plástico: manchas mais claras, esticadas na vertical e na diagonal
+    m1 = fbm(T2, T2, 101, base=5, octaves=5)
+    m2 = np.roll(fbm(T2, T2, 102, base=9, octaves=4), T2 // 7, axis=1)
+    manchas = np.clip((m1 * 0.6 + m2 * 0.4 - 0.5) * 2.4, 0, 1)
+    cor = mix(base, hexrgb("#4A1A52"), manchas * 0.7)
+    cor = mix(cor, hexrgb("#7A3C82"), np.clip((v - 0.9) / 0.1, 0, 1) * 0.5)   # topo cremoso
+    return cor
 
 
 def tex_acai_topo():
-    n1 = fbm(S, S, 111, base=5, octaves=5)
-    n2 = fbm(S, S, 112, base=14, octaves=4)
-    cor = mix(hexrgb("#2A0730"), hexrgb("#4A1450"), n1)
-    return mix(cor, hexrgb("#6A2E70"), np.clip(n2 - 0.55, 0, 1) * 1.6)
+    u, v = grade_uv(T2)          # u: ângulo, v: centro → borda
+    n1 = fbm(T2, T2, 111, base=6, octaves=5)
+    redemoinho = 0.5 + 0.5 * np.sin(u * TAU * 5 + v * 9 + n1 * 2)
+    cor = mix(hexrgb("#240629"), hexrgb("#43124A"), n1)
+    cor = mix(cor, hexrgb("#6B2C73"), np.clip(redemoinho - 0.62, 0, 1) * 2.2)
+    return cor
 
 
-MATS = {
-    "granola": dict(tex=None, rough=0.82),
-    "banana": dict(tex=None, rough=0.55),
-    "morango": dict(tex=None, rough=0.4),
-    "leite_condensado": dict(tex=None, rough=0.22),
-    "calda_chocolate": dict(tex=None, rough=0.25),
-    "leite_po": dict(tex=None, rough=0.95),
-    "pacoca": dict(tex=None, rough=0.9),
-    "confete": dict(tex=None, rough=0.35),
-}
+def relevo_acai_topo():
+    u, v = grade_uv(S)
+    n1 = fbm(S, S, 111, base=6, octaves=5)
+    fino = fbm(S, S, 113, base=24, octaves=4)
+    return 0.6 * (0.5 + 0.5 * np.sin(u * TAU * 5 + v * 9 + n1 * 2)) + 0.4 * fino
 
 
 # ---------------------------------------------------------------------------
@@ -233,50 +253,66 @@ def sobre(x, z, folga=0.0):
 
 def camada_granola():
     r = np.random.default_rng(11)
-    pecas = []
-    for i, (x, z) in enumerate(pontos_no_disco(r, 60, 0.45, 0.055)):
-        rx = r.uniform(0.032, 0.055)
-        pecas.append(blob(sobre(x, z, rx * 0.25), (rx, rx * r.uniform(0.45, 0.7), rx * r.uniform(0.7, 1.1)), 200 + i, amp=0.35))
-    return [juntar(pecas, "granola")], {"granola": dict(tex=tex_ruido("#C68B3E", "#8A5520", 12, 24), rough=0.82)}
+    pts = pontos_no_disco(r, 110, 0.47, 0.04)
+    cachos, aveia, passas = [], [], []
+    th = np.linspace(0, TAU, 14, endpoint=False)
+    for i, (x, z) in enumerate(pts):
+        tipo = r.uniform()
+        if tipo < 0.55:      # cachos crocantes
+            rx = r.uniform(0.03, 0.052)
+            cachos.append(blob(sobre(x, z, rx * 0.25), (rx, rx * r.uniform(0.5, 0.75), rx * r.uniform(0.75, 1.1)), 200 + i, nt=8, nu=11, amp=0.38))
+        elif tipo < 0.88:    # flocos de aveia
+            R = r.uniform(0.022, 0.032)
+            cont = np.stack([R * np.cos(th) * (1 + 0.15 * np.sin(3 * th + i)), R * 0.8 * np.sin(th)], 1)
+            aveia.append(placa(cont, 0.006, sobre(x, z, 0.012), angulo=r.uniform(0, TAU), inclinacao=(r.uniform(-0.6, 0.6), r.uniform(-0.6, 0.6)), niveis=3))
+        else:                # passas e sementes
+            rx = r.uniform(0.014, 0.022)
+            passas.append(blob(sobre(x, z, rx * 0.4), (rx, rx * 0.7, rx * 1.3), 700 + i, nt=6, nu=8, amp=0.3))
+    partes = [juntar(cachos, "granola"), juntar(aveia, "aveia"), juntar(passas, "passas")]
+    return partes, {
+        "granola": dict(tex=tex_ruido("#C98C3C", "#7E4A18", 12, 26), rough=0.78, relevo=relevo(14, 40), forca=6),
+        "aveia": dict(tex=tex_ruido("#EAD7AE", "#CDB283", 15, 30), rough=0.85, relevo=relevo(16, 50), forca=3),
+        "passas": dict(tex=tex_ruido("#3B1E1A", "#20100D", 17, 20), rough=0.45, relevo=relevo(18, 30), forca=5),
+    }
 
 
 def camada_pacoca():
     r = np.random.default_rng(12)
     pecas = []
-    for i, (x, z) in enumerate(pontos_no_disco(r, 50, 0.42, 0.05)):
-        rx = r.uniform(0.024, 0.042)
-        pecas.append(blob(sobre(x, z, rx * 0.3), (rx, rx * 0.8, rx * 1.1), 400 + i, nt=5, nu=6, amp=0.2))
-    return [juntar(pecas, "pacoca")], {"pacoca": dict(tex=tex_ruido("#D8B07A", "#B98B52", 13, 30), rough=0.9)}
+    for i, (x, z) in enumerate(pontos_no_disco(r, 62, 0.46, 0.048)):
+        rx = r.uniform(0.022, 0.042)
+        pecas.append(blob(sobre(x, z, rx * 0.3), (rx, rx * 0.75, rx * 1.1), 400 + i, nt=6, nu=7, amp=0.22))
+    return [juntar(pecas, "pacoca")], {"pacoca": dict(tex=tex_ruido("#DDB57E", "#B48546", 13, 34), rough=0.92, relevo=relevo(19, 60), forca=7)}
 
 
 def camada_confete():
     r = np.random.default_rng(13)
     pecas = []
-    for i, (x, z) in enumerate(pontos_no_disco(r, 30, 0.43, 0.075)):
+    for i, (x, z) in enumerate(pontos_no_disco(r, 34, 0.46, 0.072)):
         cor = (i % 6 + 0.5) / 6
-        pecas.append(blob(sobre(x, z, 0.016), (0.042, 0.018, 0.042), 600 + i, nt=7, nu=12, amp=0.0, girar=False, uv=(cor, 0.5)))
-    return [juntar(pecas, "confete")], {"confete": dict(tex=tex_confete(), rough=0.35)}
+        pecas.append(blob(sobre(x, z, 0.016), (0.042, 0.018, 0.042), 600 + i, nt=9, nu=16, amp=0.0, girar=False, uv=(cor, 0.5)))
+    return [juntar(pecas, "confete")], {"confete": dict(tex=tex_confete(), rough=0.18)}
 
 
 def camada_banana():
     r = np.random.default_rng(14)
     pecas = []
-    th = np.linspace(0, TAU, 28, endpoint=False)
+    th = np.linspace(0, TAU, 36, endpoint=False)
     for i in range(9):
         a = TAU * i / 8 + 0.2
-        d = 0.0 if i == 8 else 0.29
+        d = 0.0 if i == 8 else 0.31
         x, z = d * math.cos(a), d * math.sin(a)
         R = 0.1 * r.uniform(0.92, 1.05)
         cont = np.stack([R * np.cos(th) * (1 + 0.03 * np.sin(5 * th)), R * np.sin(th)], 1)
         incl = (-0.35 * z / 0.5, 0.35 * x / 0.5)
-        pecas.append(placa(cont, 0.036, sobre(x, z, 0.024), angulo=r.uniform(0, TAU), inclinacao=incl))
-    return [juntar(pecas, "banana")], {"banana": dict(tex=tex_banana(), rough=0.55)}
+        pecas.append(placa(cont, 0.036, sobre(x, z, 0.024), angulo=r.uniform(0, TAU), inclinacao=incl, niveis=8))
+    return [juntar(pecas, "banana")], {"banana": dict(tex=tex_banana(), rough=0.42, relevo=relevo(20, 70, octaves=3), forca=2)}
 
 
 def camada_morango():
     r = np.random.default_rng(15)
     pecas = []
-    th = np.linspace(0, TAU, 32, endpoint=False)
+    th = np.linspace(0, TAU, 40, endpoint=False)
     for i in range(6):
         a = TAU * i / 6 + 0.55
         d = 0.2 if i % 2 else 0.33
@@ -287,42 +323,51 @@ def camada_morango():
         pz = L * 0.5 * np.cos(th)
         cont = np.stack([px, pz], 1)
         incl = (-0.35 * z / 0.5, 0.35 * x / 0.5)
-        pecas.append(placa(cont, 0.028, sobre(x, z, 0.02), angulo=a + r.uniform(-0.4, 0.4), inclinacao=incl))
-    return [juntar(pecas, "morango")], {"morango": dict(tex=tex_morango(), rough=0.4)}
+        pecas.append(placa(cont, 0.03, sobre(x, z, 0.022), angulo=a + r.uniform(-0.4, 0.4), inclinacao=incl, niveis=8))
+    return [juntar(pecas, "morango")], {"morango": dict(tex=tex_morango(), rough=0.3, relevo=relevo(21, 60, octaves=3), forca=2)}
 
 
 def caminho_calda(fase, voltas, rot):
-    s = np.linspace(0, 1, 340)
-    z = -0.40 + 0.80 * s
-    larg = np.sqrt(np.clip(0.44 ** 2 - z ** 2, 0, None))
+    s = np.linspace(0, 1, 420)
+    z = -0.42 + 0.84 * s
+    larg = np.sqrt(np.clip(0.46 ** 2 - z ** 2, 0, None))
     x = larg * np.sin(TAU * voltas * s + fase) * 0.95
     P = np.stack([x, np.zeros_like(x), z], 1) @ rot_y(rot).T
     P[:, 1] = domo(P[:, 0], P[:, 2]) + 0.03
     return P
 
 
+def calda(caminho, raio, seed, material):
+    """Fio de calda com espessura variável e gotas (fica orgânico, não um cano)."""
+    r = np.random.default_rng(seed)
+    pecas = [tubo(caminho, raio)]
+    for k in range(0, len(caminho), 23):
+        c = caminho[k]
+        g = raio * r.uniform(1.15, 1.6)
+        pecas.append(blob(c + np.array([0, -g * 0.15, 0]), (g, g * 0.7, g), 800 + k + seed, nt=8, nu=10, amp=0.05, girar=False))
+    for p in pecas:
+        p.uv[:] = 0.5
+    return [juntar(pecas, material)]
+
+
 def camada_leite_condensado():
-    p = tubo(caminho_calda(0.3, 3.5, 0.35), 0.024)
-    p.material = "leite_condensado"
-    p.uv[:] = 0.5
-    return [p], {"leite_condensado": dict(tex=np.full((S, S, 3), hexrgb("#F6EEDB"), np.float32), rough=0.22)}
+    return calda(caminho_calda(0.3, 3.5, 0.35), 0.022, 1, "leite_condensado"), {
+        "leite_condensado": dict(tex=np.full((64, 64, 3), hexrgb("#F2E4C0"), np.float32), rough=0.12)}
 
 
 def camada_calda_chocolate():
-    p = tubo(caminho_calda(1.7, 4.0, math.pi / 2 + 0.2), 0.022)
-    p.material = "calda_chocolate"
-    p.uv[:] = 0.5
-    return [p], {"calda_chocolate": dict(tex=np.full((S, S, 3), hexrgb("#3B1F12"), np.float32), rough=0.25)}
+    return calda(caminho_calda(1.7, 4.0, math.pi / 2 + 0.2), 0.021, 2, "calda_chocolate"), {
+        "calda_chocolate": dict(tex=np.full((64, 64, 3), hexrgb("#2A130A"), np.float32), rough=0.15)}
 
 
 def camada_leite_po():
     r = np.random.default_rng(16)
     cx, cz = 0.12, -0.1
-    pecas = [blob(sobre(cx, cz, -0.01), (0.17, 0.065, 0.16), 900, nt=12, nu=18, amp=0.12, girar=False)]
-    for i, (x, z) in enumerate(pontos_no_disco(r, 26, 0.38, 0.05)):
+    pecas = [blob(sobre(cx, cz, -0.01), (0.17, 0.065, 0.16), 900, nt=16, nu=24, amp=0.12, girar=False)]
+    for i, (x, z) in enumerate(pontos_no_disco(r, 30, 0.38, 0.045)):
         rx = r.uniform(0.012, 0.022)
         pecas.append(blob(sobre(x, z, rx * 0.2), (rx, rx * 0.5, rx), 950 + i, nt=5, nu=6, amp=0.1))
-    return [juntar(pecas, "leite_po")], {"leite_po": dict(tex=tex_ruido("#FBFAF5", "#ECE7DA", 17, 20), rough=0.95)}
+    return [juntar(pecas, "leite_po")], {"leite_po": dict(tex=tex_ruido("#FDFCF7", "#EEE8DA", 17, 26), rough=1.0, relevo=relevo(22, 80), forca=5)}
 
 
 CAMADAS = {
@@ -354,42 +399,43 @@ def copo(rt, rb, H):
     s = AREA * largura                      # diâmetro da área coberta (igual na montagem)
     k = DOMO * s / (s / 2) ** 2             # cúpula: y = H − k·r²
     Hr = H - k * rt ** 2                    # altura da borda
-    nu = 96
+    nu = 128
     th = np.linspace(0, TAU, nu + 1)
     partes = []
-    # parede (açaí visto pelo plástico)
-    t = np.linspace(0, 1, 24)[:, None]
-    rr = rb + (rt - rb) * t
+    # açaí visto pelo plástico (parede interna)
+    t = np.linspace(0, 1, 32)[:, None]
+    rr = rb + (rt - rb) * t - 0.0004
     P = np.stack([rr * np.cos(th), Hr * t * np.ones_like(th), -rr * np.sin(th)], -1)
     pos, uv, tri = grade(P)
-    partes.append(orientar(Parte(pos, uv, tri, "copo"), np.array([0, Hr / 2, 0])))
+    partes.append(orientar(Parte(pos, uv, tri, "acai_parede"), np.array([0, Hr / 2, 0])))
     # fundo
     t = np.linspace(0, 1, 6)[:, None]
     P = np.stack([rb * t * np.cos(th), np.zeros((6, nu + 1)), rb * t * np.sin(th)], -1)
     pos, uv, tri = grade(P)
-    pf = Parte(pos, uv, tri, "copo")
+    pf = Parte(pos, uv, tri, "acai_parede")
     normais([pf])
     if pf.nrm[:, 1].mean() > 0:
         pf.idx = pf.idx[:, [0, 2, 1]]; pf.nrm = -pf.nrm
     partes.append(pf)
     # lábio da borda (toro)
-    a = np.linspace(0, TAU, 14)[:, None]
+    a = np.linspace(0, TAU, 16)[:, None]
     R = rt + lab * np.cos(a)
     P = np.stack([R * np.cos(th), Hr + lab * np.sin(a) * np.ones_like(th), -R * np.sin(th)], -1)
     pos, uv, tri = grade(P)
     pl = Parte(pos, uv, tri, "borda")
     normais([pl])
-    centro_anel = np.stack([rt * np.cos(np.arctan2(-pos[:, 2], pos[:, 0])), np.full(len(pos), Hr),
-                            -rt * np.sin(np.arctan2(-pos[:, 2], pos[:, 0]))], 1)
+    ang = np.arctan2(-pos[:, 2], pos[:, 0])
+    centro_anel = np.stack([rt * np.cos(ang), np.full(len(pos), Hr), -rt * np.sin(ang)], 1)
     if np.einsum("ij,ij->i", pl.nrm, pos - centro_anel).mean() < 0:
         pl.idx = pl.idx[:, [0, 2, 1]]; pl.nrm = -pl.nrm
     partes.append(pl)
-    # topo do açaí (cúpula cremosa)
-    t = np.linspace(0, 1, 20)[:, None]
-    r_ = rt * 1.0 * t
-    ond = 1 + 0.004 * np.sin(7 * th) * t
-    y = (H - k * r_ ** 2) * ond / ond.mean()
-    P = np.stack([r_ * np.cos(th), y, -r_ * np.sin(th)], -1)
+    # topo do açaí: cúpula cremosa com dobras suaves em redemoinho
+    t = np.linspace(0, 1, 44)[:, None]
+    th2 = np.linspace(0, TAU, 193)[None, :]
+    r_ = rt * t
+    dobra = 0.0011 * np.sin(5 * th2 + t * 9) * np.sin(math.pi * t) * (0.6 + 0.4 * np.sin(3 * th2))
+    y = H - k * r_ ** 2 + dobra
+    P = np.stack([r_ * np.cos(th2), y, -r_ * np.sin(th2)], -1)
     pos, uv, tri = grade(P)
     pt = Parte(pos, uv, tri, "acai")
     normais([pt])
@@ -397,9 +443,9 @@ def copo(rt, rb, H):
         pt.idx = pt.idx[:, [0, 2, 1]]; pt.nrm = -pt.nrm
     partes.append(pt)
     mats = {
-        "copo": dict(tex=tex_copo(), rough=0.18),
-        "borda": dict(tex=np.full((S, S, 3), hexrgb("#EDE6EE"), np.float32), rough=0.3),
-        "acai": dict(tex=tex_acai_topo(), rough=0.55),
+        "acai_parede": dict(tex=tex_copo(), rough=0.14, relevo=relevo(105, 16, S, 4), forca=3),
+        "borda": dict(tex=np.full((64, 64, 3), hexrgb("#F4EEF5"), np.float32), rough=0.18),
+        "acai": dict(tex=tex_acai_topo(), rough=0.32, relevo=relevo_acai_topo(), forca=5),
     }
     return partes, mats
 

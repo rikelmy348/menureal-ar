@@ -85,11 +85,21 @@ def hexrgb(s):
     return [int(s[i:i + 2], 16) for i in (0, 2, 4)]
 
 
-def to_jpeg(arr):
+def to_jpeg(arr, qualidade=82):
     img = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
     buf = io.BytesIO()
-    img.save(buf, "JPEG", quality=82, optimize=True)
+    img.save(buf, "JPEG", quality=qualidade, optimize=True)
     return buf.getvalue()
+
+
+def mapa_normais(altura, forca=4.0):
+    """Mapa de altura (0–1, periódico) → mapa de normais em espaço tangente (RGB 0–255)."""
+    h = np.asarray(altura, np.float32)
+    dx = (np.roll(h, -1, 1) - np.roll(h, 1, 1)) * 0.5 * forca * h.shape[1] / 256
+    dy = (np.roll(h, -1, 0) - np.roll(h, 1, 0)) * 0.5 * forca * h.shape[0] / 256
+    n = np.stack([-dx, dy, np.ones_like(h)], -1)
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    return (n * 0.5 + 0.5) * 255
 
 
 S = 512  # resolução das texturas
@@ -468,15 +478,24 @@ def escrever_glb(caminho, nome, partes, materiais, alvo_cm):
         img_view = add_view(to_jpeg(m["tex"]))
         images.append({"bufferView": img_view, "mimeType": "image/jpeg", "name": f"{nome}-{mname}"})
         textures.append({"sampler": 0, "source": len(images) - 1})
-        mats.append({
+        mat = {
             "name": mname,
-            "doubleSided": True,
+            "doubleSided": m.get("duplo", True),
             "pbrMetallicRoughness": {
                 "baseColorTexture": {"index": len(textures) - 1},
                 "metallicFactor": 0.0,
                 "roughnessFactor": m["rough"],
             },
-        })
+        }
+        if m.get("relevo") is not None:  # mapa de altura → mapa de normais (detalhe fino sem mais polígonos)
+            img_n = add_view(to_jpeg(mapa_normais(m["relevo"], m.get("forca", 4.0)), 92))
+            images.append({"bufferView": img_n, "mimeType": "image/jpeg", "name": f"{nome}-{mname}-normais"})
+            textures.append({"sampler": 0, "source": len(images) - 1})
+            mat["normalTexture"] = {"index": len(textures) - 1}
+        if m.get("alfa") is not None:  # plástico transparente
+            mat["alphaMode"] = "BLEND"
+            mat["pbrMetallicRoughness"]["baseColorFactor"] = [1, 1, 1, m["alfa"]]
+        mats.append(mat)
         mat_ids[mname] = len(mats) - 1
 
     prims = []
