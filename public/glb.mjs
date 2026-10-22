@@ -246,24 +246,58 @@ export function montarAcai(base, camadas, opcoes = {}) {
   });
   const c = combinar(itens, 'MenuReal AR · monte seu açaí');
   const k = lista.findIndex((x) => x.tipo === opcoes.animar);
-  if (k > -1) {
-    const no = c.nos[k + 1];
-    const t = c.json.nodes[no].translation;
-    const queda = Math.max(mx[1] - mn[1], 0.05) * 0.9;
-    const tempos = new Float32Array([0, 0.42, 0.52, 0.62]);
-    const pos = new Float32Array([t[0], t[1] + queda, t[2], t[0], t[1], t[2], t[0], t[1] + queda * 0.05, t[2], t[0], t[1], t[2]]);
-    const e = [s * 0.75, s, s * 1.04, s];
-    const esc = new Float32Array([e[0], e[0], e[0], e[1], e[1], e[1], e[2], e[2], e[2], e[3], e[3], e[3]]);
-    const acc = c.json.accessors;
-    acc.push({ bufferView: anexar(c, tempos), componentType: 5126, count: 4, type: 'SCALAR', min: [0], max: [0.62] });
-    const iT = acc.length - 1;
-    acc.push({ bufferView: anexar(c, pos), componentType: 5126, count: 4, type: 'VEC3' });
-    acc.push({ bufferView: anexar(c, esc), componentType: 5126, count: 4, type: 'VEC3' });
-    c.json.animations = [{
-      name: 'entrada',
-      samplers: [{ input: iT, output: iT + 1, interpolation: 'LINEAR' }, { input: iT, output: iT + 2, interpolation: 'LINEAR' }],
-      channels: [{ sampler: 0, target: { node: no, path: 'translation' } }, { sampler: 1, target: { node: no, path: 'scale' } }]
-    }];
-  }
+  if (k > -1) animarEntrada(c, c.json.nodes[c.nos[k + 1]].children || []);
   return finalizar(c);
+}
+
+/**
+ * Animação de entrada de uma cobertura. Cada pedaço traz em "extras" como deve entrar
+ * (tools/gerar_acai.py): "peca" cai girando e quica; "calda" aparece em trechos, como se
+ * fosse desenhada; "escorrido" desce pelo vidro; "monte" (leite em pó) cresce.
+ * A pose final é a de descanso dos nós: sem animação, tudo já aparece no lugar.
+ */
+function animarEntrada(c, nos) {
+  const acc = c.json.accessors;
+  const samplers = [], channels = [];
+  const MIN = 1e-4;
+  const add = (dados, tipo) => {
+    const arr = new Float32Array(dados);
+    const n = tipo === 'SCALAR' ? arr.length : tipo === 'VEC3' ? arr.length / 3 : arr.length / 4;
+    const a = { bufferView: anexar(c, arr), componentType: 5126, count: n, type: tipo };
+    if (tipo === 'SCALAR') { a.min = [Math.min(...arr)]; a.max = [Math.max(...arr)]; }
+    acc.push(a);
+    return acc.length - 1;
+  };
+  const canal = (no, path, tempos, valores, tipo, interp = 'LINEAR') => {
+    samplers.push({ input: add(tempos, 'SCALAR'), output: add(valores, tipo), interpolation: interp });
+    channels.push({ sampler: samplers.length - 1, target: { node: no, path } });
+  };
+  for (const no of nos) {
+    const n = c.json.nodes[no];
+    const ex = n.extras || {};
+    const d = Math.max(0.02, Number(ex.atraso) || 0);
+    const t = n.translation || [0, 0, 0];
+    const e = n.scale || [1, 1, 1];
+    const r = n.rotation || [0, 0, 0, 1];
+    if (ex.anim === 'peca') {
+      const q = Number(ex.queda) || 1.5;
+      const g = Array.isArray(ex.giro) && ex.giro.length === 4 ? ex.giro : [0, 0, 0, 1];
+      const T = [0, d, d + 0.14, d + 0.26, d + 0.33, d + 0.4, d + 0.45];
+      const Y = [q, q, q * 0.72, 0, q * 0.025, 0, 0];
+      canal(no, 'translation', T, T.flatMap((_, i) => [t[0], t[1] + Y[i], t[2]]), 'VEC3');
+      const R = [g, g, g, r, r, r, r];
+      canal(no, 'rotation', T, R.flat(), 'VEC4');
+      // invisível até a hora de cair; achata um pouco ao bater no açaí
+      const amassa = [e[0] * 1.07, e[1] * 0.84, e[2] * 1.07];
+      canal(no, 'scale', [0, d - 0.005, d, d + 0.26, d + 0.31, d + 0.38],
+        [MIN, MIN, MIN, MIN, MIN, MIN, ...e, ...e, ...amassa, ...e], 'VEC3');
+    } else if (ex.anim === 'calda') {
+      canal(no, 'scale', [0, d], [MIN, MIN, MIN, e[0], e[1], e[2]], 'VEC3', 'STEP');
+    } else if (ex.anim === 'escorrido') {
+      canal(no, 'scale', [0, d - 0.01, d, d + 0.9], [MIN, MIN, MIN, MIN, MIN, MIN, e[0], e[1] * 0.04, e[2], e[0], e[1], e[2]], 'VEC3');
+    } else if (ex.anim === 'monte') {
+      canal(no, 'scale', [0, d, d + 0.5, d + 0.6], [MIN, MIN, MIN, e[0] * 0.3, e[1] * 0.1, e[2] * 0.3, e[0] * 1.05, e[1] * 0.92, e[2] * 1.05, e[0], e[1], e[2]], 'VEC3');
+    }
+  }
+  if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }];
 }

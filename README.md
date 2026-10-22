@@ -330,8 +330,10 @@ tamanho real, com o preço total. Funciona também no Scene Viewer e no Quick Lo
 comuns. Com *Aparece no 3D*, o adicional **cai em cima do produto** com animação quando o cliente
 marca; o preço soma na hora e o pedido registra cada adicional. Em *Abrir câmera*, o servidor
 junta copo e coberturas num arquivo só (`/api/montagem`, guardado no KV) e o açaí montado aparece
-na mesa, no tamanho real. Os copos de 300, 500 e 700 ml e as coberturas são modelos ilustrativos
-originais (`tools/gerar_acai.py`, CC0); o copo também pode ser o 3D gerado pela foto da loja.
+na mesa, no tamanho real. Os copos de vidro de 300, 500 e 700 ml (com o açaí aparecendo pelo vidro e a calda
+escorrendo por dentro) e as coberturas são modelos ilustrativos originais (`tools/gerar_acai.py`, CC0).
+Cada pedaço é animado: frutas e granola caem girando e quicam, a calda é "desenhada"
+sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho; o copo também pode ser o 3D gerado pela foto da loja.
 O tipo de loja *Sorveteria e açaí* já cria as categorias Açaí, Sorvetes, Picolés, Milkshakes e Bebidas.
 
 Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os

@@ -64,11 +64,11 @@
     produtos: [
       { id: 'acai', nome: 'Açaí — monte o seu', categoria: 'Açaí', preco: 16.00,
         descricao: 'Escolha o copo e os adicionais: cada um cai em cima do açaí. Depois veja na mesa, no tamanho real.',
-        dim: { largura: 10, profundidade: 10, altura: 11 }, modelo: 'assets/models/acai-500.glb', ilustrativo: true,
+        dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-500.glb', ilustrativo: true,
         tamanhos: [
-          { id: '300', nome: '300 ml', preco: 13.00, dim: { largura: 9, profundidade: 9, altura: 9 }, modelo: 'assets/models/acai-300.glb' },
-          { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 10, profundidade: 10, altura: 11 }, modelo: 'assets/models/acai-500.glb' },
-          { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 11, profundidade: 11, altura: 12.8 }, modelo: 'assets/models/acai-700.glb' }
+          { id: '300', nome: '300 ml', preco: 13.00, dim: { largura: 8.6, profundidade: 8.6, altura: 9.6 }, modelo: 'assets/models/acai-300.glb' },
+          { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-500.glb' },
+          { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-700.glb' }
         ],
         adicionais: ADICIONAIS_ACAI },
       { id: 'coxinha', nome: 'Coxinha de frango', categoria: 'Salgados', preco: 8.00,

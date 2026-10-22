@@ -3,6 +3,8 @@
    Público, como o combo; o resultado fica guardado (mesma escolha = mesmo arquivo). */
 import { json, hashCurto, lerModelo, guardarModelo, montarAcai, ADICIONAIS_3D, PREFIXO_ARQUIVO } from '../lib/comum.mjs';
 
+const VERSAO = 'v2-vidro';
+
 export default async function montagem(req, env) {
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
   let d;
@@ -11,7 +13,8 @@ export default async function montagem(req, env) {
   const camadas = [...new Set((Array.isArray(d && d.camadas) ? d.camadas : []).map(String))].filter((t) => ADICIONAIS_3D[t]).sort();
   if (!base) return json({ erro: 'Informe o modelo do copo.' }, 400);
   if (!camadas.length) return json({ url: base });
-  const chave = 'combos/acai-' + (await hashCurto(base + '|' + camadas.join(','))) + '.glb';
+  // VERSAO muda quando os modelos dos adicionais mudam (não reaproveita montagens antigas)
+  const chave = 'combos/acai-' + (await hashCurto(VERSAO + '|' + base + '|' + camadas.join(','))) + '.glb';
   const { value: existe } = await env.MODELOS.getWithMetadata(chave, 'stream');
   if (existe) { await existe.cancel(); return json({ url: PREFIXO_ARQUIVO + chave, cache: true }); }
   const copo = await lerModelo(env, base).catch(() => null);
