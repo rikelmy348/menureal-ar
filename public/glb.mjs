@@ -269,6 +269,8 @@ export function montarAcai(base, camadas, opcoes = {}) {
   const c = combinar(itens, 'MenuReal AR · monte seu açaí');
   if (k > -1) {
     const nosAjudante = ajudante ? c.json.nodes[c.nos[c.nos.length - 1]].children || [] : [];
+    // em repouso o ajudante fica invisível: não entra nas medidas nem no enquadramento
+    nosAjudante.forEach((no) => { c.json.nodes[no].scale = [1e-4, 1e-4, 1e-4]; });
     animarEntrada(c, c.json.nodes[c.nos[k + 1]].children || [], ajudante, nosAjudante);
   }
   return finalizar(c);

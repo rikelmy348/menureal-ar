@@ -701,7 +701,7 @@
     if (!reduzMovimento) { attrs['auto-rotate'] = ''; attrs['auto-rotate-delay'] = '2500'; attrs['rotation-per-second'] = '18deg'; }
     Object.keys(attrs).forEach(function (k) { mv.setAttribute(k, attrs[k]); });
     mv.innerHTML =
-      '<button slot="ar-button" class="botao-ar" type="button">' + ICONES.ar + 'Abrir câmera · tamanho real</button>' +
+      '<button slot="ar-button" class="botao-ar" type="button" aria-label="Abrir câmera e ver no tamanho real">' + ICONES.ar + 'Ver na mesa</button>' +
       '<div slot="progress-bar" class="progresso"><i></i></div>' +
       HTML_MEDIDAS;
     mv.classList.toggle('sem-medidas', !medidasLigadas);
@@ -724,11 +724,23 @@
       }
       if (mv.dataset.animar) {
         delete mv.dataset.animar;
-        try { mv.animationName = 'entrada'; mv.currentTime = 0; mv.play({ repetitions: 1 }); } catch (e3) { /* sem animação */ }
+        try {
+          mv.animationName = 'entrada'; mv.currentTime = 0; mv.play({ repetitions: 1 });
+          // afasta a câmera para mostrar a mão/o frasco chegando e depois volta, com zoom suave no açaí
+          var o = mv.getCameraOrbit(), alvo = mv.getCameraTarget();
+          mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (o.radius * 1.75) + 'm';
+          mv.cameraTarget = alvo.x + 'm ' + (alvo.y + 0.045) + 'm ' + alvo.z + 'm';
+          clearTimeout(mv._voltaCamera);
+          mv._voltaCamera = setTimeout(function () {
+            if (!mv.isConnected) return;
+            mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + o.radius + 'm';
+            mv.cameraTarget = alvo.x + 'm ' + alvo.y + 'm ' + alvo.z + 'm';
+          }, Math.max(800, (mv.duration || 1.6) * 1000 - 200));
+        } catch (e3) { /* sem animação */ }
       }
       if (mv.dataset.abrirAR) {
         delete mv.dataset.abrirAR;
-        try { mv.activateAR(); } catch (e4) { toast('Toque de novo em “Abrir câmera”.'); }
+        try { mv.activateAR(); } catch (e4) { toast('Toque de novo em “Ver na mesa”.'); }
       }
       atualizarAvisoAR();
     });

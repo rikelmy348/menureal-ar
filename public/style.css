@@ -362,15 +362,16 @@ body.travado { overflow: hidden; }
 .palco__estado .caixa-erro strong { display: block; color: var(--tinta); font-size: 16px; margin-bottom: 6px; }
 .palco__estado .caixa-erro code { font-size: 12.5px; word-break: break-all; background: var(--fundo); padding: 2px 6px; border-radius: 6px; }
 
+/* botão da câmera: compacto no canto, para não cobrir o produto */
 .botao-ar {
-  position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
-  display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
-  min-height: 52px; padding: 0 22px; border-radius: 999px; border: 0;
-  background: var(--verde); color: var(--sobre-verde); font-weight: 750; font-size: 15.5px;
-  box-shadow: 0 10px 28px rgba(8, 30, 20, .3);
+  position: absolute; right: calc(12px + env(safe-area-inset-right, 0px)); top: 12px; z-index: 3;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  min-height: 40px; padding: 0 14px; border-radius: 999px; border: 0;
+  background: var(--verde); color: var(--sobre-verde); font-weight: 750; font-size: 13.5px;
+  box-shadow: 0 4px 14px rgba(8, 30, 20, .22);
 }
-.botao-ar svg { width: 20px; height: 20px; }
-.botao-ar:active { transform: translateX(-50%) scale(.97); }
+.botao-ar svg { width: 18px; height: 18px; }
+.botao-ar:active { transform: scale(.96); }
 .palco .progresso { position: absolute; left: 0; right: 0; top: 0; height: 3px; }
 .palco .progresso i { display: block; height: 100%; width: 0; background: var(--tinta); transition: width .2s, opacity .4s; }
 
