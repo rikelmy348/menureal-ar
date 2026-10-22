@@ -13,6 +13,7 @@ import modelo3d from './api/modelo-3d.mjs';
 import arquivo from './api/arquivo.mjs';
 import combo from './api/combo.mjs';
 import imagem from './api/imagem.mjs';
+import montagem from './api/montagem.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -21,7 +22,8 @@ const ROTAS = {
   '/api/ler-cardapio': lerCardapio,
   '/api/modelo-3d': modelo3d,
   '/api/combo': combo,
-  '/api/imagem': imagem
+  '/api/imagem': imagem,
+  '/api/montagem': montagem
 };
 
 export default {

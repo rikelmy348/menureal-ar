@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 2; // 2: coluna lojas.visual (cores, letras, logo, capa)
+const VERSAO_ESQUEMA = 3; // 2: lojas.visual (aparência) · 3: produtos.adicionais
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -41,6 +41,7 @@ const ESQUEMA = [
      ingredientes    TEXT NOT NULL DEFAULT '',
      alergenos       TEXT NOT NULL DEFAULT '[]',              -- JSON
      tamanhos        TEXT NOT NULL DEFAULT '[]',              -- JSON
+     adicionais      TEXT NOT NULL DEFAULT '[]',              -- JSON: complementos com preço
      PRIMARY KEY (loja, id)
    )`,
   'CREATE INDEX IF NOT EXISTS produtos_por_loja ON produtos (loja, posicao)',
@@ -69,6 +70,10 @@ export async function garantirEsquema(env) {
   if (!colunas.some((c) => c.name === 'visual')) {
     await env.DB.prepare("ALTER TABLE lojas ADD COLUMN visual TEXT NOT NULL DEFAULT '{}'").run();
   }
+  const { results: colProd } = await env.DB.prepare('PRAGMA table_info(produtos)').all();
+  if (!colProd.some((c) => c.name === 'adicionais')) {
+    await env.DB.prepare("ALTER TABLE produtos ADD COLUMN adicionais TEXT NOT NULL DEFAULT '[]'").run();
+  }
   await env.DB.batch([
     env.DB.prepare("INSERT INTO configuracao (chave, valor) VALUES ('esquema', ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor").bind(String(VERSAO_ESQUEMA))
   ]);
@@ -80,6 +85,18 @@ const lerJson = (t, padrao) => { try { return JSON.parse(t); } catch { return pa
 const texto = (v, max) => String(v == null ? '' : v).slice(0, max);
 const dimOk = (d, k) => { const v = Number(d && d[k]); return v > 0 && v < 100000 ? Math.round(v * 100) / 100 : 5; };
 const slugBanco = (slug) => slug || DEMO;
+
+const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'leite_po', 'leite_condensado', 'calda_chocolate'];
+function limparAdicionais(lista) {
+  const vistos = new Set();
+  return (Array.isArray(lista) ? lista : []).filter((a) => a && a.nome).slice(0, 30).map((a, i) => {
+    let id = texto(a.id || 'a' + i, 40).replace(/[^\w-]/g, '') || 'a' + i;
+    while (vistos.has(id)) id += '2';
+    vistos.add(id);
+    return { id, nome: texto(a.nome, 40), preco: Math.min(9999, Math.max(0, Math.round((Number(a.preco) || 0) * 100) / 100)),
+      tipo3d: TIPOS_3D.includes(a.tipo3d) ? a.tipo3d : '' };
+  });
+}
 
 export const FONTES = ['moderno', 'elegante', 'divertido', 'classico'];
 const COR = /^#[0-9a-f]{6}$/i;
@@ -115,7 +132,7 @@ export async function lerCardapio(env, slug) {
       id: p.id, nome: p.nome, categoria: p.categoria, preco: p.preco, descricao: p.descricao,
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
-      alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, [])
+      alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, [])
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -146,7 +163,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
     env.DB.prepare('DELETE FROM produtos WHERE loja = ?').bind(s)
   ];
   const inserir = env.DB.prepare(`INSERT INTO produtos (loja, id, posicao, nome, categoria, preco, descricao, largura_cm, profundidade_cm, altura_cm,
-      modelo, ilustrativo, ingredientes, alergenos, tamanhos) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      modelo, ilustrativo, ingredientes, alergenos, tamanhos, adicionais) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const vistos = new Set();
   let pos = 0;
   for (const x of (dados.produtos || []).slice(0, 500)) {
@@ -162,7 +179,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos)));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais))));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;
@@ -181,7 +198,7 @@ export async function contaPorEmail(env, email) {
   return env.DB.prepare('SELECT slug, nome, email, senha_hash FROM lojas WHERE email = ?').bind(email).first();
 }
 /** Cria a loja ou atualiza nome, e-mail e senha de uma existente. */
-export async function salvarConta(env, { slug, nome, email, senhaHash, tipo }) {
+export async function salvarConta(env, { slug, nome, email, senhaHash, tipo, sorveteria = false }) {
   const existia = await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first();
   if (existia) {
     await env.DB.prepare('UPDATE lojas SET nome = ?, email = ?, senha_hash = ?, atualizada_em = ? WHERE slug = ?')
@@ -189,8 +206,9 @@ export async function salvarConta(env, { slug, nome, email, senhaHash, tipo }) {
   } else {
     await env.DB.prepare(`INSERT INTO lojas (slug, nome, email, senha_hash, tipo, slogan, abre, fecha, categorias)
       VALUES (?, ?, ?, ?, ?, ?, '08:00', '18:00', ?)`).bind(slug, nome, email, senhaHash, tipo,
-      tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : 'Veja antes de pedir',
-      JSON.stringify(tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções'] : ['Salgados', 'Doces', 'Bebidas'])).run();
+      tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : sorveteria ? 'Monte o seu e veja na mesa' : 'Veja antes de pedir',
+      JSON.stringify(tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções']
+        : sorveteria ? ['Açaí', 'Sorvetes', 'Picolés', 'Milkshakes', 'Bebidas'] : ['Salgados', 'Doces', 'Bebidas'])).run();
   }
   return { atualizado: Boolean(existia) };
 }

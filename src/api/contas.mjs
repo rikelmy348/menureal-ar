@@ -15,6 +15,7 @@ export default async function contas(req, env) {
   const nome = String(d.nome || '').trim().slice(0, 60);
   const email = String(d.email || '').trim().toLowerCase().slice(0, 120);
   const senha = String(d.senha || '');
+  const sorveteria = d.tipo === 'sorveteria';
   const tipo = d.tipo === 'produtos' ? 'produtos' : 'alimentos';
   if (!slugValido(slug)) return json({ erro: 'Endereço inválido: use de 3 a 40 letras minúsculas, números e hífens (ex.: sabor-da-vila).' }, 400);
   if (!nome) return json({ erro: 'Informe o nome da loja.' }, 400);
@@ -23,6 +24,6 @@ export default async function contas(req, env) {
 
   const dono = await contaPorEmail(env, email);
   if (dono && dono.slug !== slug) return json({ erro: 'Este e-mail já é usado pela loja "' + dono.slug + '".' }, 409);
-  const { atualizado } = await salvarConta(env, { slug, nome, email, senhaHash: await hashSenha(senha), tipo });
+  const { atualizado } = await salvarConta(env, { slug, nome, email, senhaHash: await hashSenha(senha), tipo, sorveteria });
   return json({ ok: true, slug, nome, email, atualizado });
 }

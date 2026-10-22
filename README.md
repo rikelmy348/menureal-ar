@@ -42,6 +42,7 @@ menureal-ar/
 │   ├── api/combo.mjs                junta os itens do pedido em um só 3D
 │   ├── api/arquivo.mjs              entrega os modelos 3D e as imagens guardados no KV
 │   ├── api/imagem.mjs               recebe a logo e a foto de capa da loja
+│   ├── api/montagem.mjs             junta copo + adicionais para abrir na câmera
 │   ├── lib/banco.mjs                banco de dados D1 (cria as tabelas sozinho)
 │   └── lib/comum.mjs                login (WebCrypto), escala e combo de GLB
 ├── wrangler.jsonc                   configuração da Cloudflare (site, banco, arquivos 3D)
@@ -323,6 +324,15 @@ tamanho real, com o preço total. Funciona também no Scene Viewer e no Quick Lo
   enviar; ficam no KV em `/api/arquivo/imagens/<loja>/...`.
 - **Marca MenuReal**: a loja escolhe se mostra “Cardápio em 3D por MenuReal” no rodapé.
   Na página da loja, o topo mostra a logo ou o nome dela, nunca o MenuReal.
+
+**Monte o seu (açaí, sorvete, lanche…):** cada produto pode ter **adicionais** com preço
+(granola +R$ 2, leite condensado +R$ 2,50…). No painel, *Lista pronta de açaí* preenche os mais
+comuns. Com *Aparece no 3D*, o adicional **cai em cima do produto** com animação quando o cliente
+marca; o preço soma na hora e o pedido registra cada adicional. Em *Abrir câmera*, o servidor
+junta copo e coberturas num arquivo só (`/api/montagem`, guardado no KV) e o açaí montado aparece
+na mesa, no tamanho real. Os copos de 300, 500 e 700 ml e as coberturas são modelos ilustrativos
+originais (`tools/gerar_acai.py`, CC0); o copo também pode ser o 3D gerado pela foto da loja.
+O tipo de loja *Sorveteria e açaí* já cria as categorias Açaí, Sorvetes, Picolés, Milkshakes e Bebidas.
 
 Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os
 logins. Sem ela, a assinatura usa o `MENUREAL_CODIGO`; trocar qualquer um dos
