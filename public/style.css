@@ -634,3 +634,15 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .adic:has(input:focus-visible) { outline: 3px solid var(--limao); outline-offset: 2px; }
 .adic:active { transform: scale(.97); }
 .adic-admin .adic-linha { display: grid; gap: 8px; padding-bottom: 10px; border-bottom: 1px dashed var(--linha); }
+
+/* ------------------------- Montador de copo em camadas -------------- */
+.medidor { height: 12px; border-radius: 999px; background: var(--palco-b); overflow: hidden; margin: 2px 0 10px; border: 1px solid var(--linha); }
+.medidor i { display: block; height: 100%; background: linear-gradient(90deg, #3B0D45, #6E2A7A); border-radius: 999px; transition: width .35s var(--ease); }
+.pilha { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0 0 10px; font-size: 13.5px; color: var(--tinta-2); }
+.pilha__rot { width: 100%; font-weight: 650; }
+.pilha span:not(.pilha__rot) { padding: 3px 9px; border-radius: 999px; background: var(--limao-suave); color: var(--tinta); font-weight: 650; font-size: 12.5px; }
+.adic--camada { text-align: left; font: inherit; color: inherit; }
+.adic__marca--mais { background: var(--verde); border-color: var(--verde); color: var(--sobre-verde); }
+.montador__dica { margin: 0 0 8px; font-size: 14.5px; }
+.montador__acoes { margin-top: 10px; }
+#viewer-add:disabled { opacity: .55; cursor: not-allowed; }

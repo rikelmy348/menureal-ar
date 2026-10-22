@@ -223,6 +223,33 @@ export const ADICIONAIS_3D = {
   camada_morango: { nome: 'Camada de morango', ordem: 102, camada: 'creme_parede', pecas: '_pedacos_morango' },
   camada_nutella: { nome: 'Camada de Nutella', ordem: 103, camada: 'nutella_parede' }
 };
+// Como cada ingrediente aparece quando vira CAMADA dentro do copo (montagem pelo cliente).
+// mat: material liso da parede (vem do copo); pecas: biblioteca de pedaços encostados no copo;
+// peso: altura relativa da camada; esp: espaçamento dos pedaços (unidades da cobertura).
+export const CAPACIDADE = 5.5;
+export const VISUAL_CAMADA = {
+  acai: { nome: 'Açaí', mat: 'acai_camada', topo: 'acai', peso: 1 },
+  camada_creme: { mat: 'creme_parede', peso: 0.55 },
+  creme: { mat: 'creme_parede', peso: 0.55 },
+  camada_nutella: { mat: 'nutella_parede', peso: 0.5 },
+  nutella: { mat: 'nutella_parede', peso: 0.5 },
+  leite_condensado: { mat: 'condensado_parede', peso: 0.42 },
+  calda_chocolate: { mat: 'chocolate_parede', peso: 0.38 },
+  leite_po: { mat: 'po_parede', peso: 0.42 },
+  camada_morango: { mat: 'creme_parede', pecas: '_pedacos_morango', peso: 0.62, esp: 0.125 },
+  morango: { pecas: '_pedacos_morango', peso: 0.45, esp: 0.125 },
+  morango_picado: { pecas: '_pedacos_morango', peso: 0.45, esp: 0.125 },
+  banana: { pecas: '_pedacos_banana', peso: 0.45, esp: 0.34 },
+  granola: { pecas: '_pedacos_granola', peso: 0.4, esp: 0.12 },
+  pacoca: { pecas: '_pedacos_pacoca', peso: 0.38, esp: 0.1 },
+  confete: { pecas: '_pedacos_confete', peso: 0.32, esp: 0.15 }
+};
+export function pesoCamada(tipo) { return (VISUAL_CAMADA[tipo] || VISUAL_CAMADA.acai).peso; }
+/** Bibliotecas de pedaços necessárias para uma pilha de camadas. */
+export function bibliotecasDe(pilha) {
+  return [...new Set((pilha || []).map((t) => VISUAL_CAMADA[t] && VISUAL_CAMADA[t].pecas).filter(Boolean))];
+}
+
 /** Arquivo 3D de um adicional (em assets/adicionais), ou null se não precisa de arquivo. */
 export function arquivoDe(tipo) {
   const a = ADICIONAIS_3D[tipo];
@@ -256,6 +283,8 @@ export function montarAcai(base, camadas, opcoes = {}) {
   const info = baseGlb.json.asset && baseGlb.json.asset.extras && baseGlb.json.asset.extras.copo;
   // camadas internas só em copos preparados (tools/gerar_acai.py grava as medidas do copo)
   const internos = info ? validas.filter((c) => ADICIONAIS_3D[c.tipo].camada).sort(ordem) : [];
+  // pilha: camadas que o cliente montou, de baixo para cima (pode repetir); null = modo antigo
+  const pilha = info && Array.isArray(opcoes.pilha) ? opcoes.pilha.filter((t) => VISUAL_CAMADA[t]) : null;
   const lista = validas.filter((c) => !ADICIONAIS_3D[c.tipo].camada).sort(ordem);
   const itens = [{ glb: baseGlb, no: { name: 'copo' } }];
   const angulos = [];
@@ -282,26 +311,43 @@ export function montarAcai(base, camadas, opcoes = {}) {
       rotation: frasco ? camada.rotation : [0, 0, 0, 1] } });
     ajudante = { frasco, ang: frasco ? 0 : angulos[k], item: itens.length - 1 };
   }
-  // bibliotecas de pedaços (cubinhos de morango) entram escondidas; a coluna usa as malhas
+  // bibliotecas de pedaços (cubinhos de morango, rodelas de banana…) entram escondidas;
+  // a coluna reaproveita as malhas
   const libs = {};
-  internos.forEach((x) => {
-    const def = ADICIONAIS_3D[x.tipo];
-    if (def.pecas && x.buf && libs[def.pecas] == null) {
-      libs[def.pecas] = itens.length;
-      itens.push({ buf: x.buf, no: { name: 'biblioteca_' + def.pecas, scale: [1e-4, 1e-4, 1e-4] } });
+  const addLib = (nome, buf) => {
+    if (nome && buf && libs[nome] == null) {
+      libs[nome] = itens.length;
+      itens.push({ buf, no: { name: 'biblioteca_' + nome, scale: [1e-4, 1e-4, 1e-4] } });
     }
-  });
+  };
+  internos.forEach((x) => addLib(ADICIONAIS_3D[x.tipo].pecas, x.buf));
+  Object.keys(opcoes.libs || {}).forEach((nome) => addLib(nome, opcoes.libs[nome]));
   const c = combinar(itens, 'MenuReal AR · monte seu açaí');
-  if (internos.length) {
-    (c.json.nodes[c.nos[0]].children || []).forEach((no) => {
-      const n = c.json.nodes[no];
-      if (n.extras && n.extras.interior) n.scale = [1e-4, 1e-4, 1e-4];
-    });
-    const malhas = {};
+  const malhasDe = () => {
+    const m = {};
     Object.keys(libs).forEach((nome) => {
-      malhas[nome] = (c.json.nodes[c.nos[libs[nome]]].children || []).map((no) => c.json.nodes[no].mesh).filter((m) => m != null);
+      m[nome] = (c.json.nodes[c.nos[libs[nome]]].children || []).map((no) => c.json.nodes[no])
+        .filter((n) => n.mesh != null).map((n) => ({ mesh: n.mesh, encostar: !!(n.extras && n.extras.encostar) }));
     });
-    const coluna = gerarColuna(c, info, internos.map((x) => x.tipo), malhas, s);
+    return m;
+  };
+  const esconderInterior = () => (c.json.nodes[c.nos[0]].children || []).forEach((no) => {
+    const n = c.json.nodes[no];
+    if (n.extras && n.extras.interior) n.scale = [1e-4, 1e-4, 1e-4];
+  });
+  if (pilha) {
+    esconderInterior();
+    const coluna = gerarColuna(c, info, pilha, malhasDe(), s, false);
+    if (Number.isInteger(opcoes.animarCamada) && opcoes.animarCamada < coluna.faixas.length) {
+      animarCamadaNova(c, coluna, opcoes.animarCamada, info);
+      return finalizar(c);
+    }
+  } else if (internos.length) {
+    esconderInterior();
+    // modo antigo: camadas escolhidas como adicionais, intercaladas com açaí, enchendo o copo
+    const auto = ['acai'];
+    internos.forEach((x) => auto.push(x.tipo, 'acai'));
+    const coluna = gerarColuna(c, info, auto, malhasDe(), s, true);
     if (internos.some((x) => x.tipo === opcoes.animar)) {
       const coberturas = [];
       lista.forEach((_, i) => (c.json.nodes[c.nos[i + 1]].children || []).forEach((no) => coberturas.push(no)));
@@ -467,32 +513,59 @@ function malha(c, nome, pos, nrm, uv, idx, material) {
   return c.json.meshes.length - 1;
 }
 
-function gerarColuna(c, info, internos, malhas, s) {
+function multQ(a, b) {
+  return [a[3] * b[0] + a[0] * b[3] + a[1] * b[2] - a[2] * b[1], a[3] * b[1] - a[0] * b[2] + a[1] * b[3] + a[2] * b[0],
+    a[3] * b[2] + a[0] * b[1] - a[1] * b[0] + a[2] * b[3], a[3] * b[3] - a[0] * b[0] - a[1] * b[1] - a[2] * b[2]];
+}
+function quatEixo(eixo, ang) { const l = Math.hypot(...eixo) || 1, s = Math.sin(ang / 2); return [eixo[0] / l * s, eixo[1] / l * s, eixo[2] / l * s, Math.cos(ang / 2)]; }
+/** Rotação que leva o eixo Y local para a direção v. */
+function quatYpara(v) {
+  const l = Math.hypot(...v) || 1, d = [v[0] / l, v[1] / l, v[2] / l];
+  const eixo = [d[2], 0, -d[0]];
+  if (Math.hypot(...eixo) < 1e-6) return d[1] > 0 ? [0, 0, 0, 1] : [1, 0, 0, 0];
+  return quatEixo(eixo, Math.acos(Math.max(-1, Math.min(1, d[1]))));
+}
+
+/**
+ * Coluna de camadas dentro do copo. pilha: tipos de baixo para cima (VISUAL_CAMADA).
+ * encher=true: as camadas dividem a altura toda; false: cada camada ocupa peso/CAPACIDADE
+ * (o copo vai enchendo conforme o cliente adiciona). Devolve nós para animação.
+ */
+function gerarColuna(c, info, pilha, malhas, s, encher) {
   const mat = (nome) => { const i = c.json.materials.findIndex((m) => m.name === nome); return i < 0 ? 0 : i; };
   const { rt, rb, H, g, folga, base, y0, y_borda: yb, pico, k } = info;
   const raio = (y) => rb - g + (rt - rb) * (y - base) / (H - base) - folga;
   const inclina = (rt - rb) / (H - base);
-  const seq = [{ tipo: 'acai', mat: 'acai_camada', peso: 1 }];
-  internos.forEach((t) => {
-    seq.push({ tipo: t, mat: ADICIONAIS_3D[t].camada, peso: 0.62, pecas: ADICIONAIS_3D[t].pecas });
-    seq.push({ tipo: 'acai', mat: 'acai_camada', peso: 0.9 });
+  const res = { faixas: [], topo: null, cheio: false };
+  if (!pilha.length) return res;
+  // material de fundo de cada camada: camadas só de pedaços mostram a camada de baixo entre eles
+  let fundo = 'acai_camada';
+  const seq = pilha.map((t) => {
+    const v = VISUAL_CAMADA[t] || VISUAL_CAMADA.acai;
+    if (v.mat) fundo = v.mat;
+    return { tipo: t, mat: v.mat || fundo, topo: v.topo, peso: v.peso, pecas: v.pecas, esp: v.esp };
   });
-  const total = seq.reduce((a, x) => a + x.peso, 0);
-  const rnd = aleatorio(semente(internos.join('|')));
-  // fronteiras onduladas entre as camadas (como quando se monta com a colher)
+  const somaPesos = seq.reduce((a, x) => a + x.peso, 0);
+  const total = encher ? somaPesos : CAPACIDADE;
+  res.cheio = encher || somaPesos >= CAPACIDADE - 0.05;
+  const alturaCol = yb - y0;
   let acum = 0;
   const fronteiras = [{ y: y0, onda: () => 0 }];
   seq.forEach((x, i) => {
     acum += x.peso;
-    const y = y0 + (yb - y0) * acum / total;
-    if (i === seq.length - 1) { fronteiras.push({ y: yb, onda: () => 0 }); return; }
-    const f = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28], a = 0.0032 + rnd() * 0.0016;
+    const ultimaCheia = res.cheio && i === seq.length - 1;
+    const y = ultimaCheia ? yb : Math.min(yb, y0 + alturaCol * acum / total);
+    if (ultimaCheia) { fronteiras.push({ y: yb, onda: () => 0 }); return; }
+    // ondulação estável: depende só das camadas até aqui (adicionar outra não mexe nas de baixo)
+    const rnd = aleatorio(semente(pilha.slice(0, i + 1).join('|') + '#' + i));
+    const f = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28], a = 0.003 + rnd() * 0.0016;
     fronteiras.push({ y, onda: (th) => a * (0.6 * Math.sin(2 * th + f[0]) + 0.3 * Math.sin(5 * th + f[1]) + 0.15 * Math.sin(9 * th + f[2])) });
   });
-  const NU = 96, NV = 12;
-  const res = { faixas: [], pecas: [], topo: null };
+  const NU = 96, NV = 10;
+  const novoNo = (no) => { c.json.nodes.push(no); const i = c.json.nodes.length - 1; c.json.scenes[0].nodes.push(i); return i; };
   seq.forEach((x, i) => {
     const baixo = fronteiras[i], cima = fronteiras[i + 1];
+    if (cima.y - baixo.y < 0.0004) return;
     const pos = [], nrm = [], uv = [], idx = [];
     for (let j = 0; j < NV; j++) {
       const t = j / (NV - 1);
@@ -503,79 +576,139 @@ function gerarColuna(c, info, internos, malhas, s) {
         pos.push(r * Math.cos(th), y - baixo.y, -r * Math.sin(th));
         const n = [Math.cos(th), -inclina, -Math.sin(th)], l = Math.hypot(...n);
         nrm.push(n[0] / l, n[1] / l, n[2] / l);
-        uv.push(q / NU, (y - y0) / (yb - y0));
+        uv.push(q / NU, (y - y0) / alturaCol);
       }
     }
     for (let j = 0; j < NV - 1; j++) for (let q = 0; q < NU; q++) {
       const a = j * (NU + 1) + q, b = a + 1, d = a + NU + 1, e = d + 1;
       idx.push(a, b, e, a, e, d);
     }
-    if (i === 0) {   // fundo
+    if (i === 0) {
       const centro = pos.length / 3;
       pos.push(0, 0, 0); nrm.push(0, -1, 0); uv.push(0.5, 0);
       for (let q = 0; q < NU; q++) idx.push(centro, q + 1, q);
     }
-    if (i < seq.length - 1) {   // tampa ondulada: é a superfície de cima enquanto o copo enche
+    const ultima = i === seq.length - 1;
+    if (!(ultima && res.cheio)) {   // tampa ondulada (a superfície de cima enquanto o copo não está cheio)
       const anel = pos.length / 3;
       for (let q = 0; q <= NU; q++) {
         const th = (q / NU) * Math.PI * 2;
         const y = cima.y + cima.onda(th), r = raio(y) - 0.0002;
-        pos.push(r * Math.cos(th), y - baixo.y, -r * Math.sin(th)); nrm.push(0, 1, 0); uv.push(q / NU, (y - y0) / (yb - y0));
+        pos.push(r * Math.cos(th), y - baixo.y, -r * Math.sin(th)); nrm.push(0, 1, 0); uv.push(q / NU, (y - y0) / alturaCol);
       }
       const centro = pos.length / 3;
-      pos.push(0, cima.y - baixo.y + 0.0015, 0); nrm.push(0, 1, 0); uv.push(0.5, (cima.y - y0) / (yb - y0));
+      pos.push(0, cima.y - baixo.y + 0.0012, 0); nrm.push(0, 1, 0); uv.push(0.5, (cima.y - y0) / alturaCol);
       for (let q = 0; q < NU; q++) idx.push(centro, anel + q, anel + q + 1);
     }
     const m = malha(c, 'camada_' + i, pos, nrm, uv, idx, mat(x.mat));
-    c.json.nodes.push({ name: 'camada_' + i + '_' + x.tipo, mesh: m, translation: [0, baixo.y, 0] });
-    const no = c.json.nodes.length - 1;
-    c.json.scenes[0].nodes.push(no);
-    res.faixas.push({ no, y0: baixo.y, y1: cima.y });
-    // pedaços de fruta encostados no copo
+    const no = novoNo({ name: 'camada_' + i + '_' + x.tipo, mesh: m, translation: [0, baixo.y, 0] });
+    const faixa = { no, y0: baixo.y, y1: cima.y, pecas: [], i };
+    res.faixas.push(faixa);
+    // pedaços: encostados no copo (aparecem pelo plástico) e espalhados por cima da camada
     const lib = x.pecas && malhas[x.pecas];
     if (lib && lib.length) {
-      const fs = s * 0.9;
-      [0.3, 0.72].forEach((frac, linha) => {
-        const y = baixo.y + (cima.y - baixo.y) * frac;
+      const rnd = aleatorio(semente('pecas|' + pilha.slice(0, i + 1).join('|') + '#' + i));
+      const fs = s * 0.92, esp = (x.esp || 0.12) * s;
+      const altura = cima.y - baixo.y;
+      const linhas = Math.max(1, Math.round(altura / (esp * 0.95)));
+      for (let ln = 0; ln < linhas; ln++) {
+        const y = baixo.y + altura * (ln + 0.5) / linhas;
         const r = raio(y);
-        const n = Math.floor((2 * Math.PI * r) / 0.0105);
+        const n = Math.max(6, Math.floor((2 * Math.PI * r) / esp));
         for (let q = 0; q < n; q++) {
-          const th = ((q + (linha ? 0.5 : 0) + (rnd() - 0.5) * 0.4) / n) * Math.PI * 2;
-          const rr = r - 0.0042, yy = y + (rnd() - 0.5) * 0.004;
-          const ax = [rnd() - 0.5, rnd() - 0.5, rnd() - 0.5], l = Math.hypot(...ax) || 1, ang = rnd() * 6.28;
-          const sn = Math.sin(ang / 2);
-          c.json.nodes.push({ name: 'pedaco', mesh: lib[Math.floor(rnd() * lib.length)], translation: [rr * Math.cos(th), yy, -rr * Math.sin(th)],
-            rotation: [ax[0] / l * sn, ax[1] / l * sn, ax[2] / l * sn, Math.cos(ang / 2)], scale: [fs, fs, fs] });
-          const pn = c.json.nodes.length - 1;
-          c.json.scenes[0].nodes.push(pn);
-          res.pecas.push({ no: pn, faixa: i, t: rnd() });
+          const p = lib[Math.floor(rnd() * lib.length)];
+          const th = ((q + (ln % 2 ? 0.5 : 0) + (rnd() - 0.5) * 0.35) / n) * Math.PI * 2;
+          const fora = [Math.cos(th), 0, -Math.sin(th)];
+          const rr = r - (p.encostar ? 0.0032 : 0.0042);
+          const rot = p.encostar
+            ? multQ(quatYpara([fora[0] + (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.4, fora[2] + (rnd() - 0.5) * 0.3]), quatEixo([0, 1, 0], rnd() * 6.28))
+            : quatEixo([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5], rnd() * 6.28);
+          faixa.pecas.push(novoNo({ name: 'pedaco', mesh: p.mesh, translation: [rr * Math.cos(th), y + (rnd() - 0.5) * 0.003, -rr * Math.sin(th)], rotation: rot, scale: [fs, fs, fs] }));
         }
-      });
+      }
+      // por cima da camada (ficam cobertos pela próxima; com o copo aberto, aparecem)
+      const rc = raio(cima.y) * 0.78;
+      const nTopo = Math.max(4, Math.round((Math.PI * rc * rc) / (esp * esp) * 0.75));
+      for (let q = 0; q < nTopo; q++) {
+        const p = lib[Math.floor(rnd() * lib.length)];
+        const a = rnd() * 6.28, d = rc * Math.sqrt(rnd());
+        const th = Math.atan2(-d * Math.sin(a), d * Math.cos(a));
+        const yTopo = cima.y + cima.onda(th < 0 ? th + 6.283 : th) + (p.encostar ? 0.0028 : 0.0035);
+        const rot = p.encostar ? multQ(quatEixo([rnd() - 0.5, 0, rnd() - 0.5], rnd() * 0.5), quatEixo([0, 1, 0], rnd() * 6.28))
+          : quatEixo([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5], rnd() * 6.28);
+        faixa.pecas.push(novoNo({ name: 'pedaco_topo', mesh: p.mesh, translation: [d * Math.cos(a), yTopo, d * Math.sin(a)], rotation: rot, scale: [fs, fs, fs] }));
+      }
     }
   });
-  // topo em cúpula (o mesmo do copo), sobre a última camada de açaí
-  const ra = raio(yb), NT = 32, NQ = 128;
-  const pos = [], nrm = [], uv = [], idx = [];
-  for (let j = 0; j < NT; j++) {
-    const t = j / (NT - 1), r = ra * t;
-    for (let q = 0; q <= NQ; q++) {
-      const th = (q / NQ) * Math.PI * 2;
-      const dobra = 0.0009 * Math.sin(5 * th + t * 9) * Math.sin(Math.PI * t) ** 2 * (0.6 + 0.4 * Math.sin(3 * th));
-      pos.push(r * Math.cos(th), pico - k * r * r + dobra - yb, -r * Math.sin(th));
-      const n = [2 * k * r * Math.cos(th), 1, -2 * k * r * Math.sin(th)], l = Math.hypot(...n);
-      nrm.push(n[0] / l, n[1] / l, n[2] / l);
-      uv.push(q / NQ, t);
+  if (res.cheio) {
+    // topo em cúpula (o mesmo do copo), sobre a última camada
+    const ult = seq[seq.length - 1];
+    const ra = raio(yb), NT = 32, NQ = 128;
+    const pos = [], nrm = [], uv = [], idx = [];
+    for (let j = 0; j < NT; j++) {
+      const t = j / (NT - 1), r = ra * t;
+      for (let q = 0; q <= NQ; q++) {
+        const th = (q / NQ) * Math.PI * 2;
+        const dobra = 0.0009 * Math.sin(5 * th + t * 9) * Math.sin(Math.PI * t) ** 2 * (0.6 + 0.4 * Math.sin(3 * th));
+        pos.push(r * Math.cos(th), pico - k * r * r + dobra - yb, -r * Math.sin(th));
+        const n = [2 * k * r * Math.cos(th), 1, -2 * k * r * Math.sin(th)], l = Math.hypot(...n);
+        nrm.push(n[0] / l, n[1] / l, n[2] / l);
+        uv.push(q / NQ, t);
+      }
     }
+    for (let j = 0; j < NT - 1; j++) for (let q = 0; q < NQ; q++) {
+      const a = j * (NQ + 1) + q, b = a + 1, d = a + NQ + 1, e = d + 1;
+      idx.push(a, e, b, a, d, e);
+    }
+    const mt = malha(c, 'topo', pos, nrm, uv, idx, mat(ult.topo || ult.mat));
+    res.topo = novoNo({ name: 'topo_acai', mesh: mt, translation: [0, yb, 0] });
   }
-  for (let j = 0; j < NT - 1; j++) for (let q = 0; q < NQ; q++) {
-    const a = j * (NQ + 1) + q, b = a + 1, d = a + NQ + 1, e = d + 1;
-    idx.push(a, e, b, a, d, e);
-  }
-  const mt = malha(c, 'topo', pos, nrm, uv, idx, mat('acai'));
-  c.json.nodes.push({ name: 'topo_acai', mesh: mt, translation: [0, yb, 0] });
-  res.topo = c.json.nodes.length - 1;
-  c.json.scenes[0].nodes.push(res.topo);
   return res;
+}
+
+/** Camada que o cliente acabou de adicionar: sobe do nível de antes e os pedaços caem dentro. */
+function animarCamadaNova(c, col, indice, info) {
+  const f = col.faixas.find((x) => x.i === indice);
+  if (!f) return;
+  const anim = criarAnimador(c);
+  const MIN = 1e-4;
+  anim.canal(f.no, 'scale', [0, 0.05, 0.55], [1, MIN, 1, 1, MIN, 1, 1, 1, 1], 'VEC3');
+  const topoY = info.H + 0.03;
+  f.pecas.forEach((no, j) => {
+    const n = c.json.nodes[no];
+    const t = n.translation, e = n.scale, r = n.rotation;
+    const d = 0.1 + ((j * 0.618) % 1) * 0.45;
+    const ini = [t[0] * 0.5, topoY + ((j * 0.37) % 1) * 0.02, t[2] * 0.5];
+    const us = [0, 0.4, 0.75, 1], F = 0.32;
+    anim.canal(no, 'translation', [0, ...us.map((u) => d + F * u)],
+      [...ini, ...us.flatMap((u) => [ini[0] + (t[0] - ini[0]) * u, ini[1] + (t[1] - ini[1]) * u * u, ini[2] + (t[2] - ini[2]) * u])], 'VEC3');
+    anim.canal(no, 'rotation', [0, d, d + F], [0.3, 0.6, 0.1, 0.735, 0.3, 0.6, 0.1, 0.735, ...r], 'VEC4');
+    anim.canal(no, 'scale', [0, d], [MIN, MIN, MIN, ...e], 'VEC3', 'STEP');
+  });
+  if (col.topo != null && col.faixas[col.faixas.length - 1] === f) {
+    anim.canal(col.topo, 'scale', [0, 0.5, 0.55, 0.8], [MIN, MIN, MIN, MIN, MIN, MIN, 1, 0.05, 1, 1, 1, 1], 'VEC3');
+  }
+  anim.fechar();
+}
+
+function criarAnimador(c) {
+  const acc = c.json.accessors;
+  const samplers = [], channels = [];
+  const add = (dados, tipo) => {
+    const arr = new Float32Array(dados);
+    const n = tipo === 'SCALAR' ? arr.length : arr.length / (tipo === 'VEC3' ? 3 : 4);
+    const a = { bufferView: anexar(c, arr), componentType: 5126, count: n, type: tipo };
+    if (tipo === 'SCALAR') { a.min = [Math.min(...arr)]; a.max = [Math.max(...arr)]; }
+    acc.push(a);
+    return acc.length - 1;
+  };
+  return {
+    canal(no, path, tempos, valores, tipo, interp = 'LINEAR') {
+      samplers.push({ input: add(tempos, 'SCALAR'), output: add(valores, tipo), interpolation: interp });
+      channels.push({ sampler: samplers.length - 1, target: { node: no, path } });
+    },
+    fechar() { if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }]; }
+  };
 }
 
 /** Copo enchendo: cada camada sobe, os pedaços de fruta caem, o topo cobre; coberturas no fim. */
@@ -602,10 +735,12 @@ function animarColuna(c, col, coberturas, info) {
     canal(f.no, 'scale', [0, a - 0.005, a, a + DUR], [MIN, MIN, MIN, MIN, MIN, MIN, 1, 0.03, 1, 1, 1, 1], 'VEC3');
   });
   const fim = 0.12 + col.faixas.length * PASSO;
-  col.pecas.forEach((p) => {
+  const pecas = [];
+  col.faixas.forEach((f) => f.pecas.forEach((no, j) => pecas.push({ no, f, t: ((j * 0.618) % 1) })));
+  pecas.forEach((p) => {
     const n = c.json.nodes[p.no];
     const t = n.translation, e = n.scale, r = n.rotation;
-    const f = col.faixas[p.faixa];
+    const f = p.f;
     const d = f.inicio + 0.06 + p.t * 0.14;
     const ini = [t[0] * 0.7, f.y1 + 0.025, t[2] * 0.7];
     const us = [0, 0.4, 0.75, 1], F = 0.18;

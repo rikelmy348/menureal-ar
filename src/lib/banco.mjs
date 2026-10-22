@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 3; // 2: lojas.visual (aparência) · 3: produtos.adicionais
+const VERSAO_ESQUEMA = 4; // 2: lojas.visual (aparência) · 3: produtos.adicionais · 4: produtos.opcoes
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -42,6 +42,7 @@ const ESQUEMA = [
      alergenos       TEXT NOT NULL DEFAULT '[]',              -- JSON
      tamanhos        TEXT NOT NULL DEFAULT '[]',              -- JSON
      adicionais      TEXT NOT NULL DEFAULT '[]',              -- JSON: complementos com preço
+     opcoes          TEXT NOT NULL DEFAULT '{}',              -- JSON: { montar: cliente monta em camadas }
      PRIMARY KEY (loja, id)
    )`,
   'CREATE INDEX IF NOT EXISTS produtos_por_loja ON produtos (loja, posicao)',
@@ -73,6 +74,9 @@ export async function garantirEsquema(env) {
   const { results: colProd } = await env.DB.prepare('PRAGMA table_info(produtos)').all();
   if (!colProd.some((c) => c.name === 'adicionais')) {
     await env.DB.prepare("ALTER TABLE produtos ADD COLUMN adicionais TEXT NOT NULL DEFAULT '[]'").run();
+  }
+  if (!colProd.some((c) => c.name === 'opcoes')) {
+    await env.DB.prepare("ALTER TABLE produtos ADD COLUMN opcoes TEXT NOT NULL DEFAULT '{}'").run();
   }
   await env.DB.batch([
     env.DB.prepare("INSERT INTO configuracao (chave, valor) VALUES ('esquema', ?) ON CONFLICT (chave) DO UPDATE SET valor = excluded.valor").bind(String(VERSAO_ESQUEMA))
@@ -133,7 +137,8 @@ export async function lerCardapio(env, slug) {
       id: p.id, nome: p.nome, categoria: p.categoria, preco: p.preco, descricao: p.descricao,
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
-      alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, [])
+      alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
+      montar: Boolean(lerJson(p.opcoes, {}).montar)
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -164,7 +169,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
     env.DB.prepare('DELETE FROM produtos WHERE loja = ?').bind(s)
   ];
   const inserir = env.DB.prepare(`INSERT INTO produtos (loja, id, posicao, nome, categoria, preco, descricao, largura_cm, profundidade_cm, altura_cm,
-      modelo, ilustrativo, ingredientes, alergenos, tamanhos, adicionais) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+      modelo, ilustrativo, ingredientes, alergenos, tamanhos, adicionais, opcoes) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   const vistos = new Set();
   let pos = 0;
   for (const x of (dados.produtos || []).slice(0, 500)) {
@@ -180,7 +185,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais))));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

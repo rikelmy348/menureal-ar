@@ -336,6 +336,14 @@ Cada pedaço é animado: frutas e granola caem girando e quicam, a calda é "des
 sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho. Na tela, uma **mão** chega por trás do copo e solta frutas, granola e
 confetes da pinça, e um **frasco de vidro** passa por cima despejando as caldas
 (`public/assets/adicionais/_mao.glb` e `_frasco_*.glb`; não vão para a câmera); o copo também pode ser o 3D gerado pela foto da loja.
+**O cliente monta o copo:** no produto, marque *O cliente monta o copo em camadas*. No
+cardápio, o cliente começa com o copo vazio e vai tocando em **+ Açaí**, **+ Banana**,
+**+ Creme de ninho**… — cada toque põe uma camada por cima (pode repetir), com animação: a
+camada sobe e os pedaços caem dentro do copo. Um medidor mostra quanto falta; *Desfazer*
+tira a última camada e *Completar com açaí* termina o copo. Cheio, ele escolhe o que vai
+**por cima** (coberturas) e só então pode adicionar ao pedido. Cada camada cobra o preço do
+adicional (açaí incluso no tamanho) e o pedido lista as camadas em ordem.
+
 **Açaí em camadas (como o de copo):** adicionais do tipo *Camada … (dentro do copo)*
 — creme, morango picado com creme e Nutella — montam o copo de baixo para cima: açaí,
 camada, açaí, camada…, com as divisões onduladas e borradas no plástico, e os pedaços de

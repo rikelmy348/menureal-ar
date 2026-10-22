@@ -45,16 +45,13 @@
     ['camada_nutella', 'Camada de Nutella (dentro do copo)']
   ];
   var ADICIONAIS_ACAI = [
-    { id: 'creme-ninho', nome: 'Camada de creme de ninho', preco: 4.00, tipo3d: 'camada_creme' },
-    { id: 'camada-morango', nome: 'Camada de morango com creme', preco: 5.00, tipo3d: 'camada_morango' },
-    { id: 'camada-nutella', nome: 'Camada de Nutella', preco: 6.00, tipo3d: 'camada_nutella' },
-    { id: 'morango-picado', nome: 'Morango picado por cima', preco: 3.50, tipo3d: 'morango_picado' },
-    { id: 'nutella', nome: 'Nutella por cima', preco: 5.00, tipo3d: 'nutella' },
-    { id: 'granola', nome: 'Granola', preco: 2.00, tipo3d: 'granola' },
+    { id: 'creme-ninho', nome: 'Creme de ninho', preco: 4.00, tipo3d: 'camada_creme' },
+    { id: 'morango', nome: 'Morango', preco: 3.00, tipo3d: 'morango_picado' },
     { id: 'banana', nome: 'Banana', preco: 2.00, tipo3d: 'banana' },
-    { id: 'morango', nome: 'Morango', preco: 3.00, tipo3d: 'morango' },
+    { id: 'nutella', nome: 'Nutella', preco: 5.00, tipo3d: 'nutella' },
     { id: 'leite-condensado', nome: 'Leite condensado', preco: 2.50, tipo3d: 'leite_condensado' },
     { id: 'leite-po', nome: 'Leite em pó', preco: 2.50, tipo3d: 'leite_po' },
+    { id: 'granola', nome: 'Granola', preco: 2.00, tipo3d: 'granola' },
     { id: 'pacoca', nome: 'Paçoca', preco: 2.00, tipo3d: 'pacoca' },
     { id: 'confete', nome: 'Confete', preco: 2.50, tipo3d: 'confete' },
     { id: 'calda-chocolate', nome: 'Calda de chocolate', preco: 3.00, tipo3d: 'calda_chocolate' }
@@ -78,7 +75,7 @@
           { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-pet-500.glb' },
           { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-pet-700.glb' }
         ],
-        adicionais: ADICIONAIS_ACAI },
+        adicionais: ADICIONAIS_ACAI, montar: true },
       { id: 'coxinha', nome: 'Coxinha de frango', categoria: 'Salgados', preco: 8.00,
         descricao: 'Massa de batata com recheio de frango desfiado temperado, empanada e frita na hora.',
         dim: { largura: 5, profundidade: 5, altura: 9 }, modelo: 'assets/models/coxinha.glb', ilustrativo: true },
@@ -230,7 +227,8 @@
           tids[tid] = 1;
           return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
         }),
-        adicionais: lerAdicionais(x.adicionais)
+        adicionais: lerAdicionais(x.adicionais),
+        montar: x.montar === true   // o cliente monta o copo em camadas
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -332,6 +330,33 @@
     return (p.adicionais || []).filter(function (a) { return sel.indexOf(a.id) > -1; });
   }
   function somaAdicionais(p, sel) { return adicionaisDe(p, sel).reduce(function (s, a) { return s + a.preco; }, 0); }
+
+  // ---- Montagem em camadas pelo cliente (açaí, banana, açaí, creme… até encher o copo)
+  // Pesos iguais a VISUAL_CAMADA em public/glb.mjs (altura de cada camada no copo).
+  var CAPACIDADE_COPO = 5.5;
+  var PESO_CAMADA = { acai: 1, camada_creme: 0.55, creme: 0.55, camada_nutella: 0.5, nutella: 0.5, leite_condensado: 0.42,
+    calda_chocolate: 0.38, leite_po: 0.42, camada_morango: 0.62, morango: 0.45, morango_picado: 0.45, banana: 0.45,
+    granola: 0.4, pacoca: 0.38, confete: 0.32 };
+  var ACAI = '_acai';   // camada de açaí (já inclusa no preço do tamanho)
+  function camadaDe(p, token) {
+    if (token === ACAI) return { id: ACAI, nome: 'Açaí', preco: 0, tipo3d: 'acai' };
+    var a = adicionaisDe(p, [token])[0];
+    return a && PESO_CAMADA[a.tipo3d] ? a : null;
+  }
+  function podeSerCamada(a) { return !!(a && PESO_CAMADA[a.tipo3d]); }
+  function enchimento(p, pilha) {
+    var soma = 0;
+    pilha.forEach(function (t) { var c = camadaDe(p, t); if (c) soma += PESO_CAMADA[c.tipo3d]; });
+    return Math.min(1, soma / CAPACIDADE_COPO);
+  }
+  function copoCheio(p, pilha) { return enchimento(p, pilha) >= (CAPACIDADE_COPO - 0.05) / CAPACIDADE_COPO; }
+  function somaPilha(p, pilha) { return pilha.reduce(function (s, t) { var c = camadaDe(p, t); return s + (c ? c.preco : 0); }, 0); }
+  function precoMontado(p, tamId, pilha, tops) { return efetivo(p, tamId).preco + somaPilha(p, pilha || []) + somaAdicionais(p, tops || []); }
+  function nomeMontado(p, pilha, tops) {
+    var cam = pilha.map(function (t) { var c = camadaDe(p, t); return c ? c.nome.toLowerCase() : ''; }).filter(Boolean);
+    var cob = adicionaisDe(p, tops).map(function (a) { return a.nome.toLowerCase(); });
+    return (cam.length ? ' — camadas: ' + cam.join(', ') : '') + (cob.length ? ' · por cima: ' + cob.join(', ') : '');
+  }
 
   // Vocabulário conforme o tipo de negócio
   function ehAlimento(d) { return (d || dados).padaria.tipo !== 'produtos'; }
@@ -610,13 +635,15 @@
   }
 
   var tamAtual = null;
-  var adicSel = []; // ids dos adicionais marcados no visualizador
+  var adicSel = []; // ids dos adicionais marcados no visualizador (por cima)
+  var pilhaSel = []; // camadas montadas pelo cliente, de baixo para cima (pode repetir)
 
   function abrirViewer(id, modo) {
     var p = produtoPorId(id);
     if (!p) return;
     tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
     adicSel = [];
+    pilhaSel = [];
     abrirViewerProduto(p, modo);
   }
 
@@ -640,8 +667,10 @@
     $('#viewer-info').hidden = !info;
     var adic = $('#viewer-adicionais');
     var lista = p.combo ? [] : (p.adicionais || []);
-    adic.hidden = !lista.length;
-    if (lista.length) {
+    adic.hidden = !lista.length && !p.montar;
+    if (p.montar && !p.combo) {
+      adic.innerHTML = htmlMontador(p);
+    } else if (lista.length) {
       adic.innerHTML = '<legend>Monte o seu <small>' + (lista.some(function (a) { return a.tipo3d; }) ? 'cada adicional aparece no 3D' : 'escolha os adicionais') + '</small></legend>' +
         '<div class="adicionais__lista">' + lista.map(function (a) {
           return '<label class="adic"><input type="checkbox" data-adic="' + esc(a.id) + '"' + (adicSel.indexOf(a.id) > -1 ? ' checked' : '') + '>' +
@@ -649,12 +678,46 @@
             '<span class="adic__txt">' + esc(a.nome) + '<small>+ ' + brl(a.preco) + '</small></span></label>';
         }).join('') + '</div>';
     }
-    var preco = ef.preco + (p.combo ? 0 : somaAdicionais(p, adicSel));
+    atualizarPrecoViewer(p);
+  }
+
+  function atualizarPrecoViewer(p) {
+    var preco = p.combo ? p.preco : precoMontado(p, tamAtual, p.montar ? pilhaSel : [], adicSel);
     $('#viewer-preco').textContent = brl(preco);
     var add = $('#viewer-add');
     add.hidden = !!p.combo;
     add.classList.remove('feito');
-    add.textContent = 'Adicionar ao pedido · ' + brl(preco);
+    var falta = p.montar && !p.combo && !copoCheio(p, pilhaSel);
+    add.disabled = falta;
+    add.textContent = falta
+      ? (pilhaSel.length ? 'Complete o copo (faltam ' + Math.round((1 - enchimento(p, pilhaSel)) * 100) + '%)' : 'Monte seu copo para adicionar')
+      : 'Adicionar ao pedido · ' + brl(preco);
+  }
+
+  function htmlMontador(p) {
+    var cheio = copoCheio(p, pilhaSel), pct = Math.round(enchimento(p, pilhaSel) * 100);
+    var camadas = [{ id: ACAI, nome: 'Açaí', preco: 0 }].concat((p.adicionais || []).filter(podeSerCamada));
+    var chips = pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? '<span>' + esc(c.nome) + '</span>' : ''; }).join('');
+    var botao = function (c) {
+      return '<button type="button" class="adic adic--camada" data-camada="' + esc(c.id) + '">' +
+        '<span class="adic__marca adic__marca--mais" aria-hidden="true">' + ICONES.mais + '</span>' +
+        '<span class="adic__txt">' + esc(c.nome) + '<small>' + (c.id === ACAI ? 'incluso' : '+ ' + brl(c.preco)) + '</small></span></button>';
+    };
+    return '<legend>Monte seu copo <small>' + (cheio ? 'copo cheio' : pct + '% cheio') + '</small></legend>' +
+      '<div class="medidor" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
+      '<p class="pilha">' + (chips ? '<span class="pilha__rot">De baixo para cima:</span>' + chips : 'Comece pelo açaí e vá adicionando camadas até encher o copo.') + '</p>' +
+      (cheio
+        ? '<p class="montador__dica">Copo cheio! Agora escolha o que vai <strong>por cima</strong>:</p>' +
+          '<div class="adicionais__lista">' + (p.adicionais || []).map(function (a) {
+            return '<label class="adic"><input type="checkbox" data-adic="' + esc(a.id) + '"' + (adicSel.indexOf(a.id) > -1 ? ' checked' : '') + '>' +
+              '<span class="adic__marca" aria-hidden="true">' + ICONES.ok + '</span>' +
+              '<span class="adic__txt">' + esc(a.nome) + '<small>+ ' + brl(a.preco) + '</small></span></label>';
+          }).join('') + '</div>'
+        : '<div class="adicionais__lista">' + camadas.map(botao).join('') + '</div>') +
+      '<div class="linha-acoes montador__acoes">' +
+        (pilhaSel.length ? '<button type="button" class="btn btn--fantasma btn--p" data-desfazer>Desfazer última camada</button>' : '') +
+        (!cheio && pilhaSel.length ? '<button type="button" class="btn btn--sec btn--p" data-completar>Completar com açaí</button>' : '') +
+      '</div>';
   }
 
   function abrirViewerProduto(p, modo) {
@@ -790,7 +853,7 @@
     if (mvStatus === 'carregando') {
       estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando visualizador 3D…</span></div>');
     }
-    if (!p.combo && tiposMontagem(p).length) atualizarMontagem(null);
+    if (!p.combo && (p.montar || tiposMontagem(p).length)) atualizarMontagem(null);
   }
 
   // ---------------------------------------------------------------------
@@ -810,18 +873,25 @@
   }
   function tiposMontagem(p) {
     var tipos = [];
-    adicionaisDe(p, adicSel).forEach(function (a) { if (a.tipo3d && tipos.indexOf(a.tipo3d) < 0) tipos.push(a.tipo3d); });
+    if (p.montar && !copoCheio(p, pilhaSel)) return tipos;
+    adicionaisDe(p, adicSel).forEach(function (a) {
+      // no montador, "camada de…" escolhida por cima não tem 3D próprio de cobertura
+      if (p.montar && /^camada_/.test(a.tipo3d)) return;
+      if (a.tipo3d && tipos.indexOf(a.tipo3d) < 0) tipos.push(a.tipo3d);
+    });
     return tipos;
   }
-  function atualizarMontagem(animarTipo) {
+  function pilhaTipos(p) { return pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? c.tipo3d : null; }).filter(Boolean); }
+  function atualizarMontagem(animarTipo, animarCamada) {
     var p = produtoAtual, mv = palco.querySelector('model-viewer');
     if (!p || !mv || p.combo) return;
     var ef = efetivo(p, tamAtual);
     if (!ef.modelo) return;
     var tipos = tiposMontagem(p);
+    var pilha = p.montar ? pilhaTipos(p) : null;
     var seq = ++seqMontagem;
     delete mv.dataset.arPronto;
-    if (!tipos.length) {
+    if (!tipos.length && !pilha) {
       if (mv.dataset.montagem === '1') { mv.dataset.montagem = ''; mv.src = urlModelo(ef.modelo); }
       return;
     }
@@ -831,21 +901,26 @@
       // ajudante da animação: mão que coloca os pedaços ou frasco de vidro que despeja a calda
       // (camadas dentro do copo não usam ajudante: o copo enche sozinho)
       var ajuda = animar && !(m.ADICIONAIS_3D[animar] || {}).camada ? baixarArquivo('assets/adicionais/' + m.ajudanteDe(animar) + '.glb').catch(function () { return null; }) : null;
-      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda].concat(tipos.map(function (t) {
+      var libs = pilha ? m.bibliotecasDe(pilha) : [];
+      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda,
+        Promise.all(libs.map(function (n) { return baixarArquivo('assets/adicionais/' + n + '.glb'); })).then(function (bufs) {
+          var o = {}; libs.forEach(function (n, i) { o[n] = new Uint8Array(bufs[i]); }); return o;
+        })].concat(tipos.map(function (t) {
         var arq = m.arquivoDe(t);   // camadas de creme/Nutella dentro do copo não têm arquivo próprio
         return arq ? baixarArquivo('assets/adicionais/' + arq + '.glb') : null;
       })));
     })
       .then(function (r) {
         if (seq !== seqMontagem || !mv.isConnected) return;
-        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: r[i + 3] ? new Uint8Array(r[i + 3]) : null }; });
-        var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animar, ajudante: r[2] ? new Uint8Array(r[2]) : null });
+        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: r[i + 4] ? new Uint8Array(r[i + 4]) : null }; });
+        var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animar, ajudante: r[2] ? new Uint8Array(r[2]) : null,
+          pilha: pilha, libs: r[3], animarCamada: !reduzMovimento && Number.isInteger(animarCamada) ? animarCamada : undefined });
         var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
         var antigo = blobAtual;
         blobAtual = url;
         if (antigo) setTimeout(function () { URL.revokeObjectURL(antigo); }, 5000);
         mv.dataset.montagem = '1';
-        if (animar) mv.dataset.animar = '1';
+        if (animar || (!reduzMovimento && Number.isInteger(animarCamada))) mv.dataset.animar = '1';
         mv.src = url;
       })
       .catch(function (e) { console.warn('[MenuReal] montagem', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });
@@ -857,7 +932,7 @@
     var html = botao.innerHTML;
     botao.disabled = true;
     botao.textContent = 'Preparando para a câmera…';
-    fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p) }) })
+    fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p), pilha: p.montar ? pilhaTipos(p) : undefined }) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
       .then(function (j) {
         if (!mv.isConnected) return;
@@ -875,13 +950,40 @@
     adicSel = adicSel.filter(function (x) { return x !== id; });
     if (c.checked) adicSel.push(id);
     var a = adicionaisDe(produtoAtual, [id])[0];
-    var ef = efetivo(produtoAtual, tamAtual);
-    var preco = ef.preco + somaAdicionais(produtoAtual, adicSel);
-    $('#viewer-preco').textContent = brl(preco);
-    var add = $('#viewer-add');
-    add.classList.remove('feito');
-    add.textContent = 'Adicionar ao pedido · ' + brl(preco);
+    atualizarPrecoViewer(produtoAtual);
     if (a && a.tipo3d) atualizarMontagem(c.checked ? a.tipo3d : null);
+  });
+  function redesenharMontador() {
+    var p = produtoAtual, adic = $('#viewer-adicionais');
+    adic.innerHTML = htmlMontador(p);
+    atualizarPrecoViewer(p);
+  }
+  $('#viewer-adicionais').addEventListener('click', function (e) {
+    var p = produtoAtual;
+    if (!p || !p.montar) return;
+    var b = e.target.closest('[data-camada]');
+    if (b) {
+      if (copoCheio(p, pilhaSel)) return;
+      pilhaSel.push(b.getAttribute('data-camada'));
+      if (copoCheio(p, pilhaSel)) toast('Copo cheio! Agora escolha o que vai por cima.');
+      redesenharMontador();
+      atualizarMontagem(null, pilhaSel.length - 1);
+      return;
+    }
+    if (e.target.closest('[data-desfazer]')) {
+      var estavaCheio = copoCheio(p, pilhaSel);
+      pilhaSel.pop();
+      if (estavaCheio) adicSel = [];   // coberturas só existem com o copo cheio
+      redesenharMontador();
+      atualizarMontagem(null);
+      return;
+    }
+    if (e.target.closest('[data-completar]')) {
+      while (!copoCheio(p, pilhaSel) && pilhaSel.length < 30) pilhaSel.push(ACAI);
+      toast('Copo cheio! Agora escolha o que vai por cima.');
+      redesenharMontador();
+      atualizarMontagem(null, pilhaSel.length - 1);
+    }
   });
 
   // ---------------------------------------------------------------------
@@ -1015,11 +1117,12 @@
 
   $('#viewer-add').addEventListener('click', function () {
     if (!produtoAtual || produtoAtual.combo) return;
-    adicionar(produtoAtual.id, tamAtual, adicSel);
+    if (produtoAtual.montar && !copoCheio(produtoAtual, pilhaSel)) { toast('Complete o copo antes de adicionar.'); return; }
+    adicionar(produtoAtual.id, tamAtual, adicSel, produtoAtual.montar ? pilhaSel.slice() : null);
     var b = this;
     b.classList.add('feito');
     b.textContent = 'Adicionado ✓';
-    setTimeout(function () { if (produtoAtual) { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(efetivo(produtoAtual, tamAtual).preco + somaAdicionais(produtoAtual, adicSel)); } }, 1400);
+    setTimeout(function () { if (produtoAtual) { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(precoMontado(produtoAtual, tamAtual, produtoAtual.montar ? pilhaSel : [], adicSel)); } }, 1400);
   });
   dlgViewer.addEventListener('close', function () {
     cancelAnimationFrame(quadroMedidas);
@@ -1032,7 +1135,8 @@
   // ---------------------------------------------------------------------
   // Carrinho
   // ---------------------------------------------------------------------
-  // chave do carrinho: "idProduto", "idProduto|idTamanho" ou "idProduto|idTamanho|adicional+adicional"
+  // chave do carrinho: "idProduto", "idProduto|idTamanho", "idProduto|idTamanho|adicional+adicional"
+  // ou, montado em camadas, "idProduto|idTamanho|camada.camada.camada~cobertura.cobertura"
   function itemDaChave(k) {
     var partes = k.split('|');
     var p = produtoPorId(partes[0]);
@@ -1041,6 +1145,12 @@
     if (temTams && !partes[1]) return null;
     var ef = efetivo(p, partes[1]);
     if (partes[1] && !ef.t) return null;
+    if (partes[2] && partes[2].indexOf('~') > -1) {
+      var mt = partes[2].split('~');
+      var pilha = mt[0] ? mt[0].split('.') : [], tops = mt[1] ? mt[1].split('.') : [];
+      if (pilha.some(function (t) { return !camadaDe(p, t); }) || adicionaisDe(p, tops).length !== tops.length) return null;
+      return { chave: k, p: { id: k, nome: ef.nome + nomeMontado(p, pilha, tops), preco: precoMontado(p, partes[1], pilha, tops), modelo: ef.modelo } };
+    }
     var sel = partes[2] ? partes[2].split('+') : [];
     var adic = adicionaisDe(p, sel);
     if (adic.length !== sel.length) return null;
@@ -1070,11 +1180,13 @@
     if (pular) { c.classList.remove('pulo'); void c.offsetWidth; c.classList.add('pulo'); }
   }
 
-  function adicionar(id, tamId, adics) {
+  function adicionar(id, tamId, adics, pilha) {
     var p = produtoPorId(id);
     if (!p) return;
     var sel = (adics || []).slice().sort();
-    var k = id + (tamId || sel.length ? '|' + (tamId || '') : '') + (sel.length ? '|' + sel.join('+') : '');
+    var k = pilha
+      ? id + '|' + (tamId || '') + '|' + pilha.join('.') + '~' + sel.join('.')
+      : id + (tamId || sel.length ? '|' + (tamId || '') : '') + (sel.length ? '|' + sel.join('+') : '');
     carrinho[k] = (carrinho[k] || 0) + 1;
     salvarCarrinho();
     atualizarContador(true);
@@ -1460,6 +1572,7 @@
         campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
           'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
+        '<label class="checar"><input type="checkbox" data-f="montar"' + (x.montar ? ' checked' : '') + '> O cliente monta o copo em camadas (açaí, fruta, creme… até encher)</label>' +
         '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
           '<small>Ex.: bolo P, M e G. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
           x.tamanhos.map(function (t, ti) {
@@ -1534,6 +1647,7 @@
       x.dim = { largura: Number(g('largura').value), profundidade: Number(g('profundidade').value), altura: Number(g('altura').value) };
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
+      x.montar = g('montar').checked;
       x.ingredientes = g('ingredientes').value.trim();
       if (ehAlimento(rascunho)) x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
       x.tamanhos = $$('.tam-linha', d).map(function (l) {

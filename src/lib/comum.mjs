@@ -2,8 +2,8 @@
    MenuReal AR — utilidades do servidor (Cloudflare Workers)
    Respostas JSON, login (WebCrypto), escala e combo de modelos GLB.
    ========================================================================= */
-import { lerGlb, escreverGlb, caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe } from '../../public/glb.mjs';
-export { caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe };
+import { lerGlb, escreverGlb, caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe, VISUAL_CAMADA, bibliotecasDe } from '../../public/glb.mjs';
+export { caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe, VISUAL_CAMADA, bibliotecasDe };
 
 export function json(dados, status = 200) {
   return new Response(JSON.stringify(dados), {

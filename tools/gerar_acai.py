@@ -354,6 +354,30 @@ def peca(partes, r, atraso_max=0.55, centro=None, giro=1.6):
                           "queda": QUEDA, "giro": quat_aleatorio(r, giro)}, centro)
 
 
+def rodela_banana(r, i, centro, R):
+    th = np.linspace(0, TAU, 48, endpoint=False)
+    R0 = 0.16 * r.uniform(0.93, 1.05)          # ~2,7 cm de diâmetro no copo de 500 ml
+    T = 0.07
+    cont = np.stack([R0 * np.cos(th) * (1 + 0.035 * np.sin(4 * th + i)), R0 * np.sin(th) * (1 + 0.025 * np.cos(3 * th))], 1)
+    linhas = [(e, T / 2 + 0.06 * T * (1 - (e / 0.86) ** 2), e * 0.5) for e in np.linspace(0, 0.86, 8)]
+    for k, f in enumerate(np.linspace(0.12, math.pi - 0.12, 9)):
+        linhas.append((0.86 + 0.14 * math.sin(f), T / 2 * math.cos(f), V_TOPO + (V_LADO - V_TOPO) * (k / 8)))
+    linhas += [(e, -T / 2 - 0.04 * T * (1 - (e / 0.86) ** 2), 1 - 0.4 * e) for e in np.linspace(0.86, 0, 8)]
+    p = fatia(cont, linhas, centro, R)
+    p.material = "banana"
+    return p
+
+
+MAT_BANANA = None
+
+
+def mat_banana():
+    global MAT_BANANA
+    if MAT_BANANA is None:
+        MAT_BANANA = {"banana": dict(tex=tex_banana(), rough=0.38, relevo=relevo_banana(), forca=2.5)}
+    return MAT_BANANA
+
+
 def camada_banana():
     r = np.random.default_rng(14)
     th = np.linspace(0, TAU, 48, endpoint=False)
@@ -580,6 +604,33 @@ def pedacos_morango_biblioteca():
     r = np.random.default_rng(23)
     return [grupo([pedaco_morango(r, np.zeros(3), rot_eixos(*r.uniform(0, TAU, 3)), lado=r.uniform(0.09, 0.12), seed=500 + i)],
                   {"peca_biblioteca": i}, np.zeros(3)) for i in range(10)], MAT_MORANGO
+
+
+def biblioteca_banana():
+    r = np.random.default_rng(31)
+    # "encostar": o eixo Y local (a face da rodela) fica virado para o copo
+    return [grupo([rodela_banana(r, i, np.zeros(3), rot_eixos(ay=r.uniform(0, TAU)))], {"encostar": "y"}, np.zeros(3)) for i in range(6)], mat_banana()
+
+
+def biblioteca_granola():
+    grupos, mats = camada_granola()
+    for g in grupos[:10]:
+        g["extras"] = {}
+    return grupos[:10], mats
+
+
+def biblioteca_pacoca():
+    grupos, mats = camada_pacoca()
+    for g in grupos[:8]:
+        g["extras"] = {}
+    return grupos[:8], mats
+
+
+def biblioteca_confete():
+    grupos, mats = camada_confete()
+    for g in grupos[:6]:
+        g["extras"] = {"encostar": "y"}
+    return grupos[:6], mats
 
 
 def camada_granola():
@@ -882,6 +933,9 @@ def copo(rt, rb, H, estilo="vidro"):
         "acai_camada": dict(tex=tex_acai_camada(), rough=0.28, relevo=relevo_acai_parede(), forca=3),
         "creme_parede": dict(tex=tex_creme_parede(), rough=0.32, relevo=relevo(134, 20), forca=2.5),
         "nutella_parede": dict(tex=tex_nutella_parede(), rough=0.22, relevo=relevo(143, 16), forca=2),
+        "condensado_parede": dict(tex=mix(tex_creme_parede(256), hexrgb("#F3DFA8"), 0.35), rough=0.14, relevo=relevo(151, 14), forca=1.5),
+        "chocolate_parede": dict(tex=mix(tex_nutella_parede(256), hexrgb("#1E0C05"), 0.5), rough=0.12, relevo=relevo(152, 14), forca=1.5),
+        "po_parede": dict(tex=tex_ruido("#FFFEFA", "#EDE6D6", 153, 40), rough=1.0, relevo=relevo(154, 70), forca=6),
     }
     # interior separado: some quando a montagem desenha as camadas
     return [grupo(acai, {"interior": True}), grupo(vidro)], mats, params
@@ -994,6 +1048,10 @@ AJUDANTES = {
     "_frasco_calda_chocolate": lambda: frasco([0.13, 0.055, 0.025, 1], "calda_chocolate"),
     "_frasco_nutella": lambda: frasco([0.11, 0.045, 0.02, 1], "nutella"),
     "_pedacos_morango": pedacos_morango_biblioteca,
+    "_pedacos_banana": biblioteca_banana,
+    "_pedacos_granola": biblioteca_granola,
+    "_pedacos_pacoca": biblioteca_pacoca,
+    "_pedacos_confete": biblioteca_confete,
 }
 
 
