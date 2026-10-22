@@ -86,7 +86,8 @@ const texto = (v, max) => String(v == null ? '' : v).slice(0, max);
 const dimOk = (d, k) => { const v = Number(d && d[k]); return v > 0 && v < 100000 ? Math.round(v * 100) / 100 : 5; };
 const slugBanco = (slug) => slug || DEMO;
 
-const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'leite_po', 'leite_condensado', 'calda_chocolate'];
+const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'morango_picado', 'leite_po', 'leite_condensado', 'calda_chocolate', 'nutella',
+  'camada_creme', 'camada_morango', 'camada_nutella'];
 function limparAdicionais(lista) {
   const vistos = new Set();
   return (Array.isArray(lista) ? lista : []).filter((a) => a && a.nome).slice(0, 30).map((a, i) => {

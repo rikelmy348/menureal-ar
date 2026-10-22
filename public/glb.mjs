@@ -215,15 +215,27 @@ export const ADICIONAIS_3D = {
   morango: { nome: 'Morango', ordem: 5 },
   leite_po: { nome: 'Leite em pó', ordem: 6 },
   leite_condensado: { nome: 'Leite condensado', ordem: 7 },
-  calda_chocolate: { nome: 'Calda de chocolate', ordem: 8 }
+  calda_chocolate: { nome: 'Calda de chocolate', ordem: 8 },
+  morango_picado: { nome: 'Morango picado', ordem: 5.5 },
+  nutella: { nome: 'Nutella', ordem: 9 },
+  // dentro do copo, entre camadas de açaí (gerado aqui; a textura vem do próprio copo)
+  camada_creme: { nome: 'Camada de creme', ordem: 101, camada: 'creme_parede' },
+  camada_morango: { nome: 'Camada de morango', ordem: 102, camada: 'creme_parede', pecas: '_pedacos_morango' },
+  camada_nutella: { nome: 'Camada de Nutella', ordem: 103, camada: 'nutella_parede' }
 };
+/** Arquivo 3D de um adicional (em assets/adicionais), ou null se não precisa de arquivo. */
+export function arquivoDe(tipo) {
+  const a = ADICIONAIS_3D[tipo];
+  if (!a) return null;
+  return a.camada ? a.pecas || null : tipo;
+}
 
 /**
  * base: GLB do copo (bytes). camadas: [{ tipo, buf }]. opcoes.animar: tipo que "cai" com animação.
  * Devolve o GLB montado (bytes). A posição de descanso fica nos nós, então sem tocar a
  * animação o açaí já aparece pronto (é o que a câmera do Google mostra).
  */
-export const CALDAS = ['leite_condensado', 'calda_chocolate'];
+export const CALDAS = ['leite_condensado', 'calda_chocolate', 'nutella'];
 /** Arquivo do ajudante da animação: frasco de vidro para caldas, mão para o resto. */
 export function ajudanteDe(tipo) { return CALDAS.includes(tipo) ? '_frasco_' + tipo : '_mao'; }
 
@@ -239,8 +251,12 @@ export function montarAcai(base, camadas, opcoes = {}) {
   const cx = (mn[0] + mx[0]) / 2, cz = (mn[2] + mx[2]) / 2;
   const s = AREA * Math.min(mx[0] - mn[0], mx[2] - mn[2]);
   const topo = mx[1];
-  const lista = camadas.filter((c) => ADICIONAIS_3D[c.tipo])
-    .sort((a, b) => ADICIONAIS_3D[a.tipo].ordem - ADICIONAIS_3D[b.tipo].ordem);
+  const ordem = (a, b) => ADICIONAIS_3D[a.tipo].ordem - ADICIONAIS_3D[b.tipo].ordem;
+  const validas = camadas.filter((c) => ADICIONAIS_3D[c.tipo]);
+  const info = baseGlb.json.asset && baseGlb.json.asset.extras && baseGlb.json.asset.extras.copo;
+  // camadas internas só em copos preparados (tools/gerar_acai.py grava as medidas do copo)
+  const internos = info ? validas.filter((c) => ADICIONAIS_3D[c.tipo].camada).sort(ordem) : [];
+  const lista = validas.filter((c) => !ADICIONAIS_3D[c.tipo].camada).sort(ordem);
   const itens = [{ glb: baseGlb, no: { name: 'copo' } }];
   const angulos = [];
   lista.forEach((c, k) => {
@@ -264,11 +280,37 @@ export function montarAcai(base, camadas, opcoes = {}) {
     // a mão fica de frente para a câmera (sem girar junto com a camada); o frasco segue a calda
     itens.push({ buf: opcoes.ajudante, no: { name: 'ajudante', translation: camada.translation, scale: camada.scale,
       rotation: frasco ? camada.rotation : [0, 0, 0, 1] } });
-    ajudante = { frasco, ang: frasco ? 0 : angulos[k] };
+    ajudante = { frasco, ang: frasco ? 0 : angulos[k], item: itens.length - 1 };
   }
+  // bibliotecas de pedaços (cubinhos de morango) entram escondidas; a coluna usa as malhas
+  const libs = {};
+  internos.forEach((x) => {
+    const def = ADICIONAIS_3D[x.tipo];
+    if (def.pecas && x.buf && libs[def.pecas] == null) {
+      libs[def.pecas] = itens.length;
+      itens.push({ buf: x.buf, no: { name: 'biblioteca_' + def.pecas, scale: [1e-4, 1e-4, 1e-4] } });
+    }
+  });
   const c = combinar(itens, 'MenuReal AR · monte seu açaí');
+  if (internos.length) {
+    (c.json.nodes[c.nos[0]].children || []).forEach((no) => {
+      const n = c.json.nodes[no];
+      if (n.extras && n.extras.interior) n.scale = [1e-4, 1e-4, 1e-4];
+    });
+    const malhas = {};
+    Object.keys(libs).forEach((nome) => {
+      malhas[nome] = (c.json.nodes[c.nos[libs[nome]]].children || []).map((no) => c.json.nodes[no].mesh).filter((m) => m != null);
+    });
+    const coluna = gerarColuna(c, info, internos.map((x) => x.tipo), malhas, s);
+    if (internos.some((x) => x.tipo === opcoes.animar)) {
+      const coberturas = [];
+      lista.forEach((_, i) => (c.json.nodes[c.nos[i + 1]].children || []).forEach((no) => coberturas.push(no)));
+      animarColuna(c, coluna, coberturas, info);
+      return finalizar(c);
+    }
+  }
   if (k > -1) {
-    const nosAjudante = ajudante ? c.json.nodes[c.nos[c.nos.length - 1]].children || [] : [];
+    const nosAjudante = ajudante ? c.json.nodes[c.nos[ajudante.item]].children || [] : [];
     // em repouso o ajudante fica invisível: não entra nas medidas nem no enquadramento
     nosAjudante.forEach((no) => { c.json.nodes[no].scale = [1e-4, 1e-4, 1e-4]; });
     animarEntrada(c, c.json.nodes[c.nos[k + 1]].children || [], ajudante, nosAjudante);
@@ -394,5 +436,188 @@ function animarEntrada(c, nos, ajudante, nosAjudante) {
       }
     }
   }
+  if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }];
+}
+
+// ---------------------------------------------------------------------------
+// Açaí em camadas: açaí → creme/fruta/Nutella → açaí … gerado dentro do copo.
+// As medidas vêm do próprio copo (asset.extras.copo, em metros).
+// ---------------------------------------------------------------------------
+function semente(texto) { let h = 2166136261; for (const ch of texto) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function aleatorio(seed) { let r = seed || 1; return () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; }; }
+
+function malha(c, nome, pos, nrm, uv, idx, material) {
+  const acc = c.json.accessors;
+  const P = new Float32Array(pos), N = new Float32Array(nrm), U = new Float32Array(uv), I = new Uint32Array(idx);
+  const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < P.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], P[i + k]); mx[k] = Math.max(mx[k], P[i + k]); }
+  const add = (arr, tipo, alvo, extra = {}) => {
+    const bv = anexar(c, arr);
+    if (alvo) c.json.bufferViews[bv].target = alvo;
+    acc.push(Object.assign({ bufferView: bv, componentType: arr instanceof Uint32Array ? 5125 : 5126,
+      count: tipo === 'SCALAR' ? arr.length : arr.length / (tipo === 'VEC3' ? 3 : 2), type: tipo }, extra));
+    return acc.length - 1;
+  };
+  const prim = {
+    attributes: { POSITION: add(P, 'VEC3', 34962, { min: mn, max: mx }), NORMAL: add(N, 'VEC3', 34962), TEXCOORD_0: add(U, 'VEC2', 34962) },
+    indices: add(I, 'SCALAR', 34963), material
+  };
+  c.json.meshes = c.json.meshes || [];
+  c.json.meshes.push({ name: nome, primitives: [prim] });
+  return c.json.meshes.length - 1;
+}
+
+function gerarColuna(c, info, internos, malhas, s) {
+  const mat = (nome) => { const i = c.json.materials.findIndex((m) => m.name === nome); return i < 0 ? 0 : i; };
+  const { rt, rb, H, g, folga, base, y0, y_borda: yb, pico, k } = info;
+  const raio = (y) => rb - g + (rt - rb) * (y - base) / (H - base) - folga;
+  const inclina = (rt - rb) / (H - base);
+  const seq = [{ tipo: 'acai', mat: 'acai_camada', peso: 1 }];
+  internos.forEach((t) => {
+    seq.push({ tipo: t, mat: ADICIONAIS_3D[t].camada, peso: 0.62, pecas: ADICIONAIS_3D[t].pecas });
+    seq.push({ tipo: 'acai', mat: 'acai_camada', peso: 0.9 });
+  });
+  const total = seq.reduce((a, x) => a + x.peso, 0);
+  const rnd = aleatorio(semente(internos.join('|')));
+  // fronteiras onduladas entre as camadas (como quando se monta com a colher)
+  let acum = 0;
+  const fronteiras = [{ y: y0, onda: () => 0 }];
+  seq.forEach((x, i) => {
+    acum += x.peso;
+    const y = y0 + (yb - y0) * acum / total;
+    if (i === seq.length - 1) { fronteiras.push({ y: yb, onda: () => 0 }); return; }
+    const f = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28], a = 0.0032 + rnd() * 0.0016;
+    fronteiras.push({ y, onda: (th) => a * (0.6 * Math.sin(2 * th + f[0]) + 0.3 * Math.sin(5 * th + f[1]) + 0.15 * Math.sin(9 * th + f[2])) });
+  });
+  const NU = 96, NV = 12;
+  const res = { faixas: [], pecas: [], topo: null };
+  seq.forEach((x, i) => {
+    const baixo = fronteiras[i], cima = fronteiras[i + 1];
+    const pos = [], nrm = [], uv = [], idx = [];
+    for (let j = 0; j < NV; j++) {
+      const t = j / (NV - 1);
+      for (let q = 0; q <= NU; q++) {
+        const th = (q / NU) * Math.PI * 2;
+        const y = baixo.y + baixo.onda(th) + (cima.y + cima.onda(th) - baixo.y - baixo.onda(th)) * t;
+        const r = raio(y);
+        pos.push(r * Math.cos(th), y - baixo.y, -r * Math.sin(th));
+        const n = [Math.cos(th), -inclina, -Math.sin(th)], l = Math.hypot(...n);
+        nrm.push(n[0] / l, n[1] / l, n[2] / l);
+        uv.push(q / NU, (y - y0) / (yb - y0));
+      }
+    }
+    for (let j = 0; j < NV - 1; j++) for (let q = 0; q < NU; q++) {
+      const a = j * (NU + 1) + q, b = a + 1, d = a + NU + 1, e = d + 1;
+      idx.push(a, b, e, a, e, d);
+    }
+    if (i === 0) {   // fundo
+      const centro = pos.length / 3;
+      pos.push(0, 0, 0); nrm.push(0, -1, 0); uv.push(0.5, 0);
+      for (let q = 0; q < NU; q++) idx.push(centro, q + 1, q);
+    }
+    if (i < seq.length - 1) {   // tampa ondulada: é a superfície de cima enquanto o copo enche
+      const anel = pos.length / 3;
+      for (let q = 0; q <= NU; q++) {
+        const th = (q / NU) * Math.PI * 2;
+        const y = cima.y + cima.onda(th), r = raio(y) - 0.0002;
+        pos.push(r * Math.cos(th), y - baixo.y, -r * Math.sin(th)); nrm.push(0, 1, 0); uv.push(q / NU, (y - y0) / (yb - y0));
+      }
+      const centro = pos.length / 3;
+      pos.push(0, cima.y - baixo.y + 0.0015, 0); nrm.push(0, 1, 0); uv.push(0.5, (cima.y - y0) / (yb - y0));
+      for (let q = 0; q < NU; q++) idx.push(centro, anel + q, anel + q + 1);
+    }
+    const m = malha(c, 'camada_' + i, pos, nrm, uv, idx, mat(x.mat));
+    c.json.nodes.push({ name: 'camada_' + i + '_' + x.tipo, mesh: m, translation: [0, baixo.y, 0] });
+    const no = c.json.nodes.length - 1;
+    c.json.scenes[0].nodes.push(no);
+    res.faixas.push({ no, y0: baixo.y, y1: cima.y });
+    // pedaços de fruta encostados no copo
+    const lib = x.pecas && malhas[x.pecas];
+    if (lib && lib.length) {
+      const fs = s * 0.9;
+      [0.3, 0.72].forEach((frac, linha) => {
+        const y = baixo.y + (cima.y - baixo.y) * frac;
+        const r = raio(y);
+        const n = Math.floor((2 * Math.PI * r) / 0.0105);
+        for (let q = 0; q < n; q++) {
+          const th = ((q + (linha ? 0.5 : 0) + (rnd() - 0.5) * 0.4) / n) * Math.PI * 2;
+          const rr = r - 0.0042, yy = y + (rnd() - 0.5) * 0.004;
+          const ax = [rnd() - 0.5, rnd() - 0.5, rnd() - 0.5], l = Math.hypot(...ax) || 1, ang = rnd() * 6.28;
+          const sn = Math.sin(ang / 2);
+          c.json.nodes.push({ name: 'pedaco', mesh: lib[Math.floor(rnd() * lib.length)], translation: [rr * Math.cos(th), yy, -rr * Math.sin(th)],
+            rotation: [ax[0] / l * sn, ax[1] / l * sn, ax[2] / l * sn, Math.cos(ang / 2)], scale: [fs, fs, fs] });
+          const pn = c.json.nodes.length - 1;
+          c.json.scenes[0].nodes.push(pn);
+          res.pecas.push({ no: pn, faixa: i, t: rnd() });
+        }
+      });
+    }
+  });
+  // topo em cúpula (o mesmo do copo), sobre a última camada de açaí
+  const ra = raio(yb), NT = 32, NQ = 128;
+  const pos = [], nrm = [], uv = [], idx = [];
+  for (let j = 0; j < NT; j++) {
+    const t = j / (NT - 1), r = ra * t;
+    for (let q = 0; q <= NQ; q++) {
+      const th = (q / NQ) * Math.PI * 2;
+      const dobra = 0.0009 * Math.sin(5 * th + t * 9) * Math.sin(Math.PI * t) ** 2 * (0.6 + 0.4 * Math.sin(3 * th));
+      pos.push(r * Math.cos(th), pico - k * r * r + dobra - yb, -r * Math.sin(th));
+      const n = [2 * k * r * Math.cos(th), 1, -2 * k * r * Math.sin(th)], l = Math.hypot(...n);
+      nrm.push(n[0] / l, n[1] / l, n[2] / l);
+      uv.push(q / NQ, t);
+    }
+  }
+  for (let j = 0; j < NT - 1; j++) for (let q = 0; q < NQ; q++) {
+    const a = j * (NQ + 1) + q, b = a + 1, d = a + NQ + 1, e = d + 1;
+    idx.push(a, e, b, a, d, e);
+  }
+  const mt = malha(c, 'topo', pos, nrm, uv, idx, mat('acai'));
+  c.json.nodes.push({ name: 'topo_acai', mesh: mt, translation: [0, yb, 0] });
+  res.topo = c.json.nodes.length - 1;
+  c.json.scenes[0].nodes.push(res.topo);
+  return res;
+}
+
+/** Copo enchendo: cada camada sobe, os pedaços de fruta caem, o topo cobre; coberturas no fim. */
+function animarColuna(c, col, coberturas, info) {
+  const acc = c.json.accessors;
+  const samplers = [], channels = [];
+  const MIN = 1e-4;
+  const add = (dados, tipo) => {
+    const arr = new Float32Array(dados);
+    const n = tipo === 'SCALAR' ? arr.length : arr.length / (tipo === 'VEC3' ? 3 : 4);
+    const a = { bufferView: anexar(c, arr), componentType: 5126, count: n, type: tipo };
+    if (tipo === 'SCALAR') { a.min = [Math.min(...arr)]; a.max = [Math.max(...arr)]; }
+    acc.push(a);
+    return acc.length - 1;
+  };
+  const canal = (no, path, tempos, valores, tipo, interp = 'LINEAR') => {
+    samplers.push({ input: add(tempos, 'SCALAR'), output: add(valores, tipo), interpolation: interp });
+    channels.push({ sampler: samplers.length - 1, target: { node: no, path } });
+  };
+  const DUR = 0.34, PASSO = 0.3;
+  col.faixas.forEach((f, i) => {
+    const a = 0.12 + i * PASSO;
+    f.inicio = a;
+    canal(f.no, 'scale', [0, a - 0.005, a, a + DUR], [MIN, MIN, MIN, MIN, MIN, MIN, 1, 0.03, 1, 1, 1, 1], 'VEC3');
+  });
+  const fim = 0.12 + col.faixas.length * PASSO;
+  col.pecas.forEach((p) => {
+    const n = c.json.nodes[p.no];
+    const t = n.translation, e = n.scale, r = n.rotation;
+    const f = col.faixas[p.faixa];
+    const d = f.inicio + 0.06 + p.t * 0.14;
+    const ini = [t[0] * 0.7, f.y1 + 0.025, t[2] * 0.7];
+    const us = [0, 0.4, 0.75, 1], F = 0.18;
+    canal(p.no, 'translation', [0, ...us.map((u) => d + F * u)],
+      [...ini, ...us.flatMap((u) => [ini[0] + (t[0] - ini[0]) * u, ini[1] + (t[1] - ini[1]) * u * u, ini[2] + (t[2] - ini[2]) * u])], 'VEC3');
+    canal(p.no, 'rotation', [0, d, d + F], [0.3, 0.6, 0.1, 0.735, 0.3, 0.6, 0.1, 0.735, ...r], 'VEC4');
+    canal(p.no, 'scale', [0, d], [MIN, MIN, MIN, ...e], 'VEC3', 'STEP');
+  });
+  canal(col.topo, 'scale', [0, fim - 0.005, fim, fim + 0.3], [MIN, MIN, MIN, MIN, MIN, MIN, 1, 0.05, 1, 1, 1, 1], 'VEC3');
+  coberturas.forEach((no) => {
+    const e = c.json.nodes[no].scale || [1, 1, 1];
+    canal(no, 'scale', [0, fim + 0.3], [MIN, MIN, MIN, ...e], 'VEC3', 'STEP');
+  });
   if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }];
 }

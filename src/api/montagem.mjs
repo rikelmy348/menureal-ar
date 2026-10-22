@@ -1,9 +1,9 @@
 /* POST /api/montagem  { base: 'assets/models/...glb' | 'api/arquivo/modelos/...glb', camadas: ['granola', 'banana', ...] }
    → { url }   Açaí montado (copo + coberturas) num arquivo só, para abrir na câmera.
    Público, como o combo; o resultado fica guardado (mesma escolha = mesmo arquivo). */
-import { json, hashCurto, lerModelo, guardarModelo, montarAcai, ADICIONAIS_3D, PREFIXO_ARQUIVO } from '../lib/comum.mjs';
+import { json, hashCurto, lerModelo, guardarModelo, montarAcai, ADICIONAIS_3D, arquivoDe, PREFIXO_ARQUIVO } from '../lib/comum.mjs';
 
-const VERSAO = 'v3-ajudantes';
+const VERSAO = 'v4-camadas';
 
 export default async function montagem(req, env) {
   if (req.method !== 'POST') return json({ erro: 'Use POST.' }, 405);
@@ -21,7 +21,9 @@ export default async function montagem(req, env) {
   if (!copo) return json({ erro: 'Modelo do copo não encontrado.' }, 404);
   const partes = [];
   for (const tipo of camadas) {
-    const r = await env.ASSETS.fetch(new Request('https://site/assets/adicionais/' + tipo + '.glb'));
+    const arq = arquivoDe(tipo);   // camadas internas de creme/Nutella não precisam de arquivo
+    if (!arq) { partes.push({ tipo, buf: null }); continue; }
+    const r = await env.ASSETS.fetch(new Request('https://site/assets/adicionais/' + arq + '.glb'));
     if (!r.ok) return json({ erro: 'Adicional sem 3D: ' + tipo }, 404);
     partes.push({ tipo, buf: new Uint8Array(await r.arrayBuffer()) });
   }

@@ -60,12 +60,16 @@ def orientar(p, centro):
 
 
 def juntar(pecas, material):
-    pos, uv, idx, nrm, base = [], [], [], [], 0
+    pos, uv, idx, nrm, cor, base = [], [], [], [], [], 0
+    com_cor = any(getattr(p, "cor", None) is not None for p in pecas)
     for p in pecas:
         pos.append(p.pos); uv.append(p.uv); nrm.append(p.nrm); idx.append(p.idx + base)
+        if com_cor:
+            cor.append(p.cor if getattr(p, "cor", None) is not None else np.ones((len(p.pos), 3)))
         base += len(p.pos)
     parte = Parte(np.concatenate(pos), np.concatenate(uv), np.concatenate(idx), material)
     parte.nrm = np.concatenate(nrm)
+    parte.cor = np.concatenate(cor) if com_cor else None
     return parte
 
 
@@ -283,6 +287,47 @@ def relevo_acai_parede(T=512):
     return h
 
 
+def manchas_espatula(T, seed, n=14, larg=0.05):
+    """Riscos de espátula/colher (borrões alongados e inclinados) entre 0 e 1."""
+    u, v = grade_uv(T)
+    r = np.random.default_rng(seed)
+    m = np.zeros((T, T))
+    for _ in range(n):
+        cu, cv = r.uniform(0, 1), r.uniform(0.05, 0.95)
+        ang = r.uniform(-0.5, 0.5)
+        dx, dy = du(u, cu), v - cv
+        a = (dx * math.cos(ang) + dy * math.sin(ang)) / r.uniform(0.06, 0.16)
+        b = (-dx * math.sin(ang) + dy * math.cos(ang)) / (larg * r.uniform(0.4, 1.0))
+        m = np.maximum(m, np.exp(-(a ** 2 + b ** 2) * 2) * r.uniform(0.6, 1))
+    return np.clip(m * (0.7 + 0.6 * fbm(T, T, seed + 1, base=20)), 0, 1)
+
+
+def tex_acai_camada(T=1024):
+    cor = tex_acai_parede(T)
+    riscos = manchas_espatula(T, 121, n=18, larg=0.035)
+    return mix(cor, hexrgb("#F1E7DA"), riscos * 0.9)
+
+
+def tex_creme_parede(T=512):
+    u, v = grade_uv(T)
+    n = fbm(T, T, 131, base=8)
+    cor = mix(hexrgb("#FBF5EA"), hexrgb("#EDE1CC"), n * 0.8)
+    roxo = manchas_espatula(T, 132, n=9, larg=0.04)
+    cor = mix(cor, hexrgb("#6A2A6F"), roxo * 0.55)
+    r = np.random.default_rng(133)
+    for _ in range(40):   # bolhinhas de ar no creme
+        cu, cv, rr = r.uniform(0, 1), r.uniform(0, 1), r.uniform(0.5, 1.2)
+        d = (du(u, cu) * 160 / rr) ** 2 + ((v - cv) * 90 / rr) ** 2
+        cor = mix(cor, hexrgb("#D9CBB2"), np.exp(-d) * 0.6)
+    return cor
+
+
+def tex_nutella_parede(T=512):
+    n = fbm(T, T, 141, base=7)
+    cor = mix(hexrgb("#3A1A0C"), hexrgb("#5A2C14"), n)
+    return mix(cor, hexrgb("#7A4426"), manchas_espatula(T, 142, n=10, larg=0.05) * 0.6)
+
+
 def tex_acai_topo(T=1024):
     u, v = grade_uv(T)            # u: ângulo, v: centro → borda
     n1 = fbm(T, T, 111, base=6, octaves=5)
@@ -369,6 +414,172 @@ def camada_morango():
         p.material = "morango"
         grupos.append(peca([p], r, centro=c))
     return grupos, {"morango": dict(tex=tex_morango(), rough=0.26, relevo=relevo_morango(), forca=3.5)}
+
+
+# ---------------------------------------------------------------------------
+# Morango de verdade: um volume 3D com cor em cada ponto (miolo branco, raios rosados,
+# polpa vermelha, casca com sementes em covinhas). Fatias, metades e cubinhos são cortes
+# desse volume, então cada pedaço mostra o interior certo no lugar certo.
+# ---------------------------------------------------------------------------
+MOR_L, MOR_R = 0.40, 0.165     # comprimento e raio máximo (unidades da cobertura; ~3,4 × 2,8 cm)
+
+
+def lin(hexs):
+    return (np.array(hexrgb(hexs), float) / 255) ** 2.2   # glTF: cor por vértice é linear
+
+
+def mor_raio(t):
+    t = np.clip(t, 0, 1)
+    return MOR_R * np.sqrt(np.clip(1 - (1 - t) ** 2.3, 0, 1)) * (1 - 0.28 * t ** 7)
+
+
+def mor_sementes(y, phi):
+    """Proximidade (0–1) da semente mais próxima na casca (grade irregular, como no morango)."""
+    linha = y / MOR_L * 17
+    k = np.round(linha)
+    desloc = (k % 2) * (TAU / 26) + 0.35 * np.sin(k * 2.3)
+    jit = 0.25 * np.sin(k * 7.1 + np.round((phi - desloc) * 13 / TAU) * 3.7)
+    dphi = np.angle(np.exp(1j * (phi - desloc) * 13)) / 13
+    dist = np.hypot((linha - k + jit) / 17 * MOR_L, dphi * mor_raio(y / MOR_L))
+    return np.exp(-(dist / 0.0042) ** 2), np.exp(-(dist / 0.011) ** 2)
+
+
+def mor_cor(P, seed=0):
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    R = mor_raio(y / MOR_L) + 1e-6
+    rho = np.clip(np.hypot(x, z) / R, 0, 1.2)
+    phi = np.arctan2(z, x)
+    r = np.random.default_rng(seed)
+    ruido = 0.5 + 0.5 * np.sin(phi * 3 + y * 40 + r.uniform(0, TAU)) * np.sin(y * 23 + r.uniform(0, TAU))
+    miolo, rosa, polpa, borda, casca = lin("#F8D2CF"), lin("#EC6573"), lin("#D9253A"), lin("#C3142B"), lin("#B90F27")
+    t1 = np.clip((rho - 0.12) / 0.25, 0, 1)[:, None]
+    cor = miolo * (1 - t1) + rosa * t1
+    t2 = np.clip((rho - 0.35) / 0.3, 0, 1)[:, None]
+    cor = cor * (1 - t2) + polpa * t2
+    t3 = np.clip((rho - 0.82) / 0.14, 0, 1)[:, None]
+    cor = cor * (1 - t3) + borda * t3
+    # raios brancos que saem do miolo até as sementes
+    raios = (0.5 + 0.5 * np.cos(phi * 14 + 1.5 * rho + 0.6 * ruido)) ** 10 * ((rho > 0.15) & (rho < 0.85)) * (1 - rho)
+    cor = cor * (1 - 0.5 * raios[:, None]) + lin("#FBE2E0") * 0.5 * raios[:, None]
+    # casca e sementes
+    pele = (rho > 0.97)[:, None]
+    sem, cova = mor_sementes(y, phi)
+    c_casca = casca * (1 - 0.6 * cova[:, None]) + lin("#7E0A1C") * 0.6 * cova[:, None]
+    c_casca = c_casca * (1 - sem[:, None]) + lin("#EACB5C") * sem[:, None]
+    c_casca = c_casca * (0.9 + 0.2 * ruido[:, None])
+    cor = np.where(pele, c_casca, cor)
+    # topo (onde fica o cabinho, já tirado): polpa clara
+    topo = np.clip((y / MOR_L - 0.96) / 0.04, 0, 1)[:, None]
+    return np.clip(cor * (1 - topo) + lin("#F7D6D2") * topo, 0, 1)
+
+
+def caixa_superficie(mn, mx, n):
+    """Superfície de uma caixa (6 faces em grade), cada face com n[eixo] divisões."""
+    faces = []
+    eixos = [(0, 1, 2), (1, 2, 0), (2, 0, 1)]
+    for a, b, c_ in eixos:
+        for lado in (0, 1):
+            ub = np.linspace(mn[b], mx[b], n[b] + 1)
+            uc = np.linspace(mn[c_], mx[c_], n[c_] + 1)
+            G = np.zeros((len(ub), len(uc), 3))
+            G[..., a] = mx[a] if lado else mn[a]
+            G[..., b] = ub[:, None]
+            G[..., c_] = uc[None, :]
+            faces.append(G)
+    return faces
+
+
+def mor_corte(mn, mx, n, R, centro, seed, relevo_cova=True):
+    """Pedaço do morango dentro da caixa [mn, mx] (coordenadas do morango, eixo em Y)."""
+    pos, uvs, tris, base = [], [], [], 0
+    for G in caixa_superficie(np.asarray(mn, float), np.asarray(mx, float), n):
+        p, uv, tri = grade(G)
+        pos.append(p); uvs.append(uv); tris.append(tri + base); base += len(p)
+    P = np.concatenate(pos)
+    P[:, 1] = np.clip(P[:, 1], 0.004 * MOR_L, 0.996 * MOR_L)
+    Rr = mor_raio(P[:, 1] / MOR_L) * 0.999
+    rr = np.hypot(P[:, 0], P[:, 2]) + 1e-9
+    fora = rr > Rr
+    P[fora, 0] *= Rr[fora] / rr[fora]
+    P[fora, 2] *= Rr[fora] / rr[fora]
+    # cantos arredondados e cortes irregulares (faca, não máquina)
+    r = np.random.default_rng(seed)
+    meio0 = (np.asarray(mn, float) + np.asarray(mx, float)) / 2
+    dlt = P - meio0
+    meia = (np.asarray(mx, float) - np.asarray(mn, float)) / 2
+    q = dlt / meia
+    redondo = (np.max(np.abs(q), 1) / (np.linalg.norm(q, axis=1) + 1e-9)) ** (0.45 if meia.min() > 0.03 else 0.0)
+    P = np.where(fora[:, None], P, meio0 + dlt * redondo[:, None])
+    P += (fbm(64, 64, seed, base=4)[(np.abs(P[:, 0] * 900).astype(int)) % 64, (np.abs(P[:, 2] * 900).astype(int)) % 64][:, None] - 0.5) * 0.006 * (~fora)[:, None]
+    if relevo_cova:   # covinhas das sementes na casca
+        rho = np.hypot(P[:, 0], P[:, 2]) / (mor_raio(P[:, 1] / MOR_L) + 1e-9)
+        _, cova = mor_sementes(P[:, 1], np.arctan2(P[:, 2], P[:, 0]))
+        afunda = 0.0035 * cova * (rho > 0.97)
+        P[:, 0] *= 1 - afunda / (rr + 1e-9)
+        P[:, 2] *= 1 - afunda / (rr + 1e-9)
+    cor = mor_cor(P, seed)
+    meio = (P.min(0) + P.max(0)) / 2
+    p = Parte((P - meio) @ np.asarray(R).T + centro, np.concatenate(uvs), np.concatenate(tris), "morango_real")
+    p.cor = cor
+    return orientar(p, np.asarray(centro, float))
+
+
+MAT_MORANGO = {"morango_real": dict(cor=[1, 1, 1, 1], rough=0.3, relevo=None)}
+
+
+def pedaco_morango(r, centro, R, lado=0.1, seed=0):
+    """Cubinho de morango picado: uma caixa sorteada dentro do morango."""
+    y0 = r.uniform(0.15, 0.85) * MOR_L
+    Rm = float(mor_raio(y0 / MOR_L))
+    a = r.uniform(0, TAU)
+    d = r.uniform(0.25, 0.75) * Rm
+    cx, cz = d * math.cos(a), d * math.sin(a)
+    h = lado * r.uniform(0.8, 1.15) / 2
+    mn = [cx - h, y0 - h * r.uniform(0.8, 1.2), cz - h]
+    mx = [cx + h, y0 + h * r.uniform(0.8, 1.2), cz + h]
+    return mor_corte(mn, mx, (9, 9, 9), R, centro, seed)
+
+
+def camada_morango():
+    r = np.random.default_rng(15)
+    grupos = []
+    deita = rot_eixos(az=math.pi / 2)    # eixo X do morango (o corte) vira para cima
+    # fatias no comprido (entre as rodelas de banana: a camada é girada 0,83 rad na montagem)
+    for i, (a, d) in enumerate([(0.3 + 0.628 - 0.83, 0.3), (0.3 + 0.628 + 2.513 - 0.83, 0.3)]):
+        x, z = d * math.cos(a), d * math.sin(a)
+        x0 = r.uniform(-0.02, 0.02)
+        Rr = apoio(x, z) @ rot_eixos(ay=a + r.uniform(-0.3, 0.3)) @ deita
+        c = np.array([x, sup(x, z) + 0.05, z])
+        p = mor_corte([x0 - 0.032, 0, -MOR_R], [x0 + 0.032, MOR_L, MOR_R], (3, 30, 22), Rr, c, 100 + i)
+        grupos.append(peca([p], r, centro=c))
+    # metades com o corte para cima
+    for i, (a, d) in enumerate([(0.3 + 0.628 + 1.257 - 0.83, 0.31), (0.0, 0.03), (0.3 + 0.628 + 3.77 - 0.83, 0.3)]):
+        x, z = d * math.cos(a), d * math.sin(a)
+        Rr = apoio(x, z) @ rot_eixos(ay=r.uniform(0, TAU), az=r.uniform(-0.25, 0.25)) @ rot_eixos(az=-math.pi / 2)
+        c = np.array([x, sup(x, z) + MOR_R * 0.55 + 0.02, z])
+        p = mor_corte([-0.004, 0, -MOR_R], [MOR_R, MOR_L, MOR_R], (10, 30, 22), Rr, c, 200 + i)
+        grupos.append(peca([p], r, centro=c))
+    return grupos, MAT_MORANGO
+
+
+def camada_morango_picado():
+    """Montinho de morango picado no topo (como no açaí de copo)."""
+    r = np.random.default_rng(19)
+    grupos = []
+    pts = pontos_no_disco(r, 30, 0.44, 0.085)
+    for i, (x, z) in enumerate(pts):
+        monte = 0.07 * max(0.0, 1 - (x * x + z * z) / 0.2)       # mais alto no meio
+        c = np.array([x, sup(x, z) + 0.05 + monte, z])
+        p = pedaco_morango(r, c, rot_eixos(*r.uniform(0, TAU, 3)), lado=r.uniform(0.09, 0.115), seed=300 + i)
+        grupos.append(peca([p], r, centro=c, giro=2.2))
+    return grupos, MAT_MORANGO
+
+
+def pedacos_morango_biblioteca():
+    """Cubinhos avulsos (centrados na origem) que a montagem espalha nas camadas do copo."""
+    r = np.random.default_rng(23)
+    return [grupo([pedaco_morango(r, np.zeros(3), rot_eixos(*r.uniform(0, TAU, 3)), lado=r.uniform(0.09, 0.12), seed=500 + i)],
+                  {"peca_biblioteca": i}, np.zeros(3)) for i in range(10)], MAT_MORANGO
 
 
 def camada_granola():
@@ -526,6 +737,34 @@ def camada_calda(material, rot, seed, larg=0.026, alt=0.009, escorre=(1, 3, 4, 6
     return grupos
 
 
+def camada_nutella():
+    """Colherada de Nutella no meio: monte brilhante e achatado, com o redemoinho da colher."""
+    nt, nu = 40, 120
+    t = np.linspace(0, 1, nt)[:, None]
+    th = np.linspace(0, TAU, nu + 1)[None, :]
+    R0 = 0.27 * (1 + 0.06 * np.sin(3 * th + 0.7) + 0.04 * np.sin(5 * th + 2.1))
+    rr = R0 * t
+    h = 0.21 * (1 - t ** 2) ** 0.7
+    sulco = 0.022 * np.sin(th * 1 - t * 14) * np.sin(math.pi * t) ** 1.5        # redemoinho da colher
+    pico = 0.03 * np.exp(-((t - 0.05) / 0.08) ** 2)
+    y = h + sulco + pico
+    xs, zs = rr * np.cos(th), rr * np.sin(th)
+    P = np.stack([xs, sup(xs, zs) + 0.004 + y, -zs], -1)
+    pos, uv, tri = grade(P)
+    p = Parte(pos, uv, tri, "nutella")
+    normais([p])
+    if p.nrm[:, 1].mean() < 0:
+        p.idx = p.idx[:, [0, 2, 1]]; p.nrm = -p.nrm
+    base_y = float(sup(0, 0))
+    ex = {"anim": "monte", "atraso": 0.1}
+    # caminho do bico da bisnaga: espiral de fora para dentro sobre o monte
+    tc = np.linspace(0, 1, 48)
+    rc = 0.2 * (1 - tc)
+    ex["caminho"] = [[round(0.04 + 0.85 * float(a), 3), round(float(r_ * math.cos(a * 2.2 * TAU)), 4), round(base_y + 0.13, 4),
+                      round(float(r_ * math.sin(a * 2.2 * TAU)), 4)] for a, r_ in zip(tc, rc)]
+    return [grupo([p], ex, np.array([0.0, base_y, 0.0]))], {"nutella": dict(cor=[0.11, 0.045, 0.02, 1], rough=0.16, relevo=relevo(33, 14), forca=1.5)}
+
+
 def camada_leite_condensado():
     return camada_calda("leite_condensado", 0.35, 1), {
         "leite_condensado": dict(cor=[0.95, 0.9, 0.78, 1], rough=0.1, relevo=relevo(31, 18), forca=1.5)}
@@ -545,6 +784,8 @@ CAMADAS = {
     "leite_po": camada_leite_po,
     "leite_condensado": camada_leite_condensado,
     "calda_chocolate": camada_calda_chocolate,
+    "morango_picado": camada_morango_picado,
+    "nutella": camada_nutella,
 }
 
 
@@ -583,7 +824,7 @@ def disco(raio, y, th, material, para_cima):
     return p
 
 
-def copo(rt, rb, H):
+def copo(rt, rb, H, estilo="vidro"):
     rt, rb, H = rt / 100, rb / 100, H / 100
     g, folga, base = VIDRO * rt, FOLGA * rt, BASE * rt * 1.4
     th = np.linspace(0, TAU, 129)
@@ -598,6 +839,12 @@ def copo(rt, rb, H):
         disco(rb, 0.0, th, "vidro", False),
         disco(rb - g + (rt - rb) * 0, base, th, "vidro", True),
     ]
+    if estilo == "pet":
+        # copo descartável: frisos perto da boca e anel no fundo, plástico mais fino e claro
+        tf = np.linspace(0, 1, 160)
+        friso = 0.00035 * np.clip(np.sin(np.clip((tf - 0.82) / 0.16, 0, 1) * math.pi * 5), 0, None) * (tf > 0.82)
+        anel = 0.0006 * np.exp(-((tf - 0.04) / 0.012) ** 2)
+        vidro[0] = superficie(rb + (rt - rb) * tf + friso + anel, Hr * tf, th, "vidro", fora=True)
     a = np.linspace(0, math.pi, 12)
     vidro.append(superficie(rt - g / 2 + (g / 2) * np.cos(a), Hr + (g / 2) * np.sin(a), th, "vidro_borda", fora=True,
                             eixo=None))
@@ -612,6 +859,7 @@ def copo(rt, rb, H):
     pico = y_borda + k * ra_t ** 2
     y0 = base + 0.0004
     acai = [superficie(ra_b + (ra_t - ra_b) * t, y0 + (y_borda - y0) * t, th, "acai_parede", fora=True), disco(ra_b, y0, th, "acai_parede", False)]
+    params = {"rt": rt, "rb": rb, "H": H, "g": g, "folga": folga, "base": base, "y0": y0, "y_borda": y_borda, "pico": pico, "k": k}
     tt = np.linspace(0, 1, 48)
     th2 = np.linspace(0, TAU, 193)
     r_ = ra_t * tt[:, None]
@@ -624,14 +872,19 @@ def copo(rt, rb, H):
     if pt.nrm[:, 1].mean() < 0:
         pt.idx = pt.idx[:, [0, 2, 1]]; pt.nrm = -pt.nrm
     acai.append(pt)
+    pet = estilo == "pet"
     mats = {
         "acai_parede": dict(tex=tex_acai_parede(), rough=0.3, relevo=relevo_acai_parede(), forca=3),
         "acai": dict(tex=tex_acai_topo(), rough=0.3, relevo=relevo_acai_topo(), forca=5),
-        "vidro": dict(cor=[0.95, 0.97, 1.0, 0.16], rough=0.03, alfa=True, duplo=False, vidro=True),
-        "vidro_borda": dict(cor=[0.97, 0.99, 1.0, 0.45], rough=0.03, alfa=True, duplo=False),
+        "vidro": dict(cor=[0.96, 0.98, 1.0, 0.1 if pet else 0.16], rough=0.06 if pet else 0.03, alfa=True, duplo=False, vidro=True),
+        "vidro_borda": dict(cor=[0.97, 0.99, 1.0, 0.55 if pet else 0.45], rough=0.05, alfa=True, duplo=False),
+        # usados pela montagem em camadas (public/glb.mjs procura pelo nome)
+        "acai_camada": dict(tex=tex_acai_camada(), rough=0.28, relevo=relevo_acai_parede(), forca=3),
+        "creme_parede": dict(tex=tex_creme_parede(), rough=0.32, relevo=relevo(134, 20), forca=2.5),
+        "nutella_parede": dict(tex=tex_nutella_parede(), rough=0.22, relevo=relevo(143, 16), forca=2),
     }
-    # ordem: opacos primeiro, vidro por último (desenho de transparências mais estável)
-    return [grupo(acai + vidro)], mats
+    # interior separado: some quando a montagem desenha as camadas
+    return [grupo(acai, {"interior": True}), grupo(vidro)], mats, params
 
 
 # ---------------------------------------------------------------------------
@@ -739,6 +992,8 @@ AJUDANTES = {
     "_mao": mao,
     "_frasco_leite_condensado": lambda: frasco([0.95, 0.9, 0.78, 1], "leite_condensado"),
     "_frasco_calda_chocolate": lambda: frasco([0.13, 0.055, 0.025, 1], "calda_chocolate"),
+    "_frasco_nutella": lambda: frasco([0.11, 0.045, 0.02, 1], "nutella"),
+    "_pedacos_morango": pedacos_morango_biblioteca,
 }
 
 
@@ -774,6 +1029,9 @@ def escrever(caminho, nome, grupos, materiais, extras):
         for p in g["partes"]:
             if p.material not in usados:
                 usados.append(p.material)
+    for mn in materiais:           # materiais sem malha também vão (biblioteca da montagem)
+        if mn not in usados:
+            usados.append(mn)
     mats, images, textures, ids = [], [], [], {}
     for mn in usados:
         m = materiais[mn]
@@ -803,11 +1061,11 @@ def escrever(caminho, nome, grupos, materiais, extras):
         prims = []
         for p in g["partes"]:
             prims.append({
-                "attributes": {
+                "attributes": dict({
                     "POSITION": add_acc((p.pos - c).astype(np.float32), "VEC3", 5126, 34962, True),
                     "NORMAL": add_acc(p.nrm.astype(np.float32), "VEC3", 5126, 34962),
                     "TEXCOORD_0": add_acc(p.uv.astype(np.float32), "VEC2", 5126, 34962),
-                },
+                }, **({"COLOR_0": add_acc(np.asarray(p.cor, np.float32), "VEC3", 5126, 34962)} if getattr(p, "cor", None) is not None else {})),
                 "indices": add_acc(p.idx.astype(np.uint32).reshape(-1, 1), "SCALAR", 5125, 34963),
                 "material": ids[p.material],
             })
@@ -847,15 +1105,18 @@ def escrever(caminho, nome, grupos, materiais, extras):
 
 def main():
     os.makedirs(os.path.join(RAIZ, "adicionais"), exist_ok=True)
-    for nome, (rt, rb, H) in COPOS.items():
-        grupos, mats = copo(rt, rb, H)
-        allpos = np.concatenate([p.pos for p in grupos[0]["partes"]])
-        d = (allpos.max(0) - allpos.min(0)) * 100
-        destino = os.path.join(RAIZ, "models", nome + ".glb")
-        escrever(destino, nome, grupos, mats, {"unidade": "metro", "dimensoes_cm": {"largura_x": round(d[0], 2), "profundidade_z": round(d[2], 2), "altura_y": round(d[1], 2)},
-                                               "aviso": "Modelo ilustrativo; medidas de copos comuns de 300, 500 e 700 ml."})
-        ntri = sum(len(p.idx) for p in grupos[0]["partes"])
-        print(f"{nome:18s} {d[0]:.1f} × {d[2]:.1f} × {d[1]:.1f} cm  {ntri:6d} tri  {os.path.getsize(destino) / 1024:5.0f} KB")
+    for estilo, sufixo in (("vidro", ""), ("pet", "-pet")):
+        for nome, (rt, rb, H) in COPOS.items():
+            nome = nome.replace("acai-", "acai" + sufixo + "-")
+            grupos, mats, params = copo(rt, rb, H, estilo)
+            allpos = np.concatenate([p.pos for g in grupos for p in g["partes"]])
+            d = (allpos.max(0) - allpos.min(0)) * 100
+            destino = os.path.join(RAIZ, "models", nome + ".glb")
+            escrever(destino, nome, grupos, mats, {"unidade": "metro", "dimensoes_cm": {"largura_x": round(d[0], 2), "profundidade_z": round(d[2], 2), "altura_y": round(d[1], 2)},
+                                                   "aviso": "Modelo ilustrativo; medidas de copos comuns de 300, 500 e 700 ml.",
+                                                   "copo": {k: round(float(v), 6) for k, v in params.items()}})
+            ntri = sum(len(p.idx) for g in grupos for p in g["partes"])
+            print(f"{nome:18s} {d[0]:.1f} × {d[2]:.1f} × {d[1]:.1f} cm  {ntri:6d} tri  {os.path.getsize(destino) / 1024:5.0f} KB")
     for nome, fn in AJUDANTES.items():
         grupos, mats = fn()
         destino = os.path.join(RAIZ, "adicionais", nome + ".glb")

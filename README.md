@@ -336,6 +336,15 @@ Cada pedaço é animado: frutas e granola caem girando e quicam, a calda é "des
 sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho. Na tela, uma **mão** chega por trás do copo e solta frutas, granola e
 confetes da pinça, e um **frasco de vidro** passa por cima despejando as caldas
 (`public/assets/adicionais/_mao.glb` e `_frasco_*.glb`; não vão para a câmera); o copo também pode ser o 3D gerado pela foto da loja.
+**Açaí em camadas (como o de copo):** adicionais do tipo *Camada … (dentro do copo)*
+— creme, morango picado com creme e Nutella — montam o copo de baixo para cima: açaí,
+camada, açaí, camada…, com as divisões onduladas e borradas no plástico, e os pedaços de
+morango encostados no copo. Na tela, o copo **enche camada por camada**; as coberturas
+aparecem no fim. As camadas são geradas em `public/glb.mjs` a partir das medidas gravadas
+no próprio copo (`acai-pet-*.glb` e `acai-*.glb`); vale também para a câmera.
+O morango é um **volume 3D com cor em cada ponto** (miolo, raios, polpa, casca com
+sementes em covinhas): fatias, metades e cubinhos são cortes desse volume.
+
 O tipo de loja *Sorveteria e açaí* já cria as categorias Açaí, Sorvetes, Picolés, Milkshakes e Bebidas.
 
 Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os

@@ -38,10 +38,18 @@
   // Dados de demonstração. Preços e medidas são FICTÍCIOS.
   // Medidas em centímetros: largura (X), profundidade (Z), altura (Y).
   var TIPOS_3D = [
-    ['', 'Não aparece no 3D'], ['granola', 'Granola'], ['banana', 'Banana'], ['morango', 'Morango'], ['leite_condensado', 'Leite condensado'],
-    ['leite_po', 'Leite em pó'], ['pacoca', 'Paçoca'], ['confete', 'Confete'], ['calda_chocolate', 'Calda de chocolate']
+    ['', 'Não aparece no 3D'], ['granola', 'Granola'], ['banana', 'Banana'], ['morango', 'Morango em fatias'], ['morango_picado', 'Morango picado'],
+    ['leite_condensado', 'Leite condensado'], ['leite_po', 'Leite em pó'], ['pacoca', 'Paçoca'], ['confete', 'Confete'],
+    ['calda_chocolate', 'Calda de chocolate'], ['nutella', 'Nutella (por cima)'],
+    ['camada_creme', 'Camada de creme (dentro do copo)'], ['camada_morango', 'Camada de morango picado (dentro do copo)'],
+    ['camada_nutella', 'Camada de Nutella (dentro do copo)']
   ];
   var ADICIONAIS_ACAI = [
+    { id: 'creme-ninho', nome: 'Camada de creme de ninho', preco: 4.00, tipo3d: 'camada_creme' },
+    { id: 'camada-morango', nome: 'Camada de morango com creme', preco: 5.00, tipo3d: 'camada_morango' },
+    { id: 'camada-nutella', nome: 'Camada de Nutella', preco: 6.00, tipo3d: 'camada_nutella' },
+    { id: 'morango-picado', nome: 'Morango picado por cima', preco: 3.50, tipo3d: 'morango_picado' },
+    { id: 'nutella', nome: 'Nutella por cima', preco: 5.00, tipo3d: 'nutella' },
     { id: 'granola', nome: 'Granola', preco: 2.00, tipo3d: 'granola' },
     { id: 'banana', nome: 'Banana', preco: 2.00, tipo3d: 'banana' },
     { id: 'morango', nome: 'Morango', preco: 3.00, tipo3d: 'morango' },
@@ -64,11 +72,11 @@
     produtos: [
       { id: 'acai', nome: 'Açaí — monte o seu', categoria: 'Açaí', preco: 16.00,
         descricao: 'Escolha o copo e os adicionais: cada um cai em cima do açaí. Depois veja na mesa, no tamanho real.',
-        dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-500.glb', ilustrativo: true,
+        dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-pet-500.glb', ilustrativo: true,
         tamanhos: [
-          { id: '300', nome: '300 ml', preco: 13.00, dim: { largura: 8.6, profundidade: 8.6, altura: 9.6 }, modelo: 'assets/models/acai-300.glb' },
-          { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-500.glb' },
-          { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-700.glb' }
+          { id: '300', nome: '300 ml', preco: 13.00, dim: { largura: 8.6, profundidade: 8.6, altura: 9.6 }, modelo: 'assets/models/acai-pet-300.glb' },
+          { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-pet-500.glb' },
+          { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-pet-700.glb' }
         ],
         adicionais: ADICIONAIS_ACAI },
       { id: 'coxinha', nome: 'Coxinha de frango', categoria: 'Salgados', preco: 8.00,
@@ -821,12 +829,16 @@
     var animar = animarTipo && tipos.indexOf(animarTipo) > -1 && !reduzMovimento ? animarTipo : null;
     carregarModuloGlb().then(function (m) {
       // ajudante da animação: mão que coloca os pedaços ou frasco de vidro que despeja a calda
-      var ajuda = animar ? baixarArquivo('assets/adicionais/' + m.ajudanteDe(animar) + '.glb').catch(function () { return null; }) : null;
-      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda].concat(tipos.map(function (t) { return baixarArquivo('assets/adicionais/' + t + '.glb'); })));
+      // (camadas dentro do copo não usam ajudante: o copo enche sozinho)
+      var ajuda = animar && !(m.ADICIONAIS_3D[animar] || {}).camada ? baixarArquivo('assets/adicionais/' + m.ajudanteDe(animar) + '.glb').catch(function () { return null; }) : null;
+      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda].concat(tipos.map(function (t) {
+        var arq = m.arquivoDe(t);   // camadas de creme/Nutella dentro do copo não têm arquivo próprio
+        return arq ? baixarArquivo('assets/adicionais/' + arq + '.glb') : null;
+      })));
     })
       .then(function (r) {
         if (seq !== seqMontagem || !mv.isConnected) return;
-        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: new Uint8Array(r[i + 3]) }; });
+        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: r[i + 3] ? new Uint8Array(r[i + 3]) : null }; });
         var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animar, ajudante: r[2] ? new Uint8Array(r[2]) : null });
         var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
         var antigo = blobAtual;
