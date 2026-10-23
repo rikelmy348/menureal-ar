@@ -18,8 +18,32 @@ export function erroComStatus(msg, status) { const e = new Error(msg); e.status 
 // Endereços das lojas
 // ---------------------------------------------------------------------------
 export const SLUG_OK = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-const RESERVADOS = new Set(['api', 'assets', 'vendor', 'tools', 'index', 'admin', 'entrar', 'menureal', 'demo']);
+const RESERVADOS = new Set(['api', 'assets', 'vendor', 'tools', 'index', 'admin', 'entrar', 'menureal', 'demo', 'criar', 'cadastro',
+  'recuperar', 'suporte', 'planos', 'precos', 'termos', 'privacidade', 'login', 'painel', 'conta', 'ajuda', 'www', 'app']);
 export function slugValido(s) { return SLUG_OK.test(s || '') && !RESERVADOS.has(s); }
+/** IP de quem chamou (para o limite de tentativas). */
+export function ipDe(req) { return req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'local'; }
+/** Código de recuperação legível: XXXX-XXXX-XXXX, sem letras que confundem (0/O, 1/I/L). */
+export function gerarCodigo() {
+  const A = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const b = crypto.getRandomValues(new Uint8Array(12));
+  const c = [...b].map((x) => A[x % A.length]).join('');
+  return c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8);
+}
+export function normalizarCodigo(c) { return String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+// O código é aleatório (≈59 bits) e as tentativas são limitadas: SHA-256 com a loja como sal basta
+// e economiza CPU (o plano grátis da Cloudflare permite ~10 ms por requisição).
+export async function hashCodigo(slug, codigo) {
+  const h = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('menureal-rec:' + slug + ':' + normalizarCodigo(codigo))));
+  return 'sha256$' + [...h].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+export async function conferirCodigo(slug, codigo, guardado) {
+  if (!guardado || !normalizarCodigo(codigo)) return false;
+  const a = await hashCodigo(slug, codigo);
+  let d = a.length ^ guardado.length;
+  for (let i = 0; i < Math.min(a.length, guardado.length); i++) d |= a.charCodeAt(i) ^ guardado.charCodeAt(i);
+  return d === 0;
+}
 export function lerSlug(req) {
   const s = (new URL(req.url).searchParams.get('loja') || '').toLowerCase();
   if (s && !slugValido(s)) throw erroComStatus('Loja inválida.', 400);

@@ -52,6 +52,11 @@
         <span class="hero__horario" id="horario-texto">—</span>
         <span class="hero__selo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span id="selo-texto">Cardápio em 3D</span></span>
       </div>
+      <!-- Só na página inicial: chamada para lojistas -->
+      <div class="cta-loja" id="cta-loja" hidden>
+        <button class="btn btn--primario" type="button" id="cta-criar">Criar o cardápio da minha loja</button>
+        <span>7 dias grátis · sem cartão · pronto em 2 minutos</span>
+      </div>
     </section>
 
     <div class="filtros" id="filtros">
@@ -192,6 +197,20 @@
       </div>
       <div class="painel__corpo" id="g3d-corpo"></div>
       <div class="painel__rodape" id="g3d-rodape"></div>
+    </div>
+  </dialog>
+
+  <!-- ================= Cadastro da loja ================= -->
+  <dialog class="folha folha--admin" id="dlg-cadastro" aria-labelledby="cadastro-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="cadastro-titulo">Criar meu cardápio</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="cadastro-corpo"></div>
+      <div class="painel__rodape" id="cadastro-rodape"></div>
     </div>
   </dialog>
 

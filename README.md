@@ -380,6 +380,17 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 
 **Cartaz com QR Code**: no painel, "Criar cartaz com QR Code" gera uma imagem A4 com as cores e a logo da loja e o link do cardápio (baixar PNG ou imprimir). Gerador de QR: `vendor/qrcode.js` (qrcode-generator, MIT, Kazuhiko Arase).
 
+## 7f. Cadastro sozinho, teste grátis, senha e prévia do link
+
+- **Cadastro pelo próprio lojista**: botão "Criar o cardápio da minha loja" na página inicial ou o endereço **/criar**. Nome, endereço (confere se está livre), tipo, WhatsApp, e-mail e senha. Lojas de "Açaí e sorveteria" já nascem com o açaí montável em 3D. Limite: 3 contas por conexão por dia (e um campo-isca contra robôs).
+- **Teste grátis de 7 dias**. Depois disso o cardápio fica **fora do ar para os clientes**, mas a loja continua entrando e editando, e vê o botão "Falar com o MenuReal".
+- **Seu painel (código MENUREAL_CODIGO)**: cada loja mostra a situação (ativa, em teste, teste acabou, bloqueada) com botões **Ativar (pagou)**, **+7 dias de teste** e **Bloquear**, e um campo para o **seu WhatsApp de suporte** (aparece para as lojas).
+- **Recuperar senha**: no cadastro a loja recebe um **código de recuperação** (ABCD-EFGH-JKLM). Em "Esqueci minha senha", e-mail + código + nova senha. Cada código vale uma vez; um novo é mostrado ao usar. Em "Sua conta" a loja troca a senha e gera um novo código. Sem o código: você redefine a senha no seu painel ("Nova loja (ou nova senha)").
+  - Recuperação por e-mail não foi feita porque exige um domínio próprio e um serviço de envio (ex.: Resend). Dá para adicionar depois.
+- **Login com limite**: 20 tentativas a cada 15 minutos por conexão.
+- **Prévia do link**: o Worker coloca título, descrição e imagem da loja no HTML (WhatsApp/Instagram não rodam JavaScript). Ao salvar, o painel gera uma imagem 1200×630 com capa, logo, nome e cores da loja (`uso: og`). Sem capa, usa o açaí 3D. Página inicial: `assets/og.jpg`.
+  - Por isso `run_worker_first` passa as páginas pelo Worker, mas arquivos (`/assets`, `/vendor`, `app.js`, `style.css`) saem direto, sem gastar requisições do Worker.
+
 ## 7d. Banco de dados
 
 Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são

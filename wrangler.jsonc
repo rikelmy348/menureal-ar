@@ -9,7 +9,8 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    // O Worker atende /api/* e as páginas (para a prévia do link); arquivos saem direto
+    "run_worker_first": ["/*", "!/assets/*", "!/vendor/*", "!/app.js", "!/style.css", "!/glb.mjs", "!/favicon.ico", "!/robots.txt"]
   },
   // Banco de dados (lojas, contas, produtos). A Cloudflare cria sozinha na 1ª publicação.
   "d1_databases": [{ "binding": "DB", "database_name": "menureal" }],

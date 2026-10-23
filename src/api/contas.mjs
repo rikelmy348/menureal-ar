@@ -1,16 +1,30 @@
-/* GET  /api/contas   lista as lojas            (código MENUREAL_CODIGO)
-   POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, tipo } */
+/* GET  /api/contas   lista as lojas + WhatsApp de suporte    (código MENUREAL_CODIGO)
+   POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, tipo }
+   POST /api/contas   { acao: 'plano', slug, plano: 'ativo'|'bloqueado'|'teste', dias }
+   POST /api/contas   { acao: 'suporte', numero }   WhatsApp que as lojas veem para falar com você */
 import { json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
-import { listarLojas, contaPorEmail, salvarConta } from '../lib/banco.mjs';
+import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig } from '../lib/banco.mjs';
 
 export default async function contas(req, env) {
   if (!env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO nas variáveis da Cloudflare.' }, 500);
   if (!ehMestre(req, env)) return json({ erro: 'Código de acesso incorreto.' }, 401);
-  if (req.method === 'GET') return json({ contas: await listarLojas(env) });
+  if (req.method === 'GET') return json({ contas: await listarLojas(env), suporte: (await lerConfig(env, 'suporte')) || '' });
   if (req.method !== 'POST') return json({ erro: 'Use GET ou POST.' }, 405);
 
   let d;
   try { d = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
+  if (d.acao === 'plano') {
+    const plano = ['ativo', 'bloqueado', 'teste'].includes(d.plano) ? d.plano : null;
+    if (!plano || !slugValido(String(d.slug || ''))) return json({ erro: 'Plano ou loja inválidos.' }, 400);
+    return json({ ok: true, ...(await mudarPlano(env, d.slug, plano, Math.min(90, Math.max(1, Number(d.dias) || 7)))) });
+  }
+  if (d.acao === 'suporte') {
+    let n = String(d.numero || '').replace(/\D/g, '');
+    if (n && n.length <= 11) n = '55' + n;
+    if (n && (n.length < 12 || n.length > 13)) return json({ erro: 'WhatsApp inválido. Use DDD + número.' }, 400);
+    await gravarConfig(env, 'suporte', n);
+    return json({ ok: true, suporte: n });
+  }
   const slug = String(d.slug || '').trim().toLowerCase();
   const nome = String(d.nome || '').trim().slice(0, 60);
   const email = String(d.email || '').trim().toLowerCase().slice(0, 120);

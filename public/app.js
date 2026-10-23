@@ -16,10 +16,11 @@
     new URL('vendor/model-viewer.min.js', document.baseURI).href
   ];
   // Endereço do estabelecimento: https://site/<loja>  ('' = demonstração na página inicial)
-  var LOJA = (function () {
-    var s = decodeURIComponent(location.pathname).replace(/^\/+|\/+$/g, '').toLowerCase();
-    return /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(s) ? s : '';
-  })();
+  var CAMINHO = decodeURIComponent(location.pathname).replace(/^\/+|\/+$/g, '').toLowerCase();
+  var PAGINAS_SISTEMA = ['criar', 'cadastro', 'recuperar'];
+  var LOJA = /^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(CAMINHO) && PAGINAS_SISTEMA.indexOf(CAMINHO) < 0 ? CAMINHO : '';
+  var ABRIR_CADASTRO = CAMINHO === 'criar' || CAMINHO === 'cadastro';
+  var BEM_VINDO = /[?&]bemvindo=1/.test(location.search);
   var SUFIXO = LOJA ? ':' + LOJA : '';
   var CHAVE_DADOS = 'menureal:dados:v1' + SUFIXO;
   var CHAVE_CARRINHO = 'menureal:carrinho:v1' + SUFIXO;
@@ -194,7 +195,11 @@
       whatsapp: String(p.whatsapp || '').replace(/\D/g, ''),
       tipo: p.tipo === 'produtos' ? 'produtos' : 'alimentos', // alimentos = cardápio; produtos = catálogo de objetos
       visual: validarVisual(p.visual),
-      pedido: lerPedido(p.pedido)
+      pedido: lerPedido(p.pedido),
+      plano: (function (pl) {
+        pl = pl || {};
+        return { situacao: ['teste', 'vencido', 'bloqueado'].indexOf(pl.situacao) > -1 ? pl.situacao : 'ativo', ate: String(pl.ate || ''), suporte: String(pl.suporte || '').replace(/\D/g, '') };
+      })(p.plano)
     };
     var categorias = [];
     (Array.isArray(d.categorias) ? d.categorias : CATEGORIAS_PADRAO).forEach(function (c) {
@@ -252,6 +257,8 @@
       fonte: FONTES_LOJA[v.fonte] ? v.fonte : 'moderno',
       logo: img(v.logo),
       capa: img(v.capa),
+      og: img(v.og),
+      ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
       marca: v.marca !== false
     };
   }
@@ -1602,7 +1609,7 @@
         campo('Senha', '<input id="login-senha" type="password" autocomplete="current-password" maxlength="120">') +
         (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
         '<button class="btn btn--primario btn--bloco" type="button" id="login-entrar">Entrar</button>' +
-        '<p class="mini">Esqueceu a senha? Fale com quem criou a sua conta no MenuReal.</p>' +
+        '<button class="btn btn--fantasma btn--bloco" type="button" id="login-esqueci">Esqueci minha senha</button>' +
       '</div>';
     setTimeout(function () { var el = $('#login-email'); if (el) el.focus(); }, 50);
   }
@@ -1616,8 +1623,7 @@
       .then(function (j) {
         try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (e) { /* ignora */ }
         if (j.slug !== LOJA) { location.href = '/' + j.slug; return; }
-        rascunho = clonar(dados);
-        renderAdmin();
+        abrirAdminCompleto();
         toast('Bem-vindo, ' + j.nome);
       })
       .catch(function (e) { renderLogin(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
@@ -1638,6 +1644,7 @@
           : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita a demonstração e cria as contas das lojas clientes (comida, objetos, móveis, o que for).</div>' +
             campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Cloudflare (MENUREAL_CODIGO).') +
             '<section class="secao-admin"><h3>Estabelecimentos clientes</h3><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver e criar estabelecimentos</button></div></section>') +
+      (LOJA && servidor ? htmlAvisoPlano(rascunho.padaria.plano) : '') +
       '<section class="secao-admin"><h3>Estabelecimento</h3><div class="campos">' +
         campo('Nome do estabelecimento', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
         campo('Descrição / slogan', '<input name="p-slogan" maxlength="90" value="' + esc(p.slogan) + '">') +
@@ -1660,6 +1667,7 @@
       htmlPedidoAdmin(p.pedido) +
       htmlAparencia(p) +
       htmlCartazAdmin() +
+      (LOJA && servidor ? htmlContaAdmin() : '') +
       '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
         '<button class="btn btn--contorno btn--bloco destaque-foto" type="button" id="admin-foto">' + ICONES.camera +
           '<span><strong>Criar a partir de uma foto</strong><small>Fotografe um cardápio, catálogo ou tabela de preços e revise os itens lidos</small></span></button>' +
@@ -2294,14 +2302,25 @@
   }
 
   $('#btn-admin').addEventListener('click', function () {
-    rascunho = clonar(dados);
     abertoNoAdmin = null;
+    if (indisponivel && lerTokenLoja()) { abrirDialogo($('#dlg-admin')); abrirAdminCompleto(); return; }
+    rascunho = clonar(dados);
     renderAdmin();
     abrirDialogo($('#dlg-admin'));
   });
+  // Cardápio fora do ar (teste vencido): a loja logada busca a versão completa antes de editar
+  function abrirAdminCompleto() {
+    if (!indisponivel) { rascunho = clonar(dados); renderAdmin(); return; }
+    $('#admin-corpo').innerHTML = '<p class="mini">Carregando o seu cardápio…</p>';
+    carregarNuvem().then(function () {
+      if (indisponivel) { toast('Não foi possível carregar o cardápio. Entre de novo.'); renderLogin(); return; }
+      rascunho = clonar(dados); renderAdmin();
+    });
+  }
 
   $('#form-admin').addEventListener('submit', function (e) {
     e.preventDefault();
+    if (indisponivel) { toast('Carregando o seu cardápio… tente de novo em instantes.'); abrirAdminCompleto(); return; }
     coletarAdmin();
     if (!validarAdmin()) return;
     rascunho.produtos.forEach(function (x) { delete x._preco; });
@@ -2318,7 +2337,8 @@
       return;
     }
     toast('Publicando para todos os clientes…');
-    fetch(comLoja('api/cardapio'), { method: 'PUT', headers: cabecalhos(), body: JSON.stringify(dados) })
+    (LOJA ? prepararPrevia(dados).catch(function (er) { console.warn('[MenuReal] prévia do link', er); }) : Promise.resolve())
+      .then(function () { gravar(CHAVE_DADOS, dados); return fetch(comLoja('api/cardapio'), { method: 'PUT', headers: cabecalhos(), body: JSON.stringify(dados) }); })
       .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { return { ok: r.ok, j: j }; }); })
       .then(function (res) { toast(res.ok ? 'Publicado: todos os clientes já veem a nova versão' : 'Salvo só neste aparelho: ' + (res.j.erro || 'erro ao publicar')); })
       .catch(function () { toast('Salvo só neste aparelho: sem conexão com o servidor'); });
@@ -2338,12 +2358,22 @@
   });
 
   $('#admin-corpo').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && e.target.closest('.login')) { e.preventDefault(); entrar(); }
+    if (e.key === 'Enter' && e.target.closest('.login') && e.target.tagName === 'INPUT') { e.preventDefault(); if ($('#rec-enviar')) recuperarSenha(); else if ($('#login-entrar')) entrar(); }
   });
   $('#admin-corpo').addEventListener('click', function (e) {
     var codAdmin = $('#admin-codigo');
     if (codAdmin && codAdmin.value.trim()) guardarCodigo(codAdmin.value.trim());
     if (e.target.closest('#login-entrar')) { entrar(); return; }
+    if (e.target.closest('#login-esqueci')) { renderRecuperar(); return; }
+    if (e.target.closest('#rec-voltar')) { renderLogin(); return; }
+    if (e.target.closest('#rec-enviar')) { recuperarSenha(); return; }
+    if (e.target.closest('#codigo-ok')) { abrirAdminCompleto(); return; }
+    if (e.target.closest('#conta-senha')) { trocarSenha(e.target.closest('#conta-senha')); return; }
+    if (e.target.closest('#conta-codigo')) { novoCodigo(e.target.closest('#conta-codigo')); return; }
+    if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
+    if (e.target.closest('#suporte-salvar')) { salvarSuporte(); return; }
+    var pl = e.target.closest('[data-plano]');
+    if (pl) { mudarPlanoLoja(pl.getAttribute('data-slug'), pl.getAttribute('data-plano'), pl); return; }
     if (e.target.closest('#admin-sair')) {
       try { localStorage.removeItem(CHAVE_TOKEN); } catch (err) { /* ignora */ }
       renderAdmin();
@@ -2900,11 +2930,11 @@
       .then(function (j) {
         alvo.innerHTML =
           (j.contas.length
-            ? '<ul class="lojas">' + j.contas.map(function (c) {
-                return '<li><div><strong>' + esc(c.nome) + '</strong><small>' + esc(c.email) + '</small></div>' +
-                  '<a class="btn btn--fantasma btn--p" href="/' + esc(c.slug) + '" target="_blank" rel="noopener">/' + esc(c.slug) + '</a></li>';
-              }).join('') + '</ul>'
+            ? '<p class="mini">' + resumoContas(j.contas) + '</p><ul class="lojas">' + j.contas.map(htmlLojaDono).join('') + '</ul>'
             : '<p class="mini">Nenhum estabelecimento ainda.</p>') +
+          '<div class="nova-loja"><h4>Seu WhatsApp de suporte</h4>' +
+            campo('As lojas veem este número para falar com você (ativar, tirar dúvidas, recuperar senha)', '<input id="suporte-num" inputmode="numeric" maxlength="15" placeholder="DDD + número" value="' + esc(String(j.suporte || '').replace(/^55/, '')) + '">') +
+            '<button class="btn btn--sec" type="button" id="suporte-salvar">Salvar WhatsApp</button></div>' +
           '<div class="nova-loja"><h4>Nova loja (ou nova senha)</h4>' +
             campo('Nome', '<input id="nl-nome" maxlength="60" placeholder="Confeitaria Doce Lar, Móveis Silva…">') +
             campo('Endereço da página', '<input id="nl-slug" maxlength="40" placeholder="doce-lar" autocapitalize="off">', location.host + '/<endereço>') +
@@ -2962,15 +2992,19 @@
   }
 
   // Cardápio publicado na nuvem (Cloudflare Worker)
+  var indisponivel = false;
   function carregarNuvem() {
-    if (location.protocol === 'file:' || MODELOS_EMBUTIDOS) return;
-    fetch(comLoja('api/cardapio'), { cache: 'no-store' }).then(function (r) {
+    if (location.protocol === 'file:' || MODELOS_EMBUTIDOS) return Promise.resolve();
+    var tk = LOJA ? lerTokenLoja() : '';
+    return fetch(comLoja('api/cardapio'), { cache: 'no-store', headers: tk ? { authorization: 'Bearer ' + tk } : {} }).then(function (r) {
       var ehJson = /json/.test(r.headers.get('content-type') || '');
       if (!ehJson) { if (LOJA) lojaNaoEncontrada('O servidor do MenuReal não respondeu.'); return null; }
       servidor = true;
       if (r.status === 404 && LOJA) { lojaNaoEncontrada(); return null; }
       return r.ok ? r.json() : null;
     }).then(function (d) {
+      if (d && d.indisponivel) { lojaIndisponivel(d); return; }
+      if (d) indisponivel = false;
       var v = d && validarDados(d);
       if (!v || JSON.stringify(v) === JSON.stringify(dados)) return;
       dados = v;
@@ -2979,6 +3013,294 @@
       salvarCarrinho();
       renderTudo();
     }).catch(function () { /* sem servidor: segue com os dados locais */ });
+  }
+
+  // ---------------------------------------------------------------------
+  // Loja fora do ar (teste grátis acabou ou bloqueada pelo MenuReal)
+  // ---------------------------------------------------------------------
+  function lojaIndisponivel(d) {
+    indisponivel = true;
+    dados = validarDados(d);
+    apagar(CHAVE_DADOS);
+    CATEGORIAS = [];
+    renderTudo();
+    $('#status-texto').textContent = 'Fora do ar';
+    $('#grade').innerHTML = '<div class="vazio"><strong>Cardápio fora do ar no momento</strong>Volte daqui a pouco ou fale direto com a loja.' +
+      '<br><small>É o dono? Toque em <b>Admin</b> para entrar.</small></div>';
+  }
+  function linkSuporte(texto) {
+    var n = (dados.padaria.plano && dados.padaria.plano.suporte) || suporteMenuReal;
+    return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto) : '';
+  }
+  function diasRestantes(iso) { return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 864e5)); }
+  function htmlAvisoPlano(pl) {
+    if (!pl || pl.situacao === 'ativo') return '';
+    var loja = dados.padaria.nome + ' (' + location.host + '/' + LOJA + ')';
+    var zap = linkSuporte(pl.situacao === 'teste' ? 'Olá! Quero continuar com o MenuReal na loja ' + loja + '.' : 'Olá! Quero reativar o cardápio da loja ' + loja + '.');
+    var btn = zap ? '<a class="btn btn--primario btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Falar com o MenuReal</a>' : '';
+    if (pl.situacao === 'teste') {
+      var d = diasRestantes(pl.ate);
+      return '<div class="aviso-plano"><strong>Teste grátis: ' + (d <= 1 ? 'último dia' : 'faltam ' + d + ' dias') + '</strong>' +
+        '<span>Seu cardápio já está no ar. Para continuar depois do teste, fale com a gente.</span>' + btn + '</div>';
+    }
+    return '<div class="aviso-plano aviso-plano--fora"><strong>' + (pl.situacao === 'vencido' ? 'Seu teste grátis acabou' : 'Cardápio pausado pelo MenuReal') + '</strong>' +
+      '<span>Os clientes veem “fora do ar”. Seus produtos e configurações continuam salvos.</span>' + btn + '</div>';
+  }
+
+  // ---------------------------------------------------------------------
+  // Recuperar senha com o código de recuperação
+  // ---------------------------------------------------------------------
+  var suporteMenuReal = '';
+  function renderRecuperar(erro) {
+    $('#form-admin').classList.add('so-login');
+    var zap = linkSuporte('Olá! Esqueci a senha da loja ' + (LOJA ? location.host + '/' + LOJA : '') + ' e não tenho o código de recuperação.');
+    $('#admin-corpo').innerHTML =
+      '<div class="login">' +
+        '<p class="login__loja">Recuperar senha</p>' +
+        '<p>Use o <strong>código de recuperação</strong> que apareceu quando a loja foi criada (formato ABCD-EFGH-JKLM).</p>' +
+        campo('E-mail da loja', '<input id="rec-email" type="email" autocomplete="username" maxlength="120">') +
+        campo('Código de recuperação', '<input id="rec-codigo" autocapitalize="characters" autocomplete="off" maxlength="20" placeholder="ABCD-EFGH-JKLM">') +
+        campo('Nova senha (8+ caracteres)', '<input id="rec-senha" type="password" autocomplete="new-password" maxlength="120">') +
+        (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
+        '<button class="btn btn--primario btn--bloco" type="button" id="rec-enviar">Trocar a senha</button>' +
+        '<button class="btn btn--fantasma btn--bloco" type="button" id="rec-voltar">Voltar para entrar</button>' +
+        '<p class="mini">Não tem o código?' + (zap ? ' <a href="' + esc(zap) + '" target="_blank" rel="noopener">Fale com o suporte do MenuReal</a>.' : ' Fale com o suporte do MenuReal.') + '</p>' +
+      '</div>';
+    setTimeout(function () { var el = $('#rec-email'); if (el) el.focus(); }, 50);
+  }
+  function recuperarSenha() {
+    var corpo = { email: $('#rec-email').value.trim(), codigo: $('#rec-codigo').value.trim(), senha: $('#rec-senha').value };
+    if (!corpo.email || !corpo.codigo || !corpo.senha) { renderRecuperar('Preencha os três campos.'); return; }
+    $('#rec-enviar').disabled = true;
+    postarJson('api/recuperar', corpo).then(function (j) {
+      try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (e) { /* ignora */ }
+      if (j.slug !== LOJA) { mostrarCodigo(j.codigo, 'Senha trocada!', '/' + j.slug + '?bemvindo=1'); return; }
+      mostrarCodigo(j.codigo, 'Senha trocada!');
+    }).catch(function (e) { renderRecuperar(e.message); });
+  }
+  // Mostra o código de recuperação (novo) para a loja guardar
+  function htmlCodigo(codigo) {
+    return '<div class="codigo-rec"><span>Seu código de recuperação</span><strong>' + esc(codigo) + '</strong>' +
+      '<button class="btn btn--sec btn--p" type="button" data-copiar="' + esc(codigo) + '">Copiar</button></div>' +
+      '<p class="mini">Guarde num lugar seguro (print, bloco de notas, papel na loja). É com ele que você troca a senha se esquecer. Cada código vale <strong>uma vez</strong>: ao usar, você recebe outro.</p>';
+  }
+  function mostrarCodigo(codigo, titulo, irPara) {
+    $('#form-admin').classList.add('so-login');
+    $('#admin-corpo').innerHTML = '<div class="login"><p class="login__loja">' + esc(titulo) + '</p>' + htmlCodigo(codigo) +
+      (irPara ? '<a class="btn btn--primario btn--bloco" href="' + esc(irPara) + '">Já guardei, abrir minha loja</a>'
+        : '<button class="btn btn--primario btn--bloco" type="button" id="codigo-ok">Já guardei, continuar</button>') + '</div>';
+  }
+  function copiarTexto(t) {
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('Copiado'); }, function () { toast('Selecione e copie: ' + t); });
+  }
+  function postarJson(url, corpo, extraHeaders) {
+    return fetch(url, { method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, extraHeaders || {}), body: JSON.stringify(corpo) })
+      .then(function (r) {
+        return r.text().then(function (t) {
+          var j = null; try { j = JSON.parse(t); } catch (e) { /* não-JSON */ }
+          if (!r.ok || !j) { var er = new Error((j && j.erro) || 'Erro do servidor (' + r.status + '). Tente de novo.'); er.campo = j && j.campo; throw er; }
+          return j;
+        });
+      })
+      .catch(function (e) { if (/failed to fetch|network/i.test(e.message)) throw new Error('Sem conexão com o servidor.'); throw e; });
+  }
+
+  // ---------------------------------------------------------------------
+  // Sua conta: trocar senha e gerar novo código de recuperação
+  // ---------------------------------------------------------------------
+  function htmlContaAdmin() {
+    return '<section class="secao-admin"><h3>Sua conta</h3>' +
+      '<details class="conta-det"><summary>Trocar a senha</summary><div class="campos">' +
+        campo('Senha atual', '<input id="conta-atual" type="password" autocomplete="current-password" maxlength="120">') +
+        campo('Nova senha (8+ caracteres)', '<input id="conta-nova" type="password" autocomplete="new-password" maxlength="120">') +
+        '<button class="btn btn--sec" type="button" id="conta-senha">Trocar a senha</button></div></details>' +
+      '<details class="conta-det"><summary>Código de recuperação</summary><div class="campos">' +
+        '<p class="mini">Perdeu o código ou nunca recebeu um? Gere um novo (o antigo deixa de valer).</p>' +
+        campo('Sua senha', '<input id="conta-cod-senha" type="password" autocomplete="current-password" maxlength="120">') +
+        '<button class="btn btn--sec" type="button" id="conta-codigo">Gerar novo código</button><div id="conta-cod-res"></div></div></details>' +
+      '</section>';
+  }
+  function trocarSenha(b) {
+    var atual = $('#conta-atual').value, nova = $('#conta-nova').value;
+    if (nova.length < 8) { toast('A nova senha precisa ter pelo menos 8 caracteres.'); return; }
+    b.disabled = true;
+    postarJson(comLoja('api/conta'), { acao: 'senha', atual: atual, nova: nova }, credenciais())
+      .then(function () { $('#conta-atual').value = ''; $('#conta-nova').value = ''; toast('Senha trocada.'); })
+      .catch(function (e) { toast(e.message); }).then(function () { b.disabled = false; });
+  }
+  function novoCodigo(b) {
+    b.disabled = true;
+    postarJson(comLoja('api/conta'), { acao: 'codigo', senha: $('#conta-cod-senha').value }, credenciais())
+      .then(function (j) { $('#conta-cod-senha').value = ''; $('#conta-cod-res').innerHTML = htmlCodigo(j.codigo); })
+      .catch(function (e) { toast(e.message); }).then(function () { b.disabled = false; });
+  }
+
+  // ---------------------------------------------------------------------
+  // Painel do dono: planos das lojas e WhatsApp de suporte
+  // ---------------------------------------------------------------------
+  var ROTULO_SITUACAO = { ativo: 'Ativa (pagante)', teste: 'Em teste', vencido: 'Teste acabou', bloqueado: 'Bloqueada' };
+  function resumoContas(lista) {
+    var n = { ativo: 0, teste: 0, vencido: 0, bloqueado: 0 };
+    lista.forEach(function (c) { n[c.situacao] = (n[c.situacao] || 0) + 1; });
+    return lista.length + ' lojas · ' + n.ativo + ' ativas · ' + n.teste + ' em teste · ' + n.vencido + ' com teste vencido' + (n.bloqueado ? ' · ' + n.bloqueado + ' bloqueadas' : '');
+  }
+  function htmlLojaDono(c) {
+    var sit = c.situacao || 'ativo';
+    var prazo = sit === 'teste' ? ' · até ' + new Date(c.testeAte).toLocaleDateString('pt-BR') : '';
+    var zap = c.whatsapp ? '<a class="btn btn--fantasma btn--p" href="https://wa.me/' + esc(c.whatsapp) + '" target="_blank" rel="noopener">WhatsApp</a>' : '';
+    var b = function (plano, rot) { return '<button class="btn btn--' + (plano === 'ativo' ? 'sec' : 'fantasma') + ' btn--p" type="button" data-plano="' + plano + '" data-slug="' + esc(c.slug) + '">' + rot + '</button>'; };
+    return '<li class="loja-dono"><div><strong>' + esc(c.nome) + '</strong><small>' + esc(c.email) + '</small>' +
+        '<span class="situacao situacao--' + sit + '">' + ROTULO_SITUACAO[sit] + prazo + '</span></div>' +
+      '<div class="linha-acoes">' +
+        '<a class="btn btn--fantasma btn--p" href="/' + esc(c.slug) + '" target="_blank" rel="noopener">/' + esc(c.slug) + '</a>' + zap +
+        (sit !== 'ativo' ? b('ativo', 'Ativar (pagou)') : '') +
+        b('teste', '+7 dias de teste') +
+        (sit !== 'bloqueado' ? b('bloqueado', 'Bloquear') : '') +
+      '</div></li>';
+  }
+  function mudarPlanoLoja(slugLoja, plano, botao) {
+    botao.disabled = true;
+    postarJson('api/contas', { acao: 'plano', slug: slugLoja, plano: plano, dias: 7 }, credenciais())
+      .then(function (j) { toast('/' + slugLoja + ': ' + ROTULO_SITUACAO[j.situacao]); carregarLojas(); })
+      .catch(function (e) { botao.disabled = false; toast(e.message); });
+  }
+  function salvarSuporte() {
+    postarJson('api/contas', { acao: 'suporte', numero: $('#suporte-num').value }, credenciais())
+      .then(function () { toast('WhatsApp de suporte salvo'); })
+      .catch(function (e) { toast(e.message); });
+  }
+
+  // ---------------------------------------------------------------------
+  // Cadastro da loja pelo próprio lojista (7 dias grátis)
+  // ---------------------------------------------------------------------
+  var cad = { nome: '', slug: '', tipo: 'sorveteria', whatsapp: '', email: '', senha: '', mexido: false };
+  var cadSeq = 0;
+  function abrirCadastro() {
+    if (!servidor && location.protocol === 'file:') { toast('O cadastro funciona no site publicado.'); return; }
+    renderCadastro();
+    abrirDialogo($('#dlg-cadastro'));
+    fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { suporteMenuReal = j.suporte || ''; }).catch(function () { /* ok */ });
+  }
+  function renderCadastro(erro, campoErro) {
+    var tipos = [['sorveteria', 'Açaí e sorveteria', 'já vem com o açaí montável em 3D'], ['alimentos', 'Outra comida ou bebida', 'lanchonete, doceria, padaria…'], ['produtos', 'Produtos e objetos', 'móveis, decoração, presentes…']];
+    var c = function (rot, id, attrs, ajuda) { return campo(rot, '<input id="cad-' + id + '" ' + attrs + ' value="' + esc(cad[id]) + '"' + (campoErro === id ? ' aria-invalid="true"' : '') + '>', ajuda); };
+    $('#cadastro-corpo').innerHTML =
+      '<div class="cadastro">' +
+        '<p class="cadastro__intro"><strong>7 dias grátis, sem cartão.</strong> Sua loja ganha um endereço próprio com cardápio em 3D, pedidos pelo WhatsApp e Pix.</p>' +
+        c('Nome da loja', 'nome', 'maxlength="60" autocomplete="organization" placeholder="Ex.: Açaí do Zé"') +
+        '<label class="campo">Endereço do seu cardápio<span class="cad-slug"><span>' + esc(location.host) + '/</span><input id="cad-slug" maxlength="40" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(cad.slug) + '"' + (campoErro === 'slug' ? ' aria-invalid="true"' : '') + '></span>' +
+          '<small id="cad-slug-st" aria-live="polite">Letras minúsculas, números e hífen.</small></label>' +
+        '<fieldset class="campo"><legend>Tipo de loja</legend><div class="opcoes">' + tipos.map(function (t) {
+          return '<label class="opcao"><input type="radio" name="cad-tipo" value="' + t[0] + '"' + (cad.tipo === t[0] ? ' checked' : '') + '><span>' + t[1] + '<small>' + t[2] + '</small></span></label>';
+        }).join('') + '</div></fieldset>' +
+        c('WhatsApp da loja (recebe os pedidos)', 'whatsapp', 'inputmode="tel" maxlength="16" autocomplete="tel" placeholder="DDD + número"') +
+        c('Seu e-mail (para entrar)', 'email', 'type="email" maxlength="120" autocomplete="email"') +
+        c('Crie uma senha (8+ caracteres)', 'senha', 'type="password" maxlength="120" autocomplete="new-password"') +
+        '<input id="cad-site" tabindex="-1" autocomplete="off" aria-hidden="true" class="isca">' +
+        (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
+        '<p class="mini">Ao criar, você confirma que é responsável por esta loja. Seus dados são usados só para o seu acesso e para o suporte.</p>' +
+      '</div>';
+    $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">Criar meu cardápio grátis</button>';
+    if (cad.slug) conferirSlug();
+    if (campoErro) { var el = $('#cad-' + campoErro); if (el) el.focus(); }
+  }
+  function conferirSlug() {
+    var st = $('#cad-slug-st'), s = cad.slug, seq = ++cadSeq;
+    if (!st) return;
+    if (!/^[a-z0-9][a-z0-9-]{1,38}[a-z0-9]$/.test(s)) { st.className = ''; st.textContent = s ? 'Use de 3 a 40 letras minúsculas, números e hífens.' : 'Letras minúsculas, números e hífen.'; return; }
+    st.className = ''; st.textContent = 'Conferindo…';
+    clearTimeout(conferirSlug.t);
+    conferirSlug.t = setTimeout(function () {
+      fetch('api/cadastro?slug=' + encodeURIComponent(s), { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+        if (seq !== cadSeq) return;
+        st.className = j.livre ? 'ok' : 'erro';
+        st.textContent = j.livre ? '✓ ' + location.host + '/' + s + ' está livre' : j.valido === false ? 'Este endereço é reservado. Escolha outro.' : 'Já está em uso. Tente outro, como ' + s + '-' + (new Date().getFullYear() % 100) + '.';
+      }).catch(function () { st.textContent = ''; });
+    }, 350);
+  }
+  $('#dlg-cadastro').addEventListener('input', function (e) {
+    var id = (e.target.id || '').replace(/^cad-/, '');
+    if (!(id in cad)) return;
+    if (id === 'slug') { cad.mexido = true; cad.slug = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40); if (e.target.value !== cad.slug) e.target.value = cad.slug; conferirSlug(); return; }
+    cad[id] = e.target.value;
+    if (id === 'nome' && !cad.mexido) { cad.slug = slug(cad.nome).slice(0, 40); $('#cad-slug').value = cad.slug; conferirSlug(); }
+    if (e.target.getAttribute('aria-invalid')) e.target.removeAttribute('aria-invalid');
+  });
+  $('#dlg-cadastro').addEventListener('change', function (e) { if (e.target.name === 'cad-tipo') cad.tipo = e.target.value; });
+  $('#dlg-cadastro').addEventListener('click', function (e) {
+    if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
+    if (!e.target.closest('#cad-criar')) return;
+    var b = e.target.closest('#cad-criar');
+    b.disabled = true; b.textContent = 'Criando a sua loja…';
+    postarJson('api/cadastro', { nome: cad.nome.trim(), slug: cad.slug, tipo: cad.tipo, whatsapp: cad.whatsapp, email: cad.email.trim(), senha: cad.senha, site: ($('#cad-site') || {}).value || '' })
+      .then(function (j) {
+        try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (er) { /* ignora */ }
+        $('#cadastro-titulo').textContent = 'Sua loja está pronta!';
+        $('#cadastro-corpo').innerHTML = '<div class="cadastro">' +
+          '<p class="cadastro__intro">Seu cardápio: <strong>' + esc(location.host + '/' + j.slug) + '</strong><br>Teste grátis até <strong>' + esc(new Date(j.testeAte).toLocaleDateString('pt-BR')) + '</strong>.</p>' +
+          htmlCodigo(j.codigo) + '</div>';
+        $('#cadastro-rodape').innerHTML = '<a class="btn btn--primario btn--bloco" href="/' + esc(j.slug) + '?bemvindo=1">Já guardei o código, abrir minha loja</a>';
+      })
+      .catch(function (er) { renderCadastro(er.message, er.campo); });
+  });
+
+  // ---------------------------------------------------------------------
+  // Prévia do link (WhatsApp/Instagram): imagem 1200×630 com a cara da loja
+  // ---------------------------------------------------------------------
+  function assinaturaPrevia(p) {
+    var v = p.visual, t = [p.nome, p.slogan, v.cor, v.destaque, v.fonte, v.logo, v.capa, p.tipo, 'v3'].join('|'), h = 5381;
+    for (var i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }
+  function prepararPrevia(d) {
+    var p = d.padaria, v = p.visual, ass = assinaturaPrevia(p);
+    if (v.og && v.ogAss === ass) return Promise.resolve();
+    var cor = v.cor || COR_PADRAO, dest = v.destaque || DESTAQUE_PADRAO;
+    var fonte = (FONTES_LOJA[v.fonte] || FONTES_LOJA.moderno).css.replace('var(--fonte)', 'system-ui, sans-serif');
+    var enfeite = !v.capa && ehAlimento(d) ? 'assets/og-acai.png' : '';
+    return Promise.all([carregarImagem(v.capa), carregarImagem(v.logo), document.fonts ? document.fonts.load('700 60px ' + fonte).catch(function () {}) : null, carregarImagem(enfeite)]).then(function (r) {
+      var capa = r[0], logo = r[1], acai = r[3], W = 1200, H = 630;
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var g = cv.getContext('2d');
+      g.fillStyle = cor; g.fillRect(0, 0, W, H);
+      if (acai) {
+        // sem foto de capa: o açaí 3D ao lado, com um brilho suave atrás
+        var luz = g.createRadialGradient(940, 330, 20, 940, 330, 320);
+        luz.addColorStop(0, 'rgba(255,255,255,0.22)'); luz.addColorStop(1, 'rgba(255,255,255,0)');
+        g.fillStyle = luz; g.fillRect(560, 0, 640, H);
+        g.drawImage(acai, 940 - acai.width / 2, (H - acai.height) / 2, acai.width, acai.height);
+      }
+      if (capa) {
+        var k = Math.max(W / capa.width, H / capa.height);
+        g.drawImage(capa, (W - capa.width * k) / 2, (H - capa.height * k) / 2, capa.width * k, capa.height * k);
+        var gr = g.createLinearGradient(0, 0, 0, H);
+        gr.addColorStop(0, 'rgba(0,0,0,0.05)'); gr.addColorStop(0.45, 'rgba(0,0,0,0.25)'); gr.addColorStop(1, 'rgba(0,0,0,0.78)');
+        g.fillStyle = gr; g.fillRect(0, 0, W, H);
+      }
+      var sobre = capa ? '#FFFFFF' : textoSobre(cor);
+      var x = 70, y = H - 70;
+      g.textAlign = 'left';
+      g.fillStyle = sobre; g.globalAlpha = 0.9; g.font = '500 30px system-ui, sans-serif';
+      g.fillText(ehAlimento(d) ? 'Cardápio em 3D · peça pelo WhatsApp' : 'Catálogo em 3D · peça pelo WhatsApp', x, y);
+      g.globalAlpha = 1;
+      if (p.slogan) { g.font = '400 34px system-ui, sans-serif'; y -= 56; g.fillText(p.slogan.slice(0, acai ? 34 : 60), x, y); }
+      var larg = acai ? 640 : W - 140, tam = 76;
+      g.font = '700 ' + tam + 'px ' + fonte;
+      while (g.measureText(p.nome).width > larg && tam > 46) { tam -= 4; g.font = '700 ' + tam + 'px ' + fonte; }
+      y -= 70;
+      var nome = p.nome; while (g.measureText(nome).width > larg && nome.length > 4) nome = nome.slice(0, -2);
+      g.fillText(nome === p.nome ? nome : nome + '…', x, y);
+      g.fillStyle = dest; g.fillRect(x, y + 22, 90, 7);
+      if (logo) {
+        var lk = Math.min(300 / logo.width, 140 / logo.height), lw = logo.width * lk, lh = logo.height * lk;
+        g.fillStyle = '#FFFFFF'; g.beginPath(); if (g.roundRect) g.roundRect(x - 4, 60, lw + 48, lh + 40, 26); else g.rect(x - 4, 60, lw + 48, lh + 40); g.fill();
+        g.drawImage(logo, x + 20, 80, lw, lh);
+      }
+      var b64 = cv.toDataURL('image/jpeg', 0.86).split(',')[1];
+      return fetch(comLoja('api/imagem'), { method: 'POST', headers: cabecalhos(), body: JSON.stringify({ imagem: b64, tipo: 'image/jpeg', uso: 'og' }) })
+        .then(function (resp) { return resp.json().then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; }); })
+        .then(function (j) { v.og = j.url; v.ogAss = ass; });
+    });
   }
 
   // Confirmação dentro da página (não usa window.confirm, que alguns
@@ -3069,8 +3391,18 @@
   // Início
   // ---------------------------------------------------------------------
   renderTudo();
-  carregarNuvem();
+  carregarNuvem().then(function () {
+    if (BEM_VINDO && LOJA && lerTokenLoja()) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) { /* ok */ }
+      abertoNoAdmin = null;
+      rascunho = clonar(dados); renderAdmin(); abrirDialogo($('#dlg-admin'));
+      toast('Sua loja está no ar! Ajuste preços, horário e WhatsApp e toque em Salvar.');
+    }
+  });
   setInterval(renderCabecalho, 60000);
+  $('#cta-loja').hidden = !!LOJA;
+  $('#cta-criar').addEventListener('click', abrirCadastro);
+  if (ABRIR_CADASTRO) abrirCadastro();
 
   carregarModelViewer().then(function (ok) {
     mvStatus = ok ? 'ok' : 'falhou';

@@ -14,7 +14,7 @@ export default async function imagem(req, env) {
   let d;
   try { d = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
   const ext = EXT[d && d.tipo];
-  const uso = d && (d.uso === 'logo' || d.uso === 'capa') ? d.uso : null;
+  const uso = d && ['logo', 'capa', 'og'].includes(d.uso) ? d.uso : null;
   if (!ext || !uso || typeof d.imagem !== 'string' || !d.imagem) return json({ erro: 'Envie uma imagem JPG, PNG ou WebP.' }, 400);
   if (d.imagem.length > LIMITE_BASE64) return json({ erro: 'Imagem grande demais. Use uma foto menor.' }, 413);
   let bytes;

@@ -689,3 +689,33 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 
 /* ---- Cartaz QR ---- */
 .cartaz-previa { display: block; width: 100%; max-width: 360px; margin: 12px auto; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
+
+/* ---- Cadastro, conta e planos ---- */
+.cta-loja { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 16px; }
+.cta-loja span { font-size: 13.5px; color: var(--tinta-2); }
+.cadastro { display: grid; gap: 14px; }
+.cadastro fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.cadastro legend { font-size: 14px; font-weight: 650; margin-bottom: 8px; }
+.cadastro__intro { margin: 0; padding: 12px 14px; border-radius: var(--raio-p); background: var(--fundo); font-size: 14.5px; line-height: 1.5; }
+.cad-slug { display: flex; align-items: center; border: 1.5px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); overflow: hidden; }
+.cad-slug span { padding: 0 2px 0 12px; color: var(--tinta-2); font-size: 14px; white-space: nowrap; max-width: 55%; overflow: hidden; text-overflow: ellipsis; }
+.cad-slug input { border: 0 !important; box-shadow: none !important; padding-left: 0 !important; min-width: 0; flex: 1; background: transparent; }
+.cad-slug:focus-within { outline: 2px solid currentColor; outline-offset: 1px; }
+#cad-slug-st.ok { color: var(--ok, #2E7D4F); font-weight: 650; }
+#cad-slug-st.erro { color: var(--perigo); font-weight: 650; }
+.isca { position: absolute !important; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.codigo-rec { display: grid; gap: 8px; justify-items: start; padding: 14px; border: 2px dashed var(--linha); border-radius: var(--raio-p); background: var(--superficie); }
+.codigo-rec span { font-size: 13px; color: var(--tinta-2); font-weight: 600; }
+.codigo-rec strong { font: 700 24px/1.2 ui-monospace, monospace; letter-spacing: .06em; }
+.aviso-plano { display: grid; gap: 6px; justify-items: start; padding: 12px 14px; margin-bottom: 18px; border-radius: var(--raio-p); background: var(--fundo); border: 1.5px solid var(--linha); font-size: 14px; }
+.aviso-plano span { color: var(--tinta-2); }
+.aviso-plano--fora { background: var(--alerta-fundo); color: var(--alerta-tinta); border-color: transparent; }
+.aviso-plano--fora span { color: inherit; }
+.conta-det { border: 1px solid var(--linha); border-radius: var(--raio-p); padding: 10px 12px; margin-bottom: 8px; }
+.conta-det summary { cursor: pointer; font-weight: 650; font-size: 14.5px; }
+.conta-det .campos { margin-top: 10px; }
+.lojas li.loja-dono { flex-direction: column; align-items: stretch; }
+.situacao { display: inline-block; margin-top: 4px; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--fundo); }
+.situacao--ativo { background: color-mix(in srgb, var(--ok, #2E7D4F) 18%, transparent); }
+.situacao--teste { background: var(--alerta-fundo); color: var(--alerta-tinta); }
+.situacao--vencido, .situacao--bloqueado { background: color-mix(in srgb, var(--perigo) 18%, transparent); }

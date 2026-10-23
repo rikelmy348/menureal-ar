@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 5; // 2: lojas.visual (aparência) · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido
+const VERSAO_ESQUEMA = 6; // 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -23,6 +23,9 @@ const ESQUEMA = [
      categorias    TEXT NOT NULL DEFAULT '[]',              -- JSON
      visual        TEXT NOT NULL DEFAULT '{}',              -- JSON: aparência da página
      pedido        TEXT NOT NULL DEFAULT '{}',              -- JSON: entrega, retirada, taxas, pagamento
+     plano         TEXT NOT NULL DEFAULT 'ativo',           -- ativo | teste | bloqueado
+     teste_ate     TEXT NOT NULL DEFAULT '',                -- ISO: fim do teste grátis
+     codigo_hash   TEXT NOT NULL DEFAULT '',                -- código de recuperação de senha (hash)
      criada_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
      atualizada_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
@@ -53,6 +56,11 @@ const ESQUEMA = [
      resultado TEXT NOT NULL,
      criada_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
+  `CREATE TABLE IF NOT EXISTS limites (
+     chave TEXT PRIMARY KEY,
+     n     INTEGER NOT NULL,
+     ate   INTEGER NOT NULL
+   )`,
   `CREATE TABLE IF NOT EXISTS configuracao (
      chave TEXT PRIMARY KEY,
      valor TEXT NOT NULL
@@ -72,8 +80,9 @@ export async function garantirEsquema(env) {
   if (!colunas.some((c) => c.name === 'visual')) {
     await env.DB.prepare("ALTER TABLE lojas ADD COLUMN visual TEXT NOT NULL DEFAULT '{}'").run();
   }
-  if (!colunas.some((c) => c.name === 'pedido')) {
-    await env.DB.prepare("ALTER TABLE lojas ADD COLUMN pedido TEXT NOT NULL DEFAULT '{}'").run();
+  const novasLojas = [['pedido', "'{}'"], ['plano', "'ativo'"], ['teste_ate', "''"], ['codigo_hash', "''"]];
+  for (const [col, padrao] of novasLojas) {
+    if (!colunas.some((c) => c.name === col)) await env.DB.prepare(`ALTER TABLE lojas ADD COLUMN ${col} TEXT NOT NULL DEFAULT ${padrao}`).run();
   }
   const { results: colProd } = await env.DB.prepare('PRAGMA table_info(produtos)').all();
   if (!colProd.some((c) => c.name === 'adicionais')) {
@@ -161,6 +170,8 @@ export function limparVisual(v, slug) {
     fonte: FONTES.includes(v.fonte) ? v.fonte : 'moderno',
     logo: img(v.logo),
     capa: img(v.capa),
+    og: img(v.og),                                            // imagem de prévia do link (WhatsApp, Instagram)
+    ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
     marca: v.marca !== false
   };
 }
@@ -174,7 +185,8 @@ export async function lerCardapio(env, slug) {
   const { results } = await env.DB.prepare('SELECT * FROM produtos WHERE loja = ? ORDER BY posicao').bind(l.slug).all();
   return {
     padaria: { nome: l.nome, slogan: l.slogan, abre: l.abre, fecha: l.fecha, dias: lerJson(l.dias, []), whatsapp: l.whatsapp, tipo: l.tipo,
-      visual: limparVisual(lerJson(l.visual, {}), slug), pedido: limparPedido(lerJson(l.pedido, {})) },
+      visual: limparVisual(lerJson(l.visual, {}), slug), pedido: limparPedido(lerJson(l.pedido, {})),
+      plano: { situacao: situacaoLoja(l), ate: l.plano === 'teste' ? l.teste_ate : '' } },
     categorias: lerJson(l.categorias, []),
     produtos: results.map((p) => ({
       id: p.id, nome: p.nome, categoria: p.categoria, preco: p.preco, descricao: p.descricao,
@@ -238,16 +250,68 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
 // Contas das lojas
 // ---------------------------------------------------------------------------
 export async function listarLojas(env) {
-  const { results } = await env.DB.prepare(`SELECT l.slug, l.nome, l.email, l.tipo, l.criada_em AS criadoEm,
+  const { results } = await env.DB.prepare(`SELECT l.slug, l.nome, l.email, l.tipo, l.whatsapp, l.plano, l.teste_ate AS testeAte, l.criada_em AS criadoEm,
       (SELECT count(*) FROM produtos p WHERE p.loja = l.slug) AS produtos
     FROM lojas l WHERE l.slug <> ? ORDER BY l.nome`).bind(DEMO).all();
-  return results;
+  return results.map((r) => ({ ...r, situacao: situacaoLoja({ plano: r.plano, teste_ate: r.testeAte }) }));
 }
 export async function contaPorEmail(env, email) {
-  return env.DB.prepare('SELECT slug, nome, email, senha_hash FROM lojas WHERE email = ?').bind(email).first();
+  return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE email = ?').bind(email).first();
+}
+export async function contaPorSlug(env, slug) {
+  return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
+}
+export async function lojaExiste(env, slug) {
+  return Boolean(await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first());
+}
+/** ativo | teste (dentro do prazo) | vencido (teste acabou) | bloqueado */
+export function situacaoLoja(l) {
+  if (!l) return 'ativo';
+  if (l.plano === 'bloqueado') return 'bloqueado';
+  if (l.plano === 'teste') return l.teste_ate && l.teste_ate > new Date().toISOString() ? 'teste' : 'vencido';
+  return 'ativo';
+}
+export async function mudarSenha(env, slug, senhaHash) {
+  await env.DB.prepare('UPDATE lojas SET senha_hash = ?, atualizada_em = ? WHERE slug = ?').bind(senhaHash, agora(), slug).run();
+}
+export async function gravarCodigoRecuperacao(env, slug, codigoHash) {
+  await env.DB.prepare('UPDATE lojas SET codigo_hash = ? WHERE slug = ?').bind(codigoHash, slug).run();
+}
+/** plano: 'ativo' | 'bloqueado' | 'teste' (com dias a partir de hoje ou do fim do teste atual) */
+export async function mudarPlano(env, slug, plano, dias = 7) {
+  const l = await contaPorSlug(env, slug);
+  if (!l) throw erroComStatus('Loja não encontrada.', 404);
+  let ate = l.teste_ate;
+  if (plano === 'teste') {
+    const base = Math.max(Date.now(), Date.parse(l.teste_ate || 0) || 0);
+    ate = new Date(base + dias * 864e5).toISOString();
+  }
+  await env.DB.prepare('UPDATE lojas SET plano = ?, teste_ate = ?, atualizada_em = ? WHERE slug = ?').bind(plano, ate || '', agora(), slug).run();
+  return { plano, testeAte: ate, situacao: situacaoLoja({ plano, teste_ate: ate }) };
+}
+/** Dados curtos para a prévia do link (título, descrição e imagem). */
+export async function resumoLoja(env, slug) {
+  const l = await env.DB.prepare('SELECT nome, slogan, tipo, visual FROM lojas WHERE slug = ?').bind(slug).first();
+  if (!l) return null;
+  return { nome: l.nome, slogan: l.slogan, tipo: l.tipo, visual: limparVisual(lerJson(l.visual, {}), slug) };
+}
+/** Limite de tentativas (cadastro, login, recuperação). true = pode seguir. */
+export async function dentroDoLimite(env, chave, max, janelaMs) {
+  const t = Date.now();
+  const r = await env.DB.prepare('SELECT n, ate FROM limites WHERE chave = ?').bind(chave).first();
+  if (!r || r.ate < t) {
+    await env.DB.batch([
+      env.DB.prepare('INSERT INTO limites (chave, n, ate) VALUES (?, 1, ?) ON CONFLICT (chave) DO UPDATE SET n = 1, ate = excluded.ate').bind(chave, t + janelaMs),
+      env.DB.prepare('DELETE FROM limites WHERE ate < ?').bind(t - 864e5)
+    ]);
+    return true;
+  }
+  if (r.n >= max) return false;
+  await env.DB.prepare('UPDATE limites SET n = n + 1 WHERE chave = ?').bind(chave).run();
+  return true;
 }
 /** Cria a loja ou atualiza nome, e-mail e senha de uma existente. */
-export async function salvarConta(env, { slug, nome, email, senhaHash, tipo, sorveteria = false }) {
+export async function salvarConta(env, { slug, nome, email, senhaHash, tipo, sorveteria = false, teste = 0, whatsapp = '', codigoHash = '' }) {
   const existia = await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first();
   if (existia) {
     await env.DB.prepare('UPDATE lojas SET nome = ?, email = ?, senha_hash = ?, atualizada_em = ? WHERE slug = ?')
@@ -258,6 +322,12 @@ export async function salvarConta(env, { slug, nome, email, senhaHash, tipo, sor
       tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : sorveteria ? 'Monte o seu e veja na mesa' : 'Veja antes de pedir',
       JSON.stringify(tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções']
         : sorveteria ? ['Açaí', 'Sorvetes', 'Picolés', 'Milkshakes', 'Bebidas'] : ['Salgados', 'Doces', 'Bebidas'])).run();
+    if (teste > 0 || whatsapp || codigoHash || sorveteria) {
+      await env.DB.prepare(`UPDATE lojas SET plano = ?, teste_ate = ?, whatsapp = ?, codigo_hash = ?, abre = ?, fecha = ?, dias = ? WHERE slug = ?`).bind(
+        teste > 0 ? 'teste' : 'ativo', teste > 0 ? new Date(Date.now() + teste * 864e5).toISOString() : '',
+        String(whatsapp).replace(/\D/g, '').slice(0, 15), codigoHash,
+        sorveteria ? '13:00' : '08:00', sorveteria ? '22:00' : '18:00', sorveteria ? '[0,1,2,3,4,5,6]' : '[1,2,3,4,5,6]', slug).run();
+    }
   }
   return { atualizado: Boolean(existia) };
 }
