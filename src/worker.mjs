@@ -14,6 +14,7 @@ import arquivo from './api/arquivo.mjs';
 import combo from './api/combo.mjs';
 import imagem from './api/imagem.mjs';
 import montagem from './api/montagem.mjs';
+import copo from './api/copo.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -23,7 +24,8 @@ const ROTAS = {
   '/api/modelo-3d': modelo3d,
   '/api/combo': combo,
   '/api/imagem': imagem,
-  '/api/montagem': montagem
+  '/api/montagem': montagem,
+  '/api/copo': copo
 };
 
 export default {

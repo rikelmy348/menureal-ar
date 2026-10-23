@@ -228,7 +228,8 @@
           return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
         }),
         adicionais: lerAdicionais(x.adicionais),
-        montar: x.montar === true   // o cliente monta o copo em camadas
+        montar: x.montar === true,   // o cliente monta o copo em camadas
+        copo: lerCopo(x.copo)         // copo 3D sob medida (estilo, logo, medidas por tamanho)
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -326,6 +327,17 @@
         tipo3d: TIPOS_3D.some(function (t) { return t[0] && t[0] === t3; }) ? t3 : '' };
     });
   }
+  function lerCopo(c) {
+    c = c && typeof c === 'object' ? c : {};
+    var med = {};
+    Object.keys(c.medidas || {}).slice(0, 10).forEach(function (k) {
+      var m = c.medidas[k] || {};
+      var n = function (v, a, b) { v = Number(v); return v >= a && v <= b ? Math.round(v * 10) / 10 : 0; };
+      med[String(k).slice(0, 60)] = { ml: n(m.ml, 50, 3000), boca: n(m.boca, 2, 40), fundo: n(m.fundo, 2, 40), altura: n(m.altura, 3, 60) };
+    });
+    return { estilo: c.estilo === 'vidro' ? 'vidro' : 'pet', logo: c.logo !== false, medidas: med };
+  }
+
   function adicionaisDe(p, sel) {
     return (p.adicionais || []).filter(function (a) { return sel.indexOf(a.id) > -1; });
   }
@@ -1524,6 +1536,16 @@
     }
   });
   $('#admin-corpo').addEventListener('input', function (e) {
+    // copo sob medida: os ml preenchem as medidas (mesma conta de medidasPorMl em glb.mjs)
+    if (e.target.matches('[data-cm="ml"]')) {
+      var ml = Number(e.target.value);
+      if (ml >= 50 && ml <= 3000) {
+        var rt = Math.cbrt((1.1 * ml) / 5.195), l = e.target.closest('.copo-linha');
+        l.querySelector('[data-cm="boca"]').value = (2 * rt).toFixed(1);
+        l.querySelector('[data-cm="fundo"]').value = (2 * rt * 0.69).toFixed(1);
+        l.querySelector('[data-cm="altura"]').value = (2.29 * rt).toFixed(1);
+      }
+    }
     var t = e.target;
     if (t.matches('input[type="color"][data-v]')) {
       visualRascunho(function (v) {
@@ -1615,11 +1637,119 @@
             '<button class="btn btn--sec btn--p" type="button" data-adic-acai>Lista pronta de açaí</button>' +
           '</div>' +
         '</fieldset>' +
+        (ehAlimento(rascunho) ? htmlCopoAdmin(x) : '') +
         '<div class="linha-acoes">' +
           (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
           (servidor && /^(api\/arquivo\/|assets\/models\/)/.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
           '<button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
       '</div></details>';
+  }
+
+  // Copo 3D sob medida: a loja informa os ml (ou as medidas) do copo dela
+  function htmlCopoAdmin(x) {
+    var c = x.copo || lerCopo(null);
+    var linhas = x.tamanhos.length ? x.tamanhos.map(function (t) { return { id: t.id, nome: t.nome }; }) : [{ id: '_', nome: 'Copo' }];
+    var temLogo = !!(rascunho.padaria.visual && rascunho.padaria.visual.logo);
+    return '<fieldset class="campo tams-admin copo-admin"><legend>Copo 3D sob medida (açaí, sorvete, milkshake)</legend>' +
+      '<small>Informe o tamanho do copo da sua loja: o 3D sai nas mesmas medidas, pronto para o cliente montar em camadas' + (temLogo ? ' e com a sua logo estampada' : '') + '.</small>' +
+      '<div class="campos campos--2">' +
+        campo('Material', '<select data-copo="estilo"><option value="pet"' + (c.estilo !== 'vidro' ? ' selected' : '') + '>Plástico transparente</option><option value="vidro"' + (c.estilo === 'vidro' ? ' selected' : '') + '>Vidro</option></select>') +
+        (temLogo ? '<label class="checar" style="align-self:end"><input type="checkbox" data-copo="logo"' + (c.logo ? ' checked' : '') + '> Logo da loja no copo</label>'
+          : '<small style="align-self:end">Envie a logo em “Aparência da página” para estampar no copo.</small>') +
+      '</div>' +
+      linhas.map(function (l) {
+        var m = c.medidas[l.id] || {};
+        return '<div class="copo-linha" data-copo-tam="' + esc(l.id) + '"><strong>' + esc(l.nome) + '</strong>' +
+          '<div class="campos campos--4">' +
+            campo('ml', '<input data-cm="ml" type="number" min="50" max="3000" step="10" inputmode="numeric" value="' + (m.ml || '') + '" placeholder="500">') +
+            campo('Boca (cm)', '<input data-cm="boca" type="number" min="2" max="40" step="0.1" inputmode="decimal" value="' + (m.boca || '') + '">') +
+            campo('Fundo (cm)', '<input data-cm="fundo" type="number" min="2" max="40" step="0.1" inputmode="decimal" value="' + (m.fundo || '') + '">') +
+            campo('Altura (cm)', '<input data-cm="altura" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="' + (m.altura || '') + '">') +
+          '</div></div>';
+      }).join('') +
+      '<small>Só sabe os ml? Preencha e as medidas vêm sozinhas. Tem uma régua? Meça o diâmetro da boca, do fundo e a altura do copo.</small>' +
+      (servidor ? '<button class="btn btn--sec btn--p" type="button" data-copo-gerar>' + ICONES.cubo + 'Gerar copo 3D e ligar o montador</button>' : '<small>Disponível no site publicado.</small>') +
+    '</fieldset>';
+  }
+  function coletarCopo(d, x) {
+    var est = d.querySelector('[data-copo="estilo"]');
+    if (!est) return;
+    var logo = d.querySelector('[data-copo="logo"]');
+    var med = {};
+    $$('.copo-linha', d).forEach(function (l) {
+      var q = function (k) { return Number(l.querySelector('[data-cm="' + k + '"]').value) || 0; };
+      med[l.getAttribute('data-copo-tam')] = { ml: q('ml'), boca: q('boca'), fundo: q('fundo'), altura: q('altura') };
+    });
+    x.copo = lerCopo({ estilo: est.value, logo: logo ? logo.checked : (x.copo || {}).logo, medidas: med });
+  }
+
+  // logo da loja em PNG (para estampar no copo 3D)
+  function logoPng() {
+    var url = rascunho.padaria.visual && rascunho.padaria.visual.logo;
+    if (!url) return Promise.resolve(null);
+    return new Promise(function (ok) {
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        var k = Math.min(1, 640 / Math.max(img.naturalWidth, img.naturalHeight));
+        var cv = document.createElement('canvas');
+        cv.width = Math.max(1, Math.round(img.naturalWidth * k)); cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+        cv.toBlob(function (b) {
+          if (!b) { ok(null); return; }
+          b.arrayBuffer().then(function (ab) { ok({ bytes: new Uint8Array(ab), tipo: 'image/png', largura: cv.width, altura: cv.height }); });
+        }, 'image/png');
+      };
+      img.onerror = function () { ok(null); };
+      img.src = url;
+    });
+  }
+
+  function gerarCopos(botao, x) {
+    if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
+    var c = x.copo || lerCopo(null);
+    var linhas = x.tamanhos.length ? x.tamanhos : [null];
+    var faltando = linhas.filter(function (t) { var m = c.medidas[t ? t.id : '_'] || {}; return !(m.boca && m.fundo && m.altura); });
+    if (faltando.length) { toast('Preencha os ml ou as medidas de cada copo'); return; }
+    botao.disabled = true;
+    var txt = botao.innerHTML;
+    botao.textContent = 'Gerando copos…';
+    var modelo = 'assets/models/' + (c.estilo === 'vidro' ? 'acai-500.glb' : 'acai-pet-500.glb');
+    Promise.all([carregarModuloGlb(), baixarArquivo(modelo), c.logo ? logoPng() : null]).then(function (r) {
+      var m = r[0], base = new Uint8Array(r[1]), logo = r[2];
+      var i = 0;
+      function proximo() {
+        if (i >= linhas.length) return Promise.resolve();
+        var t = linhas[i++];
+        var med = c.medidas[t ? t.id : '_'];
+        botao.textContent = 'Gerando copo ' + (t ? t.nome : '') + '… (' + i + '/' + linhas.length + ')';
+        var res = m.gerarCopo(base, med, logo);
+        var nome = slug(x.nome + (t ? '-' + t.nome : '') + '-copo');
+        return fetch(comLoja('api/copo') + (LOJA ? '&' : '?') + 'nome=' + encodeURIComponent(nome), {
+          method: 'POST', headers: Object.assign({ 'content-type': 'model/gltf-binary' }, credenciais()), body: res.glb
+        }).then(function (resp) {
+          return resp.json().then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; });
+        }).then(function (j) {
+          var dim = { largura: res.medidasCm.largura, profundidade: res.medidasCm.profundidade, altura: res.medidasCm.altura };
+          if (t) { t.modelo = j.url; t.dim = dim; } else { x.modelo = j.url; x.dim = dim; }
+          return proximo();
+        });
+      }
+      return proximo();
+    }).then(function () {
+      if (x.tamanhos.length) {   // o produto mostra o copo do meio
+        var meio = x.tamanhos[Math.min(1, x.tamanhos.length - 1)];
+        x.modelo = meio.modelo; x.dim = { largura: meio.dim.largura, profundidade: meio.dim.profundidade, altura: meio.dim.altura };
+      }
+      x.ilustrativo = true;
+      x.montar = true;
+      if (!x.adicionais.length) ADICIONAIS_ACAI.forEach(function (a) { x.adicionais.push(clonar(a)); });
+      abertoNoAdmin = x.id; renderAdmin();
+      toast('Copos 3D prontos e montador ligado. Toque em “Salvar alterações” para publicar.');
+    }).catch(function (e) {
+      botao.disabled = false; botao.innerHTML = txt;
+      toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message);
+    });
   }
 
   // lê o formulário para o rascunho (sem validar)
@@ -1648,6 +1778,7 @@
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
       x.montar = g('montar').checked;
+      coletarCopo(d, x);
       x.ingredientes = g('ingredientes').value.trim();
       if (ehAlimento(rascunho)) x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
       x.tamanhos = $$('.tam-linha', d).map(function (l) {
@@ -1811,6 +1942,8 @@
     }
     var tam3d = e.target.closest('[data-tam-3d]');
     if (tam3d) { coletarAdmin(); gerarTamanhos3d(tam3d, rascunho.produtos[Number(tam3d.closest('details').getAttribute('data-i'))]); return; }
+    var copoGerar = e.target.closest('[data-copo-gerar]');
+    if (copoGerar) { coletarAdmin(); gerarCopos(copoGerar, rascunho.produtos[Number(copoGerar.closest('details').getAttribute('data-i'))]); return; }
     if (e.target.closest('#admin-foto')) {
       coletarAdmin();
       abrirLeitorFoto();

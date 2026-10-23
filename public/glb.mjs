@@ -756,3 +756,156 @@ function animarColuna(c, col, coberturas, info) {
   });
   if (channels.length) c.json.animations = [{ name: 'entrada', samplers, channels }];
 }
+
+// ---------------------------------------------------------------------------
+// Copo sob medida: a loja informa as medidas do copo dela (boca, fundo, altura) e,
+// se quiser, a logo estampada. As texturas e materiais vêm de um copo modelo
+// (assets/models/acai-pet-500.glb ou acai-500.glb); a geometria é refeita aqui,
+// com as mesmas proporções internas que tools/gerar_acai.py usa (camadas e caldas
+// escorrendo continuam encaixando).
+// ---------------------------------------------------------------------------
+const PROP_VIDRO = 0.030, PROP_FOLGA = 0.012, PROP_BASE = 0.105;
+
+/** Medidas típicas (cm) de um copo de açaí com essa capacidade em ml. */
+export function medidasPorMl(ml) {
+  const v = Math.max(80, Math.min(2000, Number(ml) || 500));
+  const rt = Math.cbrt((1.1 * v) / 5.195);           // proporções: fundo 0,69 da boca, altura 2,29 × raio
+  return { boca: +(2 * rt).toFixed(1), fundo: +(2 * rt * 0.69).toFixed(1), altura: +(2.29 * rt).toFixed(1) };
+}
+
+function revolucao(raio, alt, linhas, nq, sentido, ref) {
+  // sentido: 1 = normal para fora do eixo, -1 = para dentro; ref(t) opcional = centro de referência
+  const pos = [], nrm = [], uv = [], idx = [];
+  const P = (t, q) => { const th = (q / nq) * Math.PI * 2, r = raio(t); return [r * Math.cos(th), alt(t), -r * Math.sin(th)]; };
+  for (let j = 0; j < linhas; j++) {
+    const t = j / (linhas - 1);
+    for (let q = 0; q <= nq; q++) {
+      const p = P(t, q);
+      const dt = 1e-3, a = P(Math.min(1, t + dt), q), b = P(Math.max(0, t - dt), q);
+      const th = (q / nq) * Math.PI * 2;
+      const tq = [-Math.sin(th), 0, -Math.cos(th)];
+      const tv = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+      let n = [tv[1] * tq[2] - tv[2] * tq[1], tv[2] * tq[0] - tv[0] * tq[2], tv[0] * tq[1] - tv[1] * tq[0]];
+      const l = Math.hypot(...n) || 1;
+      n = n.map((x) => x / l);
+      const c = ref ? ref(t, th) : [0, p[1], 0];
+      const fora = (p[0] - c[0]) * n[0] + (p[1] - c[1]) * n[1] + (p[2] - c[2]) * n[2];
+      if ((fora < 0) === (sentido > 0)) n = n.map((x) => -x);
+      pos.push(...p); nrm.push(...n); uv.push(q / nq, t);
+    }
+  }
+  for (let j = 0; j < linhas - 1; j++) for (let q = 0; q < nq; q++) {
+    const a = j * (nq + 1) + q, b = a + 1, d = a + nq + 1, e = d + 1;
+    // ordem dos vértices acompanha a normal
+    const p0 = pos.slice(a * 3, a * 3 + 3), p1 = pos.slice(b * 3, b * 3 + 3), p2 = pos.slice(e * 3, e * 3 + 3);
+    const u = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], w = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
+    const cr = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]];
+    const nn = nrm.slice(a * 3, a * 3 + 3);
+    if (cr[0] * nn[0] + cr[1] * nn[1] + cr[2] * nn[2] >= 0) idx.push(a, b, e, a, e, d); else idx.push(a, e, b, a, d, e);
+  }
+  return { pos, nrm, uv, idx };
+}
+function discoMalha(r, y, nq, cima) {
+  const pos = [0, y, 0], nrm = [0, cima ? 1 : -1, 0], uv = [0.5, 0.5], idx = [];
+  for (let q = 0; q <= nq; q++) {
+    const th = (q / nq) * Math.PI * 2;
+    pos.push(r * Math.cos(th), y, -r * Math.sin(th)); nrm.push(0, cima ? 1 : -1, 0); uv.push(0.5 + 0.5 * Math.cos(th), 0.5 + 0.5 * Math.sin(th));
+  }
+  for (let q = 1; q <= nq; q++) cima ? idx.push(0, q, q + 1) : idx.push(0, q + 1, q);
+  return { pos, nrm, uv, idx };
+}
+function juntarMalhas(lista) {
+  const out = { pos: [], nrm: [], uv: [], idx: [] };
+  lista.forEach((m) => {
+    const base = out.pos.length / 3;
+    out.pos.push(...m.pos); out.nrm.push(...m.nrm); out.uv.push(...m.uv); out.idx.push(...m.idx.map((i) => i + base));
+  });
+  return out;
+}
+
+/**
+ * modelo: bytes do copo modelo. medidas: { boca, fundo, altura } em cm.
+ * logo (opcional): { bytes: PNG/JPEG, tipo: 'image/png', largura, altura }.
+ * Devolve o GLB do copo com açaí, pronto para o montador (asset.extras.copo).
+ */
+export function gerarCopo(modelo, medidas, logo) {
+  const t = lerGlb(modelo);
+  const rt = medidas.boca / 200, rb = medidas.fundo / 200, H = medidas.altura / 100;
+  if (!(rt > 0.01 && rb > 0.008 && rb <= rt * 1.2 && H > 0.03 && H < 0.6)) throw new Error('Medidas do copo inválidas.');
+  const g = PROP_VIDRO * rt, folga = PROP_FOLGA * rt, base = PROP_BASE * rt;
+  const s = AREA * 2 * rt, k = (4 * DOMO) / s;
+  const yb = H - 0.0015, y0 = base + 0.0004;
+  const raT = rt - g - folga, raB = rb - g - folga;
+  const pico = yb + k * raT * raT;
+  const c = {
+    json: { asset: { version: '2.0', generator: 'MenuReal AR · copo sob medida', extras: {} }, scene: 0, scenes: [{ nodes: [] }], nodes: [], meshes: [],
+      materials: JSON.parse(JSON.stringify(t.json.materials)), textures: JSON.parse(JSON.stringify(t.json.textures || [])),
+      images: [], samplers: JSON.parse(JSON.stringify(t.json.samplers || [{}])), accessors: [], bufferViews: [], buffers: [{ byteLength: 0 }] },
+    partes: [], binTotal: 0
+  };
+  // imagens do modelo (só os bytes delas; a geometria antiga fica de fora)
+  (t.json.images || []).forEach((im) => {
+    const bv = t.json.bufferViews[im.bufferView];
+    const bytes = t.bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength);
+    c.json.images.push({ bufferView: anexar(c, new Uint8Array(bytes)), mimeType: im.mimeType });
+  });
+  if (t.json.extensionsUsed) c.json.extensionsUsed = t.json.extensionsUsed.slice();
+  const mat = (nome) => Math.max(0, c.json.materials.findIndex((m) => m.name === nome));
+  const pet = !c.json.materials.some((m) => m.extensions && m.extensions.KHR_materials_ior && (m.pbrMetallicRoughness.baseColorFactor || [])[3] > 0.12);
+  const NQ = 128;
+  // vidro/plástico: parede externa (com frisos no PET), interna, fundo grosso e borda arredondada
+  const friso = (u) => (pet && u > 0.82 ? 0.00035 * Math.max(0, Math.sin(Math.min(1, (u - 0.82) / 0.16) * Math.PI * 5)) : 0) + (pet ? 0.0006 * Math.exp(-(((u - 0.04) / 0.012) ** 2)) : 0);
+  const vidro = juntarMalhas([
+    revolucao((u) => rb + (rt - rb) * u + friso(u), (u) => H * u, pet ? 160 : 40, NQ, 1),
+    revolucao((u) => rb - g + (rt - rb) * u, (u) => base + (H - base) * u, 40, NQ, -1),
+    discoMalha(rb, 0, NQ, false), discoMalha(rb - g, base, NQ, true)
+  ]);
+  const borda = revolucao((u) => rt - g / 2 + (g / 2) * Math.cos(u * Math.PI), (u) => H + (g / 2) * Math.sin(u * Math.PI), 12, NQ, 1,
+    (u, th) => [(rt - g / 2) * Math.cos(th), H, -(rt - g / 2) * Math.sin(th)]);
+  // açaí (interior: some quando o cliente monta as camadas)
+  const parede = juntarMalhas([revolucao((u) => raB + (raT - raB) * u, (u) => y0 + (yb - y0) * u, 32, NQ, 1), discoMalha(raB, y0, NQ, false)]);
+  const topo = revolucao((u) => raT * u, (u) => pico - k * (raT * u) ** 2, 40, NQ, 1, (u) => [0, -1, 0]);
+  const no = (nome, m, extras) => { c.json.nodes.push(Object.assign({ name: nome, mesh: m }, extras ? { extras } : {})); c.json.scenes[0].nodes.push(c.json.nodes.length - 1); };
+  // um nó para o interior (com as duas malhas como filhas) e outro para o copo
+  const mParede = malha(c, 'acai_parede', parede.pos, parede.nrm, parede.uv, parede.idx, mat('acai_parede'));
+  const mTopo = malha(c, 'acai_topo', topo.pos, topo.nrm, topo.uv, topo.idx, mat('acai'));
+  c.json.nodes.push({ name: 'interior_topo', mesh: mTopo });
+  c.json.nodes.push({ name: 'interior', mesh: mParede, extras: { interior: true }, children: [c.json.nodes.length - 1] });
+  c.json.scenes[0].nodes.push(c.json.nodes.length - 1);
+  // logo estampada na frente do copo (de frente para a câmera)
+  if (logo && logo.bytes) {
+    c.json.images.push({ bufferView: anexar(c, logo.bytes), mimeType: logo.tipo || 'image/png' });
+    c.json.samplers.push({ magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 });
+    c.json.textures.push({ source: c.json.images.length - 1, sampler: c.json.samplers.length - 1 });
+    c.json.materials.push({ name: 'logo', alphaMode: 'BLEND', doubleSided: false,
+      pbrMetallicRoughness: { baseColorTexture: { index: c.json.textures.length - 1 }, metallicFactor: 0, roughnessFactor: 0.45 } });
+    const asp = (logo.largura || 1) / (logo.altura || 1);
+    let h = 0.3 * H;
+    const yc = 0.5 * H, rmed = rb + (rt - rb) * (yc / H);
+    let arco = (h * asp) / rmed;
+    if (arco > 2.0) { arco = 2.0; h = (arco * rmed) / asp; }
+    const L = 24, Q = 48, pos = [], nrm = [], uv = [], idx = [];
+    const centro = -Math.PI / 2;
+    for (let j = 0; j < L; j++) {
+      const v = j / (L - 1), y = yc + h / 2 - h * v;
+      const r = rb + (rt - rb) * (y / H) + 0.00025;
+      for (let q = 0; q < Q; q++) {
+        const u = q / (Q - 1), th = centro - arco / 2 + arco * u;
+        pos.push(r * Math.cos(th), y, -r * Math.sin(th));
+        nrm.push(Math.cos(th), 0, -Math.sin(th));
+        uv.push(u, v);
+      }
+    }
+    for (let j = 0; j < L - 1; j++) for (let q = 0; q < Q - 1; q++) {
+      const a = j * Q + q, b = a + 1, d = a + Q, e = d + 1;
+      idx.push(a, d, e, a, e, b);
+    }
+    no('logo', malha(c, 'logo', pos, nrm, uv, idx, c.json.materials.length - 1));
+  }
+  no('copo', malha(c, 'copo', vidro.pos, vidro.nrm, vidro.uv, vidro.idx, mat('vidro')));
+  no('copo_borda', malha(c, 'copo_borda', borda.pos, borda.nrm, borda.uv, borda.idx, mat('vidro_borda')));
+  const larg = 2 * rt * 100, alt = pico * 100;
+  c.json.asset.extras = { unidade: 'metro', dimensoes_cm: { largura_x: +larg.toFixed(2), profundidade_z: +larg.toFixed(2), altura_y: +alt.toFixed(2) },
+    copo: { rt, rb, H, g, folga, base, y0, y_borda: yb, pico, k } };
+  return { glb: finalizar(c), medidasCm: { largura: +larg.toFixed(1), profundidade: +larg.toFixed(1), altura: +alt.toFixed(1) } };
+}

@@ -646,3 +646,7 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .montador__dica { margin: 0 0 8px; font-size: 14.5px; }
 .montador__acoes { margin-top: 10px; }
 #viewer-add:disabled { opacity: .55; cursor: not-allowed; }
+
+.copo-linha { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--linha); }
+.campos--4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 420px) { .campos--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

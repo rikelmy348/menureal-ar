@@ -92,6 +92,16 @@ const slugBanco = (slug) => slug || DEMO;
 
 const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'morango_picado', 'leite_po', 'leite_condensado', 'calda_chocolate', 'nutella',
   'camada_creme', 'camada_morango', 'camada_nutella'];
+function limparCopo(c) {
+  if (!c || typeof c !== 'object') return null;
+  const n = (v, a, b) => { v = Number(v); return v >= a && v <= b ? Math.round(v * 10) / 10 : 0; };
+  const medidas = {};
+  Object.keys(c.medidas || {}).slice(0, 10).forEach((k) => {
+    const m = c.medidas[k] || {};
+    medidas[texto(k, 60)] = { ml: n(m.ml, 50, 3000), boca: n(m.boca, 2, 40), fundo: n(m.fundo, 2, 40), altura: n(m.altura, 3, 60) };
+  });
+  return { estilo: c.estilo === 'vidro' ? 'vidro' : 'pet', logo: c.logo !== false, medidas };
+}
 function limparAdicionais(lista) {
   const vistos = new Set();
   return (Array.isArray(lista) ? lista : []).filter((a) => a && a.nome).slice(0, 30).map((a, i) => {
@@ -138,7 +148,7 @@ export async function lerCardapio(env, slug) {
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
-      montar: Boolean(lerJson(p.opcoes, {}).montar)
+      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -185,7 +195,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo) })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

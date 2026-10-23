@@ -336,6 +336,13 @@ Cada pedaço é animado: frutas e granola caem girando e quicam, a calda é "des
 sobre o açaí e escorre pelo vidro, o leite em pó forma um montinho. Na tela, uma **mão** chega por trás do copo e solta frutas, granola e
 confetes da pinça, e um **frasco de vidro** passa por cima despejando as caldas
 (`public/assets/adicionais/_mao.glb` e `_frasco_*.glb`; não vão para a câmera); o copo também pode ser o 3D gerado pela foto da loja.
+**Copo 3D sob medida (o copo da própria loja):** no produto, em *Copo 3D sob medida*, a loja
+escolhe plástico ou vidro e informa, por tamanho, os **ml** (as medidas vêm sozinhas) ou as
+medidas medidas com régua (boca, fundo, altura). *Gerar copo 3D e ligar o montador* cria um
+copo 3D com essas medidas — com a **logo da loja estampada**, se ela tiver logo — no próprio
+navegador (`gerarCopo` em `public/glb.mjs`), envia para `/api/copo` (guardado no KV), coloca
+o copo em cada tamanho e liga o montador. Basta salvar.
+
 **O cliente monta o copo:** no produto, marque *O cliente monta o copo em camadas*. No
 cardápio, o cliente começa com o copo vazio e vai tocando em **+ Açaí**, **+ Banana**,
 **+ Creme de ninho**… — cada toque põe uma camada por cima (pode repetir), com animação: a
