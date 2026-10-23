@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 4; // 2: lojas.visual (aparência) · 3: produtos.adicionais · 4: produtos.opcoes
+const VERSAO_ESQUEMA = 5; // 2: lojas.visual (aparência) · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -22,6 +22,7 @@ const ESQUEMA = [
      whatsapp      TEXT NOT NULL DEFAULT '',
      categorias    TEXT NOT NULL DEFAULT '[]',              -- JSON
      visual        TEXT NOT NULL DEFAULT '{}',              -- JSON: aparência da página
+     pedido        TEXT NOT NULL DEFAULT '{}',              -- JSON: entrega, retirada, taxas, pagamento
      criada_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
      atualizada_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
@@ -71,6 +72,9 @@ export async function garantirEsquema(env) {
   if (!colunas.some((c) => c.name === 'visual')) {
     await env.DB.prepare("ALTER TABLE lojas ADD COLUMN visual TEXT NOT NULL DEFAULT '{}'").run();
   }
+  if (!colunas.some((c) => c.name === 'pedido')) {
+    await env.DB.prepare("ALTER TABLE lojas ADD COLUMN pedido TEXT NOT NULL DEFAULT '{}'").run();
+  }
   const { results: colProd } = await env.DB.prepare('PRAGMA table_info(produtos)').all();
   if (!colProd.some((c) => c.name === 'adicionais')) {
     await env.DB.prepare("ALTER TABLE produtos ADD COLUMN adicionais TEXT NOT NULL DEFAULT '[]'").run();
@@ -109,8 +113,37 @@ function limparAdicionais(lista) {
     while (vistos.has(id)) id += '2';
     vistos.add(id);
     return { id, nome: texto(a.nome, 40), preco: Math.min(9999, Math.max(0, Math.round((Number(a.preco) || 0) * 100) / 100)),
-      tipo3d: TIPOS_3D.includes(a.tipo3d) ? a.tipo3d : '' };
+      tipo3d: TIPOS_3D.includes(a.tipo3d) ? a.tipo3d : '', esgotado: a.esgotado === true };
   });
+}
+
+const reais = (v, max) => Math.min(max, Math.max(0, Math.round((Number(v) || 0) * 100) / 100));
+const TIPOS_PIX = ['cpf', 'cnpj', 'telefone', 'email', 'aleatoria'];
+/** Como a loja recebe pedidos: entrega, retirada, taxas, pagamento, horário. */
+export function limparPedido(v) {
+  v = v && typeof v === 'object' ? v : {};
+  const bairros = (Array.isArray(v.bairros) ? v.bairros : []).filter((b) => b && b.nome).slice(0, 60)
+    .map((b) => ({ nome: texto(b.nome, 50).trim(), taxa: reais(b.taxa, 999) })).filter((b) => b.nome);
+  const pix = v.pix && typeof v.pix === 'object' ? v.pix : {};
+  return {
+    entrega: v.entrega !== false,
+    retirada: v.retirada !== false,
+    local: v.local === true,
+    taxa: reais(v.taxa, 999),
+    bairros,
+    minimo: reais(v.minimo, 9999),
+    tempo: texto(v.tempo, 40),
+    endereco: texto(v.endereco, 160),
+    pagamento: {
+      pix: !(v.pagamento && v.pagamento.pix === false),
+      cartao: !(v.pagamento && v.pagamento.cartao === false),
+      dinheiro: !(v.pagamento && v.pagamento.dinheiro === false)
+    },
+    pix: { tipo: TIPOS_PIX.includes(pix.tipo) ? pix.tipo : 'cpf', chave: texto(pix.chave, 77).trim(),
+      nome: texto(pix.nome, 25).trim(), cidade: texto(pix.cidade, 15).trim() },
+    foraDoHorario: v.foraDoHorario === 'agendar' ? 'agendar' : 'bloquear',
+    pausado: v.pausado === true
+  };
 }
 
 export const FONTES = ['moderno', 'elegante', 'divertido', 'classico'];
@@ -141,14 +174,14 @@ export async function lerCardapio(env, slug) {
   const { results } = await env.DB.prepare('SELECT * FROM produtos WHERE loja = ? ORDER BY posicao').bind(l.slug).all();
   return {
     padaria: { nome: l.nome, slogan: l.slogan, abre: l.abre, fecha: l.fecha, dias: lerJson(l.dias, []), whatsapp: l.whatsapp, tipo: l.tipo,
-      visual: limparVisual(lerJson(l.visual, {}), slug) },
+      visual: limparVisual(lerJson(l.visual, {}), slug), pedido: limparPedido(lerJson(l.pedido, {})) },
     categorias: lerJson(l.categorias, []),
     produtos: results.map((p) => ({
       id: p.id, nome: p.nome, categoria: p.categoria, preco: p.preco, descricao: p.descricao,
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
-      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null
+      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null, esgotado: Boolean(lerJson(p.opcoes, {}).esgotado)
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -171,11 +204,11 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
   }
 
   const comandos = [
-    env.DB.prepare(`UPDATE lojas SET nome = ?, slogan = ?, abre = ?, fecha = ?, dias = ?, whatsapp = ?, tipo = ?, categorias = ?, visual = ?, atualizada_em = ?
+    env.DB.prepare(`UPDATE lojas SET nome = ?, slogan = ?, abre = ?, fecha = ?, dias = ?, whatsapp = ?, tipo = ?, categorias = ?, visual = ?, pedido = ?, atualizada_em = ?
                     WHERE slug = ?`).bind(
       texto(p.nome, 60) || 'Loja', texto(p.slogan, 90), /^\d{2}:\d{2}$/.test(p.abre) ? p.abre : '08:00',
       /^\d{2}:\d{2}$/.test(p.fecha) ? p.fecha : '18:00', JSON.stringify(dias), String(p.whatsapp || '').replace(/\D/g, '').slice(0, 15),
-      tipo, JSON.stringify(categorias), JSON.stringify(limparVisual(p.visual, slug)), atual, s),
+      tipo, JSON.stringify(categorias), JSON.stringify(limparVisual(p.visual, slug)), JSON.stringify(limparPedido(p.pedido)), atual, s),
     env.DB.prepare('DELETE FROM produtos WHERE loja = ?').bind(s)
   ];
   const inserir = env.DB.prepare(`INSERT INTO produtos (loja, id, posicao, nome, categoria, preco, descricao, largura_cm, profundidade_cm, altura_cm,
@@ -195,7 +228,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo) })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo), esgotado: x.esgotado === true })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

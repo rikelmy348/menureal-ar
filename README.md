@@ -366,6 +366,20 @@ Variável opcional: `MENUREAL_SEGREDO` (texto longo aleatório) para assinar os
 logins. Sem ela, a assinatura usa o `MENUREAL_CODIGO`; trocar qualquer um dos
 dois desconecta todas as lojas.
 
+## 7e. Pedidos, entrega, Pix, esgotado e cartaz com QR Code
+
+No painel da loja, seção **Pedidos, entrega e pagamento**:
+
+- **Entrega, retirada e/ou consumo no local**; taxa fixa ou **taxa por bairro** (`Bairro = taxa`, um por linha — com a lista, só entrega nesses bairros); **pedido mínimo**; tempo de entrega; endereço para retirada.
+- **Pagamento**: Pix, cartão (na entrega/retirada) e dinheiro com troco.
+- **Chave Pix (opcional)**: o cliente recebe o **Pix copia e cola e o QR já com o valor do pedido** (BR Code do Banco Central, gerado no navegador). O dinheiro vai direto para a conta da loja; não há confirmação automática — a loja confere o comprovante. Botão "Testar a chave" gera um Pix de R$ 0,01 para conferir o nome no app do banco.
+- **Fora do horário**: não aceitar pedidos ou aceitar "para quando abrir". Horário pode passar da meia-noite (ex.: 14h às 0h30). **Pausar pedidos agora** para imprevistos.
+- **Esgotado**: em cada produto e em cada adicional. Aparece no cardápio, mas não dá para pedir.
+
+O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bairro, pagamento → **Enviar pedido pelo WhatsApp** (mensagem completa com endereço, taxa, total e pagamento). Nome e endereço ficam salvos no aparelho dele para a próxima vez.
+
+**Cartaz com QR Code**: no painel, "Criar cartaz com QR Code" gera uma imagem A4 com as cores e a logo da loja e o link do cardápio (baixar PNG ou imprimir). Gerador de QR: `vendor/qrcode.js` (qrcode-generator, MIT, Kazuhiko Arase).
+
 ## 7d. Banco de dados
 
 Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são

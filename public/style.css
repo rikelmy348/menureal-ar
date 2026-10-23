@@ -650,3 +650,42 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .copo-linha { display: grid; gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--linha); }
 .campos--4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 @media (max-width: 420px) { .campos--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---- Esgotado ---- */
+.card--esgotado .card__palco, .card--esgotado .card__nome, .card--esgotado .card__preco { opacity: .55; }
+.selo-esgotado { position: absolute; top: 10px; left: 10px; z-index: 2; background: #2B2B2B; color: #fff; font-size: 12px; font-weight: 700; letter-spacing: .02em; padding: 4px 10px; border-radius: 999px; }
+.card__esgotado { font-size: 13px; font-weight: 700; color: var(--tinta-2); padding: 6px 10px; border: 1.5px dashed var(--linha); border-radius: 999px; }
+.adic--esgotado { opacity: .5; cursor: not-allowed; text-decoration: line-through; }
+.adic--esgotado small { text-decoration: none; }
+.item--esgotado .item__nome { text-decoration: line-through; opacity: .6; }
+.item--esgotado .item__unit { color: var(--perigo); font-weight: 650; }
+.tag-esgotado { display: inline-block; font-size: 11px; font-weight: 700; background: #2B2B2B; color: #fff; padding: 1px 7px; border-radius: 999px; vertical-align: 2px; }
+.checar--alerta { align-items: flex-start; background: var(--alerta-fundo); color: var(--alerta-tinta); padding: 10px 12px; border-radius: var(--raio-p); }
+.checar--alerta input { margin-top: 2px; flex: none; }
+.checar--alerta small { font-weight: 400; }
+.checar--p { min-height: 32px; font-size: 13px; }
+
+/* ---- Finalizar pedido ---- */
+.aviso-pedido { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--raio-p); background: var(--alerta-fundo); color: var(--alerta-tinta); font-size: 14px; font-weight: 550; }
+.aviso-pedido--ok { background: var(--fundo); color: var(--tinta-2); }
+.checkout { display: grid; gap: 14px; }
+.checkout fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.checkout legend { font-size: 14px; font-weight: 650; margin-bottom: 8px; }
+.opcoes { display: grid; gap: 8px; }
+.opcao { display: flex; gap: 10px; align-items: center; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); cursor: pointer; font-size: 15px; font-weight: 650; }
+.opcao input { width: 20px; height: 20px; flex: none; accent-color: var(--marca, #10402D); }
+.opcao span { display: grid; gap: 2px; }
+.opcao small { font-size: 12.5px; font-weight: 450; color: var(--tinta-2); }
+.opcao:has(input:checked) { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+.campos--rua { display: grid; grid-template-columns: 1fr 96px; gap: 10px; }
+.erro-campo { color: var(--perigo); font-size: 13px; font-weight: 550; }
+.pix { display: grid; gap: 10px; padding: 14px; border: 1.5px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); }
+.pix h4 { margin: 0; font-size: 18px; }
+.pix__qr { width: min(220px, 70%); margin: 0 auto; }
+.pix__qr svg { display: block; width: 100%; height: auto; }
+.pix__codigo { width: 100%; font: 12px/1.4 ui-monospace, monospace; padding: 8px; border: 1px solid var(--linha); border-radius: 8px; resize: none; background: var(--fundo); color: inherit; word-break: break-all; }
+.pix--teste { margin-top: 10px; }
+.resumo-det summary { cursor: pointer; font-size: 14px; font-weight: 600; padding: 6px 0; }
+
+/* ---- Cartaz QR ---- */
+.cartaz-previa { display: block; width: 100%; max-width: 360px; margin: 12px auto; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); }
