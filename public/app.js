@@ -3791,6 +3791,30 @@
     }
   });
   setInterval(renderCabecalho, 60000);
+
+  // Versão nova publicada enquanto a aba estava aberta: oferece recarregar
+  (function () {
+    if (location.protocol === 'file:') return;
+    var inicial = null, ultima = 0;
+    function versao() {
+      return fetch('app.js', { method: 'HEAD', cache: 'no-store' }).then(function (r) { return r.ok ? r.headers.get('etag') || r.headers.get('last-modified') : null; }).catch(function () { return null; });
+    }
+    versao().then(function (v) { inicial = v; ultima = Date.now(); });
+    function conferir() {
+      if (document.visibilityState !== 'visible' || !inicial || Date.now() - ultima < 5 * 60000 || $('.versao-nova')) return;
+      ultima = Date.now();
+      versao().then(function (v) {
+        if (!v || v === inicial) return;
+        var el = document.createElement('div');
+        el.className = 'versao-nova'; el.setAttribute('role', 'status');
+        el.innerHTML = '<span>Tem versão nova do ' + termo() + '</span><button type="button">Atualizar</button>';
+        el.querySelector('button').addEventListener('click', function () { location.reload(); });
+        document.body.appendChild(el);
+      });
+    }
+    document.addEventListener('visibilitychange', conferir);
+    window.addEventListener('focus', conferir);
+  })();
   $('#land-criar').addEventListener('click', abrirCadastro);
   $('#land-como').addEventListener('click', function () { abrirAjuda('loja'); });
   $('#btn-ajuda').addEventListener('click', function () { abrirAjuda(LOJA ? 'cliente' : 'loja'); });

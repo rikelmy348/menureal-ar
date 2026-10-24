@@ -440,10 +440,10 @@ body.travado { overflow: hidden; }
 .tam[aria-pressed="true"] { border-color: var(--tinta); background: var(--limao-suave); }
 
 /* ----------------------------- Medidas ----------------------------- */
-.med-ponto { display: block; width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: #10402D; box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; }
-.med-rotulo { font: 750 13px/1 var(--fonte); color: #10261A; background: #C6F25A; white-space: nowrap; padding: 5px 9px; border-radius: 7px; box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; font-variant-numeric: tabular-nums; }
+.med-ponto { display: block; width: 10px; height: 10px; padding: 0; border-radius: 50%; border: 2px solid #fff; background: var(--hero, #6A1BB3); box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; }
+.med-rotulo { font: 750 13px/1 var(--fonte); color: var(--sobre-limao); background: var(--limao); white-space: nowrap; padding: 5px 9px; border-radius: 7px; box-shadow: 0 2px 8px rgba(0,0,0,.25); pointer-events: none; font-variant-numeric: tabular-nums; }
 .med-linhas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
-.med-linhas line { stroke: #C6F25A; stroke-width: 2.5; stroke-dasharray: 5 4; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
+.med-linhas line { stroke: var(--limao); stroke-width: 2.5; stroke-dasharray: 5 4; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.45)); }
 model-viewer.sem-medidas .med-ponto, model-viewer.sem-medidas .med-rotulo, model-viewer.sem-medidas .med-linhas { display: none; }
 /* Na câmera (RA) cada efeito é redesenhado a cada quadro sobre o vídeo: sem sombras nem filtros, fica leve */
 model-viewer[ar-status="session-started"] .med-rotulo,
@@ -697,7 +697,7 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .checkout legend { font-size: 14px; font-weight: 650; margin-bottom: 8px; }
 .opcoes { display: grid; gap: 8px; }
 .opcao { display: flex; gap: 10px; align-items: center; min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); cursor: pointer; font-size: 15px; font-weight: 650; }
-.opcao input { width: 20px; height: 20px; flex: none; accent-color: var(--marca, #10402D); }
+.opcao input { width: 20px; height: 20px; flex: none; accent-color: var(--verde); }
 .opcao span { display: grid; gap: 2px; }
 .opcao small { font-size: 12.5px; font-weight: 450; color: var(--tinta-2); }
 .opcao:has(input:checked) { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
@@ -835,3 +835,9 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .secao-admin fieldset.campo:not(.tams-admin) > legend { padding: 0; margin-bottom: 6px; font-weight: 650; }
 #ajuda-corpo { display: grid; align-content: center; }
 @media (max-width: 759px) { .land-hero { padding-bottom: 0; } .land-mini { margin-bottom: 0; } }
+
+/* Aviso de versão nova (aba aberta antes de uma atualização) */
+.versao-nova { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 90;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--tinta); color: var(--fundo);
+  font-size: 14px; font-weight: 650; box-shadow: 0 10px 30px rgba(0,0,0,.3); max-width: calc(100vw - 24px); }
+.versao-nova button { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--limao); color: var(--sobre-limao); font-weight: 800; }
