@@ -400,6 +400,15 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 - **Números da loja** (`/api/evento`): visitas, produtos vistos, "viram na mesa" e pedidos enviados, por dia, anônimos. Cada aparelho conta uma visita por sessão; a loja logada não conta.
 - **Termos e privacidade**: `/termos` (modelo em linguagem simples; revise com um advogado antes de cobrar).
 
+## 7h. Montador de sorvete e milkshake
+
+- `public/sorvete.mjs`: gera em código (sem arquivos de modelo) casquinha de waffle, cascão, taça de vidro, copinho listrado e copo de milkshake (300/500 ml); bolas de sorvete com caroços, marcas da colher e "saia", em 15 sabores (com pedaços: flocos, morango, pistache, cookies, menta…); coberturas: caldas de chocolate/morango/caramelo escorrendo, chantilly em espiral, granulado, confete, amendoim, wafer e cereja. No milkshake, cada sabor é uma faixa de cor, com canudo listrado.
+- No painel, cada produto tem **Tipo de montagem**: Açaí em camadas, Sorvete em bolas ou Milkshake. "Lista pronta de sorvete/milkshake" preenche tamanhos (recipiente + quantas bolas), sabores (`sabor_*`) e coberturas (`cob_*`).
+- O cliente toca nos sabores (cada toque cai uma bola, com animação), pode parar antes ("Só 1 bola, pronto") e escolhe o que vai por cima.
+- Câmera: o celular gera a versão leve e envia para `/api/sorvete-ar` (o servidor só guarda; gerar lá passaria do limite de CPU do plano grátis). Um arquivo por combinação, formato conferido, limite por IP.
+- Modelos de vitrine dos cartões: `node tools/gerar_sorvetes.mjs` → `assets/models/sorvete-*.glb` e `milkshake-*.glb`.
+- Lojas novas do tipo "Açaí e sorveteria" já nascem com açaí, sorvete e milkshake prontos.
+
 ## 7d. Banco de dados
 
 Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são

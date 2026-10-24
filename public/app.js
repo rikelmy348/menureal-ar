@@ -46,6 +46,38 @@
     ['camada_nutella', 'Camada de Nutella (dentro do copo)']
   ];
   var TIPOS_PIX = [['cpf', 'CPF'], ['cnpj', 'CNPJ'], ['telefone', 'Celular'], ['email', 'E-mail'], ['aleatoria', 'Chave aleatória']];
+  // Sorvete e milkshake (montarSorvete em sorvete.mjs usa as mesmas chaves)
+  var SABORES_SV = [['creme', 'Creme'], ['chocolate', 'Chocolate'], ['morango', 'Morango'], ['flocos', 'Flocos'], ['napolitano', 'Napolitano'],
+    ['pistache', 'Pistache'], ['limao', 'Limão'], ['menta', 'Menta com chocolate'], ['coco', 'Coco'], ['doce_de_leite', 'Doce de leite'],
+    ['acai', 'Açaí'], ['uva', 'Uva'], ['maracuja', 'Maracujá'], ['cookies', 'Cookies'], ['chiclete', 'Chiclete']];
+  var COBERTURAS_SV = [['calda_chocolate', 'Calda de chocolate'], ['calda_morango', 'Calda de morango'], ['calda_caramelo', 'Calda de caramelo'],
+    ['chantilly', 'Chantilly'], ['granulado', 'Granulado'], ['confete', 'Confete colorido'], ['amendoim', 'Amendoim'], ['wafer', 'Biscoito wafer'], ['cereja', 'Cereja']];
+  var TIPOS_3D_SV = [['', 'Não aparece no 3D']].concat(SABORES_SV.map(function (x) { return ['sabor_' + x[0], 'Sabor (bola): ' + x[1]]; }),
+    COBERTURAS_SV.map(function (x) { return ['cob_' + x[0], 'Por cima: ' + x[1]]; }));
+  var RECIPIENTES_SV = { casquinha: ['Casquinha', 2, { largura: 6.2, profundidade: 6.2, altura: 16 }, 'assets/models/sorvete-casquinha.glb'],
+    cascao: ['Cascão', 3, { largura: 7.6, profundidade: 7.6, altura: 21 }, 'assets/models/sorvete-cascao.glb'],
+    taca: ['Taça', 4, { largura: 12.4, profundidade: 12.4, altura: 15 }, 'assets/models/sorvete-taca.glb'],
+    copinho: ['Copinho', 2, { largura: 8.2, profundidade: 8.2, altura: 9.5 }, 'assets/models/sorvete-copinho.glb'],
+    milkshake: ['Copo de milkshake 500 ml', 2, { largura: 8.2, profundidade: 8.2, altura: 20 }, 'assets/models/milkshake-500.glb'],
+    milkshake300: ['Copo de milkshake 300 ml', 2, { largura: 7.8, profundidade: 7.8, altura: 17.5 }, 'assets/models/milkshake-300.glb'] };
+  function tamSv(id, nome, preco, rec, bolas) {
+    var r = RECIPIENTES_SV[rec];
+    return { id: id, nome: nome, preco: preco, recipiente: rec, bolas: bolas, dim: clonar(r[2]), modelo: r[3] };
+  }
+  var SORVETE_PRONTO = {
+    tamanhos: [tamSv('c1', 'Casquinha 1 bola', 7, 'casquinha', 1), tamSv('c2', 'Casquinha 2 bolas', 11, 'casquinha', 2), tamSv('t3', 'Taça 3 bolas', 18, 'taca', 3)],
+    adicionais: [['creme', 0], ['chocolate', 0], ['morango', 0], ['flocos', 0], ['napolitano', 0], ['pistache', 2], ['menta', 0], ['coco', 0], ['doce_de_leite', 0], ['cookies', 2], ['chiclete', 0]]
+      .map(function (x) { return { id: 's-' + x[0], nome: SABORES_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'sabor_' + x[0] }; })
+      .concat([['calda_chocolate', 2], ['calda_morango', 2], ['calda_caramelo', 2], ['chantilly', 3], ['granulado', 1.5], ['confete', 2], ['amendoim', 2], ['wafer', 2.5], ['cereja', 1.5]]
+        .map(function (x) { return { id: 'c-' + x[0], nome: COBERTURAS_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'cob_' + x[0] }; }))
+  };
+  var MILK_PRONTO = {
+    tamanhos: [tamSv('300', '300 ml', 14, 'milkshake300', 2), tamSv('500', '500 ml', 18, 'milkshake', 2)],
+    adicionais: [['chocolate', 0], ['morango', 0], ['creme', 0], ['doce_de_leite', 0], ['cookies', 2], ['acai', 2]]
+      .map(function (x) { return { id: 's-' + x[0], nome: SABORES_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'sabor_' + x[0] }; })
+      .concat([['chantilly', 0], ['calda_chocolate', 2], ['calda_morango', 2], ['calda_caramelo', 2], ['granulado', 1.5], ['confete', 2], ['cereja', 1.5], ['wafer', 2.5]]
+        .map(function (x) { return { id: 'c-' + x[0], nome: COBERTURAS_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'cob_' + x[0] }; }))
+  };
   var ADICIONAIS_ACAI = [
     { id: 'creme-ninho', nome: 'Creme de ninho', preco: 4.00, tipo3d: 'camada_creme' },
     { id: 'morango', nome: 'Morango', preco: 3.00, tipo3d: 'morango_picado' },
@@ -80,6 +112,14 @@
           { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-pet-700.glb' }
         ],
         adicionais: ADICIONAIS_ACAI, montar: true },
+      { id: 'sorvete', nome: 'Sorvete — monte o seu', categoria: 'Sorvetes', preco: 11,
+        descricao: 'Casquinha ou taça: escolha os sabores, uma bola de cada vez, e a cobertura por cima.',
+        dim: clonar(RECIPIENTES_SV.casquinha[2]), modelo: RECIPIENTES_SV.casquinha[3], ilustrativo: true,
+        tamanhos: SORVETE_PRONTO.tamanhos, adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
+      { id: 'milkshake', nome: 'Milkshake', categoria: 'Milkshakes', preco: 18,
+        descricao: 'Escolha até 2 sabores, chantilly, calda e cereja. Vem com canudo.',
+        dim: clonar(RECIPIENTES_SV.milkshake[2]), modelo: RECIPIENTES_SV.milkshake[3], ilustrativo: true,
+        tamanhos: MILK_PRONTO.tamanhos, adicionais: MILK_PRONTO.adicionais, montar: true, modo: 'milkshake' },
       { id: 'coxinha', nome: 'Coxinha de frango', categoria: 'Salgados', preco: 8.00,
         descricao: 'Massa de batata com recheio de frango desfiado temperado, empanada e frita na hora.',
         dim: { largura: 5, profundidade: 5, altura: 9 }, modelo: 'assets/models/coxinha.glb', ilustrativo: true },
@@ -182,10 +222,15 @@
   var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
   // Na página inicial, a demonstração sempre tem o açaí montável (é o que a apresentação promete)
   function comAcaiDemo(d) {
-    if (LOJA || !d || d.produtos.some(function (x) { return x.montar; })) return d;
-    var a = validarDados({ padaria: {}, produtos: [clonar(PADRAO.produtos[0])] }).produtos[0];
-    d.produtos.unshift(a);
-    if (d.categorias.indexOf(a.categoria) < 0) d.categorias.unshift(a.categoria);
+    if (LOJA || !d) return d;
+    // açaí, sorvete e milkshake montáveis sempre na demonstração
+    PADRAO.produtos.slice(0, 3).reverse().forEach(function (base) {
+      var modo = base.modo || 'acai';
+      if (d.produtos.some(function (x) { return x.montar && (x.modo || 'acai') === modo; })) return;
+      var a = validarDados({ padaria: {}, produtos: [clonar(base)] }).produtos[0];
+      d.produtos.unshift(a);
+      if (d.categorias.indexOf(a.categoria) < 0) d.categorias.unshift(a.categoria);
+    });
     return d;
   }
   var dados = comAcaiDemo(validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO))));
@@ -247,10 +292,13 @@
           var tid = String(t.id || slug(t.nome));
           while (tids[tid]) tid += '-2';
           tids[tid] = 1;
-          return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
+          var tam = { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
+          if (RECIPIENTES_SV[t.recipiente]) { tam.recipiente = t.recipiente; tam.bolas = Math.min(5, Math.max(1, Math.round(Number(t.bolas) || 1))); }
+          return tam;
         }),
         adicionais: lerAdicionais(x.adicionais),
-        montar: x.montar === true,   // o cliente monta o copo em camadas
+        montar: x.montar === true,   // o cliente monta (açaí em camadas, sorvete em bolas, milkshake)
+        modo: x.modo === 'sorvete' || x.modo === 'milkshake' ? x.modo : 'acai',
         copo: lerCopo(x.copo),        // copo 3D sob medida (estilo, logo, medidas por tamanho)
         esgotado: x.esgotado === true // acabou hoje: aparece, mas não dá para pedir
       };
@@ -351,7 +399,7 @@
       ids[id] = 1;
       var t3 = String(a.tipo3d || '');
       return { id: id, nome: String(a.nome).slice(0, 40), preco: Math.max(0, Number(a.preco) || 0),
-        tipo3d: TIPOS_3D.some(function (t) { return t[0] && t[0] === t3; }) ? t3 : '', esgotado: a.esgotado === true };
+        tipo3d: TIPOS_3D.concat(TIPOS_3D_SV).some(function (t) { return t[0] && t[0] === t3; }) ? t3 : '', esgotado: a.esgotado === true };
     });
   }
   // Como a loja recebe pedidos (o servidor guarda a mesma estrutura)
@@ -395,18 +443,36 @@
     calda_chocolate: 0.38, leite_po: 0.42, camada_morango: 0.62, morango: 0.45, morango_picado: 0.45, banana: 0.45,
     granola: 0.4, pacoca: 0.38, confete: 0.32 };
   var ACAI = '_acai';   // camada de açaí (já inclusa no preço do tamanho)
+  function ehSorvete(p) { return !!(p && p.montar && (p.modo === 'sorvete' || p.modo === 'milkshake')); }
+  function ehSabor(a) { return !!(a && /^sabor_/.test(a.tipo3d)); }
+  var menosBolas = 0;   // cliente tocou "pronto" com menos bolas que o tamanho permite
+  function bolasMax(p, tamId) {
+    var ef = efetivo(p, tamId === undefined ? tamAtual : tamId);
+    if (menosBolas && tamId === undefined && p === produtoAtual) return menosBolas;
+    if (ef.t && ef.t.bolas) return ef.t.bolas;
+    return p.modo === 'milkshake' ? 2 : 2;
+  }
+  function recipienteDe(p, tamId) {
+    var ef = efetivo(p, tamId === undefined ? tamAtual : tamId);
+    return ef.t && ef.t.recipiente ? ef.t.recipiente : p.modo === 'milkshake' ? 'milkshake' : 'casquinha';
+  }
   function camadaDe(p, token) {
+    if (ehSorvete(p)) { var s = adicionaisDe(p, [token])[0]; return ehSabor(s) ? s : null; }
     if (token === ACAI) return { id: ACAI, nome: 'Açaí', preco: 0, tipo3d: 'acai' };
     var a = adicionaisDe(p, [token])[0];
     return a && PESO_CAMADA[a.tipo3d] ? a : null;
   }
   function podeSerCamada(a) { return !!(a && PESO_CAMADA[a.tipo3d]); }
   function enchimento(p, pilha) {
+    if (ehSorvete(p)) return Math.min(1, pilha.length / bolasMax(p));
     var soma = 0;
     pilha.forEach(function (t) { var c = camadaDe(p, t); if (c) soma += PESO_CAMADA[c.tipo3d]; });
     return Math.min(1, soma / CAPACIDADE_COPO);
   }
-  function copoCheio(p, pilha) { return enchimento(p, pilha) >= (CAPACIDADE_COPO - 0.05) / CAPACIDADE_COPO; }
+  function copoCheio(p, pilha) {
+    if (ehSorvete(p)) return pilha.length >= bolasMax(p);
+    return enchimento(p, pilha) >= (CAPACIDADE_COPO - 0.05) / CAPACIDADE_COPO;
+  }
   function somaPilha(p, pilha) { return pilha.reduce(function (s, t) { var c = camadaDe(p, t); return s + (c ? c.preco : 0); }, 0); }
   function precoMontado(p, tamId, pilha, tops) { return efetivo(p, tamId).preco + somaPilha(p, pilha || []) + somaAdicionais(p, tops || []); }
   function nomeMontado(p, pilha, tops) {
@@ -416,7 +482,8 @@
     var junto = [];
     cam.forEach(function (n) { var u = junto[junto.length - 1]; if (u && u.n === n) u.q++; else junto.push({ n: n, q: 1 }); });
     cam = junto.map(function (x) { return x.n + (x.q > 1 ? ' (' + x.q + 'x)' : ''); });
-    return (cam.length ? ' — camadas: ' + cam.join(', ') : '') + (cob.length ? ' · por cima: ' + cob.join(', ') : '');
+    var rotulo = ehSorvete(p) ? (p.modo === 'milkshake' ? ' — sabor: ' : ' — sabores: ') : ' — camadas: ';
+    return (cam.length ? rotulo + cam.join(', ') : '') + (cob.length ? ' · por cima: ' + cob.join(', ') : '');
   }
 
   // Vocabulário conforme o tipo de negócio
@@ -734,6 +801,7 @@
     tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
     adicSel = [];
     pilhaSel = [];
+    menosBolas = 0;
     abrirViewerProduto(p, modo);
   }
 
@@ -775,7 +843,9 @@
     add.classList.remove('feito');
     var falta = p.montar && !p.combo && !copoCheio(p, pilhaSel);
     add.disabled = falta || !!p.esgotado;
-    add.textContent = p.esgotado ? 'Esgotado no momento' : falta
+    add.textContent = p.esgotado ? 'Esgotado no momento' : falta && ehSorvete(p)
+      ? (pilhaSel.length ? 'Escolha mais ' + (bolasMax(p) - pilhaSel.length) + (p.modo === 'milkshake' ? ' sabor ou toque em Pronto' : ' bola ou toque em Pronto') : (p.modo === 'milkshake' ? 'Escolha o sabor para adicionar' : 'Escolha os sabores para adicionar'))
+      : falta
       ? (pilhaSel.length ? 'Complete o copo (faltam ' + Math.round((1 - enchimento(p, pilhaSel)) * 100) + '%)' : 'Monte seu copo para adicionar')
       : 'Adicionar ao pedido · ' + brl(preco);
   }
@@ -787,7 +857,31 @@
       '<span class="adic__marca" aria-hidden="true">' + ICONES.ok + '</span>' +
       '<span class="adic__txt">' + esc(a.nome) + '<small>' + (fora ? 'esgotado' : '+ ' + brl(a.preco)) + '</small></span></label>';
   }
+  function htmlMontadorSorvete(p) {
+    var max = bolasMax(p), n = pilhaSel.length, cheio = n >= max, milk = p.modo === 'milkshake';
+    var sabores = (p.adicionais || []).filter(ehSabor), resto = (p.adicionais || []).filter(function (a) { return !ehSabor(a); });
+    var chips = pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? '<span>' + esc(c.nome) + '</span>' : ''; }).join('');
+    var botao = function (c) {
+      return '<button type="button" class="adic adic--camada' + (c.esgotado ? ' adic--esgotado' : '') + '" data-camada="' + esc(c.id) + '"' + (c.esgotado || cheio ? ' disabled' : '') + '>' +
+        '<span class="adic__marca adic__marca--mais" aria-hidden="true">' + ICONES.mais + '</span>' +
+        '<span class="adic__txt">' + esc(c.nome) + '<small>' + (c.esgotado ? 'esgotado' : c.preco ? '+ ' + brl(c.preco) : 'incluso') + '</small></span></button>';
+    };
+    var titulo = milk ? 'Monte seu milkshake' : 'Monte seu sorvete';
+    var estado = milk ? (n ? n + ' de ' + max + ' sabores' : 'até ' + max + ' sabores') : n + ' de ' + max + (max === 1 ? ' bola' : ' bolas');
+    return '<legend>' + titulo + ' <small>' + estado + '</small></legend>' +
+      '<div class="medidor" role="progressbar" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + n + '"><i style="width:' + Math.round(n / max * 100) + '%"></i></div>' +
+      '<p class="pilha">' + (chips ? '<span class="pilha__rot">' + (milk ? 'Sabores:' : 'De baixo para cima:') + '</span>' + chips
+        : (milk ? 'Escolha o sabor do milkshake.' : 'Toque nos sabores: cada toque coloca uma bola.')) + '</p>' +
+      (!cheio ? '<div class="adicionais__lista">' + sabores.map(botao).join('') + '</div>' : '') +
+      (milk && n && !cheio ? '<p class="montador__dica">Quer só um sabor? Toque em <strong>Pronto</strong>.</p>' : '') +
+      (cheio && resto.length ? '<p class="montador__dica">Agora escolha o que vai <strong>por cima</strong>:</p><div class="adicionais__lista">' + resto.map(htmlAdicional).join('') + '</div>' : '') +
+      '<div class="linha-acoes montador__acoes">' +
+        (n ? '<button type="button" class="btn btn--fantasma btn--p" data-desfazer>' + (milk ? 'Tirar último sabor' : 'Tirar última bola') + '</button>' : '') +
+        (n && !cheio ? '<button type="button" class="btn btn--sec btn--p" data-pronto-sv>' + (milk ? 'Pronto' : 'Só ' + n + (n === 1 ? ' bola' : ' bolas') + ', pronto') + '</button>' : '') +
+      '</div>';
+  }
   function htmlMontador(p) {
+    if (ehSorvete(p)) return htmlMontadorSorvete(p);
     var cheio = copoCheio(p, pilhaSel), pct = Math.round(enchimento(p, pilhaSel) * 100);
     var camadas = [{ id: ACAI, nome: 'Açaí', preco: 0 }].concat((p.adicionais || []).filter(podeSerCamada));
     var chips = pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? '<span>' + esc(c.nome) + '</span>' : ''; }).join('');
@@ -963,6 +1057,11 @@
   }
   function tiposMontagem(p) {
     var tipos = [];
+    if (ehSorvete(p)) {
+      if (!copoCheio(p, pilhaSel)) return tipos;
+      adicionaisDe(p, adicSel).forEach(function (a) { if (/^cob_/.test(a.tipo3d)) tipos.push(a.tipo3d.slice(4)); });
+      return tipos;
+    }
     if (p.montar && !copoCheio(p, pilhaSel)) return tipos;
     adicionaisDe(p, adicSel).forEach(function (a) {
       // no montador, "camada de…" escolhida por cima não tem 3D próprio de cobertura
@@ -972,9 +1071,35 @@
     return tipos;
   }
   function pilhaTipos(p) { return pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? c.tipo3d : null; }).filter(Boolean); }
+  var moduloSorvete = null;
+  function carregarSorvete() {
+    if (!moduloSorvete) moduloSorvete = import(new URL('sorvete.mjs', document.baseURI).href);
+    return moduloSorvete;
+  }
+  function specSorvete(p) {
+    return { recipiente: recipienteDe(p), sabores: pilhaTipos(p).map(function (t) { return t.slice(6); }), coberturas: tiposMontagem(p) };
+  }
+  function atualizarSorvete(p, mv, animarTipo, animarCamada) {
+    var seq = ++seqMontagem;
+    delete mv.dataset.arPronto;
+    var spec = specSorvete(p);
+    var anim = reduzMovimento ? null : Number.isInteger(animarCamada) ? { bola: animarCamada } : animarTipo && /^cob_/.test(animarTipo) ? { cobertura: animarTipo.slice(4) } : null;
+    carregarSorvete().then(function (m) {
+      if (seq !== seqMontagem || !mv.isConnected) return;
+      var glb = m.montarSorvete(Object.assign({ animar: anim }, spec));
+      var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
+      var antigo = blobAtual;
+      blobAtual = url;
+      if (antigo) setTimeout(function () { URL.revokeObjectURL(antigo); }, 5000);
+      mv.dataset.montagem = '1';
+      if (anim) mv.dataset.animar = '1';
+      mv.src = url;
+    }).catch(function (e) { console.warn('[MenuReal] sorvete', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });
+  }
   function atualizarMontagem(animarTipo, animarCamada) {
     var p = produtoAtual, mv = palco.querySelector('model-viewer');
     if (!p || !mv || p.combo) return;
+    if (ehSorvete(p)) { if (!MODELOS_EMBUTIDOS) atualizarSorvete(p, mv, animarTipo, animarCamada); return; }
     var ef = efetivo(p, tamAtual);
     if (!ef.modelo) return;
     var tipos = tiposMontagem(p);
@@ -1022,6 +1147,20 @@
     var html = botao.innerHTML;
     botao.disabled = true;
     botao.textContent = 'Preparando para a câmera…';
+    if (ehSorvete(p)) {
+      // o celular monta a versão leve e envia (o servidor só guarda)
+      var spec = specSorvete(p);
+      carregarSorvete().then(function (m) {
+        var glb = m.montarSorvete(Object.assign({ leve: true }, spec));
+        return fetch('api/sorvete-ar?recipiente=' + encodeURIComponent(spec.recipiente) + '&sabores=' + encodeURIComponent(spec.sabores.join('.')) +
+          '&coberturas=' + encodeURIComponent(spec.coberturas.join('.')), { method: 'POST', headers: { 'content-type': 'model/gltf-binary' }, body: glb });
+      })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+        .then(function (j) { if (!mv.isConnected) return; mv.dataset.arPronto = '1'; mv.dataset.abrirAR = '1'; mv.src = j.url; })
+        .catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); })
+        .then(function () { botao.disabled = false; botao.innerHTML = html; });
+      return;
+    }
     fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p), pilha: p.montar ? pilhaTipos(p) : undefined }) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
       .then(function (j) {
@@ -1055,7 +1194,7 @@
     if (b) {
       if (copoCheio(p, pilhaSel)) return;
       pilhaSel.push(b.getAttribute('data-camada'));
-      if (copoCheio(p, pilhaSel)) toast('Copo cheio! Agora escolha o que vai por cima.');
+      if (copoCheio(p, pilhaSel)) toast(ehSorvete(p) ? 'Pronto! Agora escolha o que vai por cima.' : 'Copo cheio! Agora escolha o que vai por cima.');
       redesenharMontador();
       atualizarMontagem(null, pilhaSel.length - 1);
       return;
@@ -1063,7 +1202,15 @@
     if (e.target.closest('[data-desfazer]')) {
       var estavaCheio = copoCheio(p, pilhaSel);
       pilhaSel.pop();
+      menosBolas = 0;
       if (estavaCheio) adicSel = [];   // coberturas só existem com o copo cheio
+      redesenharMontador();
+      atualizarMontagem(null);
+      return;
+    }
+    if (e.target.closest('[data-pronto-sv]') && ehSorvete(p) && pilhaSel.length) {
+      menosBolas = pilhaSel.length;
+      toast('Pronto! Agora escolha o que vai por cima.');
       redesenharMontador();
       atualizarMontagem(null);
       return;
@@ -1195,6 +1342,11 @@
     if (!b || !produtoAtual) return;
     var antes = efetivo(produtoAtual, tamAtual).modelo;
     tamAtual = b.getAttribute('data-tam');
+    if (ehSorvete(produtoAtual)) {
+      menosBolas = 0;
+      if (pilhaSel.length > bolasMax(produtoAtual)) pilhaSel = pilhaSel.slice(0, bolasMax(produtoAtual));
+      if (!copoCheio(produtoAtual, pilhaSel)) adicSel = [];
+    }
     var ef = efetivo(produtoAtual, tamAtual);
     preencherTextosViewer(produtoAtual);
     var mv = palco.querySelector('model-viewer');
@@ -2122,6 +2274,14 @@
   $('#admin-corpo').addEventListener('change', function (e) {
     var t = e.target;
     if (t.name === 'v-fonte') { visualRascunho(function (v) { v.fonte = t.value; }); return; }
+    if (t.matches('[data-f="modo"]')) {
+      coletarAdmin();
+      var pm = rascunho.produtos[Number(t.closest('details').getAttribute('data-i'))];
+      if (pm.modo !== 'acai') pm.montar = true;
+      abertoNoAdmin = pm.id; renderAdmin();
+      toast(pm.modo === 'acai' ? 'Montagem de açaí em camadas.' : 'Toque em “Lista pronta de ' + (pm.modo === 'milkshake' ? 'milkshake' : 'sorvete') + '” para preencher tudo.');
+      return;
+    }
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
   });
@@ -2158,7 +2318,10 @@
         campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
           'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
-        '<label class="checar"><input type="checkbox" data-f="montar"' + (x.montar ? ' checked' : '') + '> O cliente monta o copo em camadas (açaí, fruta, creme… até encher)</label>' +
+        '<label class="checar"><input type="checkbox" data-f="montar"' + (x.montar ? ' checked' : '') + '> O cliente monta o produto</label>' +
+        campo('Tipo de montagem', '<select data-f="modo">' + [['acai', 'Açaí em camadas (copo)'], ['sorvete', 'Sorvete em bolas (casquinha, taça, copinho)'], ['milkshake', 'Milkshake (copo alto)']].map(function (o) {
+          return '<option value="' + o[0] + '"' + (o[0] === (x.modo || 'acai') ? ' selected' : '') + '>' + o[1] + '</option>';
+        }).join('') + '</select>') +
         '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
           '<small>Ex.: bolo P, M e G. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
           x.tamanhos.map(function (t, ti) {
@@ -2172,6 +2335,13 @@
                 campo('Prof. (cm)', '<input data-t="profundidade" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.profundidade + '">') +
                 campo('Alt. (cm)', '<input data-t="altura" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.altura + '">') +
               '</div>' +
+              (x.modo === 'sorvete' || x.modo === 'milkshake'
+                ? '<div class="campos campos--2">' +
+                    campo('Recipiente', '<select data-t="recipiente">' + Object.keys(RECIPIENTES_SV).filter(function (k) { return (x.modo === 'milkshake') === /^milkshake/.test(k); }).map(function (k) {
+                      return '<option value="' + k + '"' + (k === t.recipiente ? ' selected' : '') + '>' + RECIPIENTES_SV[k][0] + '</option>';
+                    }).join('') + '</select>') +
+                    campo(x.modo === 'milkshake' ? 'Até quantos sabores' : 'Quantas bolas', '<input data-t="bolas" type="number" min="1" max="5" inputmode="numeric" value="' + (t.bolas || 1) + '">') +
+                  '</div>' : '') +
               '<input type="hidden" data-t="modelo" value="' + esc(t.modelo) + '">' +
               '<div class="tam-rodape"><span class="mini">' + (t.modelo ? '3D pronto' : 'Sem 3D próprio') + '</span>' +
                 '<button class="link-remover" type="button" data-tam-remover>Remover tamanho</button></div>' +
@@ -2190,7 +2360,7 @@
                 campo('Nome', '<input data-a="nome" maxlength="40" value="' + esc(a.nome) + '">') +
                 campo('Preço (R$)', '<input data-a="preco" inputmode="decimal" value="' + esc(a.preco.toFixed(2).replace('.', ',')) + '">') +
               '</div>' +
-              campo('Aparece no 3D como', '<select data-a="tipo3d">' + TIPOS_3D.map(function (t) {
+              campo('Aparece no 3D como', '<select data-a="tipo3d">' + (x.modo === 'sorvete' || x.modo === 'milkshake' ? TIPOS_3D_SV : TIPOS_3D).map(function (t) {
                 return '<option value="' + t[0] + '"' + (t[0] === a.tipo3d ? ' selected' : '') + '>' + t[1] + '</option>';
               }).join('') + '</select>') +
               '<div class="tam-rodape"><label class="checar checar--p"><input type="checkbox" data-a="esgotado"' + (a.esgotado ? ' checked' : '') + '> Esgotado</label><button class="link-remover" type="button" data-adic-remover>Remover adicional</button></div>' +
@@ -2198,10 +2368,12 @@
           }).join('') +
           '<div class="linha-acoes">' +
             '<button class="btn btn--fantasma btn--p" type="button" data-adic-novo>' + ICONES.mais + 'Adicionar adicional</button>' +
-            '<button class="btn btn--sec btn--p" type="button" data-adic-acai>Lista pronta de açaí</button>' +
+            (x.modo === 'sorvete' ? '<button class="btn btn--sec btn--p" type="button" data-pronto="sorvete">Lista pronta de sorvete</button>'
+              : x.modo === 'milkshake' ? '<button class="btn btn--sec btn--p" type="button" data-pronto="milkshake">Lista pronta de milkshake</button>'
+              : '<button class="btn btn--sec btn--p" type="button" data-adic-acai>Lista pronta de açaí</button>') +
           '</div>' +
         '</fieldset>' +
-        (ehAlimento(rascunho) ? htmlCopoAdmin(x) : '') +
+        (ehAlimento(rascunho) && (x.modo || 'acai') === 'acai' ? htmlCopoAdmin(x) : '') +
         '<div class="linha-acoes">' +
           (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
           (servidor && /^(api\/arquivo\/|assets\/models\/)/.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
@@ -2343,6 +2515,7 @@
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
       x.montar = g('montar').checked;
+      x.modo = g('modo').value;
       x.esgotado = g('esgotado').checked;
       coletarCopo(d, x);
       x.ingredientes = g('ingredientes').value.trim();
@@ -2350,8 +2523,15 @@
       x.tamanhos = $$('.tam-linha', d).map(function (l) {
         var t = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
         var antigo = x.tamanhos[Number(l.getAttribute('data-ti'))] || {};
-        return { id: antigo.id || slug(t('nome').value) || 't' + Date.now().toString(36), nome: t('nome').value.trim(), preco: lerPreco(t('preco').value),
+        var tam = { id: antigo.id || slug(t('nome').value) || 't' + Date.now().toString(36), nome: t('nome').value.trim(), preco: lerPreco(t('preco').value),
           dim: { largura: Number(t('largura').value), profundidade: Number(t('profundidade').value), altura: Number(t('altura').value) }, modelo: t('modelo').value };
+        if (t('recipiente') && (x.modo === 'sorvete' || x.modo === 'milkshake')) {
+          var rec = t('recipiente').value, r = RECIPIENTES_SV[rec];
+          tam.recipiente = rec; tam.bolas = Math.min(5, Math.max(1, Math.round(Number(t('bolas').value) || 1)));
+          // recipiente trocado: medidas e vitrine 3D do novo
+          if (r && antigo.recipiente !== rec) { tam.dim = clonar(r[2]); tam.modelo = r[3]; }
+        }
+        return tam;
       });
       x.adicionais = $$('.adic-linha', d).map(function (l) {
         var q = function (k) { return l.querySelector('[data-a="' + k + '"]'); };
@@ -2522,6 +2702,23 @@
       var pr = rascunho.produtos[Number(tamRem.closest('details').getAttribute('data-i'))];
       pr.tamanhos.splice(Number(tamRem.closest('.tam-linha').getAttribute('data-ti')), 1);
       abertoNoAdmin = pr.id; renderAdmin();
+      return;
+    }
+    var pronto = e.target.closest('[data-pronto]');
+    if (pronto) {
+      coletarAdmin();
+      var px2 = rascunho.produtos[Number(pronto.closest('details').getAttribute('data-i'))];
+      var lista = pronto.getAttribute('data-pronto') === 'milkshake' ? MILK_PRONTO : SORVETE_PRONTO;
+      if (!px2.tamanhos.length || !px2.tamanhos.some(function (t) { return t.recipiente; })) px2.tamanhos = clonar(lista.tamanhos);
+      lista.adicionais.forEach(function (a) {
+        if (!px2.adicionais.some(function (b) { return b.id === a.id || (a.tipo3d && b.tipo3d === a.tipo3d); })) px2.adicionais.push(clonar(a));
+      });
+      px2.montar = true;
+      var t0 = px2.tamanhos[Math.min(1, px2.tamanhos.length - 1)];
+      if (t0) { px2.modelo = t0.modelo; px2.dim = clonar(t0.dim); px2.preco = t0.preco; }
+      px2.ilustrativo = true;
+      abertoNoAdmin = px2.id; renderAdmin();
+      toast('Tamanhos, sabores e coberturas prontos. Ajuste os preços e toque em Salvar.');
       return;
     }
     var adicNovo = e.target.closest('[data-adic-novo]') || e.target.closest('[data-adic-acai]');

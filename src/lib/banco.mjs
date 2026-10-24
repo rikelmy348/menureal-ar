@@ -111,8 +111,11 @@ const texto = (v, max) => String(v == null ? '' : v).slice(0, max);
 const dimOk = (d, k) => { const v = Number(d && d[k]); return v > 0 && v < 100000 ? Math.round(v * 100) / 100 : 5; };
 const slugBanco = (slug) => slug || DEMO;
 
+import { SABORES, COBERTURAS, RECIPIENTES } from '../../public/sorvete.mjs';
 const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'morango_picado', 'leite_po', 'leite_condensado', 'calda_chocolate', 'nutella',
-  'camada_creme', 'camada_morango', 'camada_nutella'];
+  'camada_creme', 'camada_morango', 'camada_nutella',
+  ...Object.keys(SABORES).map((k) => 'sabor_' + k), ...Object.keys(COBERTURAS).map((k) => 'cob_' + k)];
+const MODOS = ['acai', 'sorvete', 'milkshake'];
 function limparCopo(c) {
   if (!c || typeof c !== 'object') return null;
   const n = (v, a, b) => { v = Number(v); return v >= a && v <= b ? Math.round(v * 10) / 10 : 0; };
@@ -201,7 +204,8 @@ export async function lerCardapio(env, slug) {
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
-      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null, esgotado: Boolean(lerJson(p.opcoes, {}).esgotado)
+      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null, esgotado: Boolean(lerJson(p.opcoes, {}).esgotado),
+      modo: lerJson(p.opcoes, {}).modo || 'acai'
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -242,13 +246,14 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
     vistos.add(id);
     const tamanhos = (Array.isArray(x.tamanhos) ? x.tamanhos : []).slice(0, 8).map((t) => ({
       id: texto(t.id, 60), nome: texto(t.nome, 30), preco: Math.max(0, Number(t.preco) || 0),
-      dim: { largura: dimOk(t.dim, 'largura'), profundidade: dimOk(t.dim, 'profundidade'), altura: dimOk(t.dim, 'altura') }, modelo: texto(t.modelo, 300)
+      dim: { largura: dimOk(t.dim, 'largura'), profundidade: dimOk(t.dim, 'profundidade'), altura: dimOk(t.dim, 'altura') }, modelo: texto(t.modelo, 300),
+      ...(RECIPIENTES[t.recipiente] ? { recipiente: t.recipiente, bolas: Math.min(5, Math.max(1, Math.round(Number(t.bolas) || 1))) } : {})
     }));
     comandos.push(inserir.bind(s, id, pos++, texto(x.nome, 60), texto(x.categoria, 40) || categorias[0] || 'Geral',
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo), esgotado: x.esgotado === true })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo), esgotado: x.esgotado === true, modo: MODOS.includes(x.modo) ? x.modo : 'acai' })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;
