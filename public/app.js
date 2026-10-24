@@ -162,7 +162,12 @@
     classico: { nome: 'Clássico', css: '"Lora MR", Georgia, serif' }
   };
   var PALETAS = [
-    { nome: 'Padrão', cor: '', destaque: '' },
+    { nome: 'Padrão (açaí)', cor: '', destaque: '' },
+    { nome: 'Morango', cor: '#D81B60', destaque: '#FFD23F' },
+    { nome: 'Tropical', cor: '#00897B', destaque: '#FFD23F' },
+    { nome: 'Laranja', cor: '#E85D04', destaque: '#FFE066' },
+    { nome: 'Céu', cor: '#0077B6', destaque: '#FFD23F' },
+    { nome: 'Chiclete', cor: '#C2185B', destaque: '#8FF0C8' },
     { nome: 'Vinho', cor: '#6B1E2E', destaque: '#E8B04A' },
     { nome: 'Café', cor: '#4A2C1D', destaque: '#F2C14E' },
     { nome: 'Oceano', cor: '#1D3B6E', destaque: '#FF8A3D' },
@@ -172,10 +177,18 @@
     { nome: 'Terracota', cor: '#B5502F', destaque: '#F6D6A8' },
     { nome: 'Uva', cor: '#4B2A7B', destaque: '#8FF0C8' }
   ];
-  var COR_PADRAO = '#10402D', DESTAQUE_PADRAO = '#C6F25A';
+  var COR_PADRAO = '#6A1BB3', DESTAQUE_PADRAO = '#FFD23F';
 
   var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
-  var dados = validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO)));
+  // Na página inicial, a demonstração sempre tem o açaí montável (é o que a apresentação promete)
+  function comAcaiDemo(d) {
+    if (LOJA || !d || d.produtos.some(function (x) { return x.montar; })) return d;
+    var a = validarDados({ padaria: {}, produtos: [clonar(PADRAO.produtos[0])] }).produtos[0];
+    d.produtos.unshift(a);
+    if (d.categorias.indexOf(a.categoria) < 0) d.categorias.unshift(a.categoria);
+    return d;
+  }
+  var dados = comAcaiDemo(validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO))));
   CATEGORIAS = dados.categorias;
   var carrinho = ler(CHAVE_CARRINHO) || {};
   var filtro = { cat: 'Todos', q: '' };
@@ -283,7 +296,8 @@
       '--verde': cor, '--verde-2': misturar(cor, '#000000', 0.18), '--sobre-verde': textoSobre(cor),
       '--limao': dest, '--sobre-limao': textoSobre(dest), '--limao-suave': misturar(dest, '#FFFFFF', 0.72),
       '--linha': misturar('#DEE0DA', cor, 0.07), '--linha-forte': misturar('#C7CAC3', cor, 0.08),
-      '--palco-b': misturar('#E7E8E3', cor, 0.07)
+      '--palco-b': misturar('#E7E8E3', cor, 0.07),
+      '--rosa': misturar(cor, '#FF3D8B', 0.45), '--hero': cor, '--hero-2': misturar(cor, '#000000', 0.32), '--sobre-hero': textoSobre(cor)
     };
     var fundoE = misturar('#0C0F0D', cor, 0.10);
     var acao = contraste(dest, fundoE) >= 3 ? dest : clarearAte(cor, fundoE, 3);
@@ -293,7 +307,8 @@
       '--verde': acao, '--verde-2': misturar(acao, '#FFFFFF', 0.15), '--sobre-verde': textoSobre(acao),
       '--limao': destE, '--sobre-limao': textoSobre(destE), '--limao-suave': misturar(fundoE, destE, 0.22),
       '--linha': misturar('#262C27', cor, 0.10), '--linha-forte': misturar('#38403A', cor, 0.10),
-      '--palco-a': misturar('#1E241F', cor, 0.10), '--palco-b': misturar('#101411', cor, 0.10)
+      '--palco-a': misturar('#1E241F', cor, 0.10), '--palco-b': misturar('#101411', cor, 0.10),
+      '--rosa': misturar(cor, '#FF3D8B', 0.45), '--hero': cor, '--hero-2': misturar(cor, '#000000', 0.32), '--sobre-hero': textoSobre(cor)
     };
     var bloco = function (o) { return Object.keys(o).map(function (k) { return k + ':' + o[k]; }).join(';'); };
     return css + ':root{' + bloco(claro) + '}' +
@@ -513,10 +528,12 @@
     aplicarVisual(p);
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
     $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
-    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar coxinha, pão de queijo…') : 'Buscar produtos…';
+    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar açaí, coxinha…') : 'Buscar produtos…';
     $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
     var nota = $('#nota-demo');
-    if (nota) nota.hidden = !!LOJA;
+    if (nota) nota.hidden = true;          // as explicações agora ficam no "Como usar" (?)
+    $('#landing').hidden = !!LOJA;
+    $('.hero').hidden = !LOJA;
     var aberto = estaAberto(p) && !p.pedido.pausado;
     var st = $('#status-horario');
     st.classList.toggle('aberto', aberto);
@@ -563,7 +580,8 @@
         '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' na mesa, em tamanho real">' + ICONES.ar + '<span>Na mesa</span></button>'
       : '<span class="card__palco card__palco--vazio" aria-hidden="true"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></span>';
     return '<article class="card' + (temModelo ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
-      '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>' : '') +
+      '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>'
+        : (p.montar || (p.adicionais && p.adicionais.length)) ? '<span class="selo-monte">Monte o seu</span>' : '') +
         (temModelo ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
           ? num(Math.min.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' a ' + num(Math.max.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' cm'
           : reguaTexto(p.dim)) + '</span></span>' : '') +
@@ -571,10 +589,8 @@
       '<div class="card__corpo">' +
         '<h3 class="card__nome">' + esc(p.nome) + '</h3>' +
         (p.descricao ? '<p class="card__desc">' + esc(p.descricao) + '</p>' : '') +
-        (temTams ? '<p class="card__tams">' + p.tamanhos.map(function (t) { return '<span>' + esc(t.nome) + '</span>'; }).join('') + '</p>' : '') +
-        (p.adicionais && p.adicionais.length ? '<p class="card__tams"><span>+ ' + p.adicionais.length + ' adicionais · monte o seu</span></p>' : '') +
+        (temTams ? '<p class="card__info">' + p.tamanhos.length + ' tamanhos</p>' : '') +
         (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg">Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
-        (temModelo && p.ilustrativo ? '<p class="card__nota">Modelo ilustrativo</p>' : '') +
         '<div class="card__rodape">' +
           '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span>' +
           (p.esgotado ? '<span class="card__esgotado">Esgotado</span>' :
@@ -599,7 +615,7 @@
     }
     $('#resultado').textContent = q
       ? lista.length + (lista.length === 1 ? ' produto encontrado' : ' produtos encontrados')
-      : (filtro.cat === 'Todos' ? 'Toque em um produto para girar em 3D ou vê-lo em tamanho real.' : filtro.cat);
+      : '';
   }
 
   function ligarCardViewer(mv) {
@@ -714,6 +730,7 @@
   function abrirViewer(id, modo) {
     var p = produtoPorId(id);
     if (!p) return;
+    registrar('produto', p.id);
     tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
     adicSel = [];
     pilhaSel = [];
@@ -897,6 +914,7 @@
     });
     // Antes de abrir a câmera: esconde avisos na camada de cima (podem atrapalhar a tela cheia da RA)
     mv.querySelector('.botao-ar').addEventListener('click', function (ev) {
+      if (p && !p.combo) registrar('ar');
       var t = $('#toast');
       clearTimeout(toastTimer);
       t.classList.remove('ver');
@@ -1511,7 +1529,7 @@
     gravar(CHAVE_CLIENTE, cliente);
     var zap = dados.padaria.whatsapp;
     var texto = resumoPedido(!!zap);
-    if (zap) window.open('https://wa.me/' + zap + '?text=' + encodeURIComponent(texto), '_blank', 'noopener');
+    if (zap) { window.open('https://wa.me/' + zap + '?text=' + encodeURIComponent(texto), '_blank', 'noopener'); registrar('pedido'); }
     renderEnviado(texto);
   }
   function renderEnviado(texto) {
@@ -1629,57 +1647,156 @@
       .catch(function (e) { renderLogin(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
   }
 
+  // Painel em abas: cada assunto numa aba, para não ficar tudo numa página só
+  var abaAdmin = '';
+  var ABAS = {
+    inicio: 'Início', lojas: 'Lojas', produtos: 'Produtos', loja: 'Loja', pedidos: 'Pedidos',
+    visual: 'Visual', divulgar: 'Divulgar', conta: 'Conta'
+  };
+  function abasDoPainel() {
+    if (!servidor) return ['produtos', 'loja', 'pedidos', 'visual'];
+    return LOJA ? ['inicio', 'produtos', 'loja', 'pedidos', 'visual', 'divulgar', 'conta'] : ['lojas', 'produtos', 'loja', 'pedidos', 'visual', 'divulgar'];
+  }
   function renderAdmin() {
     $('#admin-restaurar').hidden = !!LOJA;
     $('.painel__rodape--admin').classList.toggle('um', !!LOJA);
     if (servidor && LOJA && !lerTokenLoja()) { renderLogin(); return; }
     $('#form-admin').classList.remove('so-login');
-    var p = rascunho.padaria;
-    var h =
-      (!servidor
-        ? '<div class="aviso-admin"><strong>Administração apenas local</strong>Este endereço não tem o servidor do MenuReal: as alterações ficam salvas só neste navegador. Publique pelo GitHub na Cloudflare para salvar na nuvem.</div>'
-        : LOJA
-          ? '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>“Salvar alterações” publica o ' + termo() + ' para todos os clientes.</span>' +
-              '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>'
-          : '<div class="aviso-admin aviso-admin--ok"><strong>Painel do dono do MenuReal</strong>Aqui você edita a demonstração e cria as contas das lojas clientes (comida, objetos, móveis, o que for).</div>' +
-            campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">', 'O mesmo definido na Cloudflare (MENUREAL_CODIGO).') +
-            '<section class="secao-admin"><h3>Estabelecimentos clientes</h3><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver e criar estabelecimentos</button></div></section>') +
-      (LOJA && servidor ? htmlAvisoPlano(rascunho.padaria.plano) : '') +
-      '<section class="secao-admin"><h3>Estabelecimento</h3><div class="campos">' +
-        campo('Nome do estabelecimento', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
-        campo('Descrição / slogan', '<input name="p-slogan" maxlength="90" value="' + esc(p.slogan) + '">') +
-        '<div class="campos campos--2">' +
-          campo('Abre às', '<input type="time" name="p-abre" value="' + esc(p.abre) + '">') +
-          campo('Fecha às', '<input type="time" name="p-fecha" value="' + esc(p.fecha) + '">') +
-        '</div>' +
-        '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Dias de funcionamento</legend><div class="linha-acoes">' +
-          DIAS.map(function (d, i) {
-            return '<label class="checar" style="min-height:auto"><input type="checkbox" name="p-dia" value="' + i + '"' + (p.dias.indexOf(i) > -1 ? ' checked' : '') + '>' + d + '</label>';
-          }).join('') +
-        '</div></fieldset>' +
-        campo('WhatsApp para pedidos (opcional)', '<input name="p-zap" inputmode="numeric" maxlength="15" placeholder="Somente números, com DDI e DDD" value="' + esc(p.whatsapp) + '">',
-          'Deixe vazio para desativar. O cliente envia o resumo do pedido para este número.') +
-        campo('Tipo de negócio', '<select name="p-tipo"><option value="alimentos"' + (p.tipo !== 'produtos' ? ' selected' : '') + '>Comida e bebida (cardápio, ingredientes e alérgicos)</option>' +
-          '<option value="produtos"' + (p.tipo === 'produtos' ? ' selected' : '') + '>Produtos e objetos (catálogo)</option></select>') +
-        campo('Categorias', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">',
-          'Separe por vírgulas, na ordem em que devem aparecer. Ex.: Bolos, Doces, Bebidas · Sofás, Mesas, Decoração.') +
-      '</div></section>' +
-      htmlPedidoAdmin(p.pedido) +
-      htmlAparencia(p) +
-      htmlCartazAdmin() +
-      (LOJA && servidor ? htmlContaAdmin() : '') +
-      '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
-        '<button class="btn btn--contorno btn--bloco destaque-foto" type="button" id="admin-foto">' + ICONES.camera +
-          '<span><strong>Criar a partir de uma foto</strong><small>Fotografe um cardápio, catálogo ou tabela de preços e revise os itens lidos</small></span></button>' +
-        rascunho.produtos.map(function (x, i) { return htmlProdutoAdmin(x, i); }).join('') +
-        '<div class="linha-acoes" style="margin-top:12px">' +
-          '<button class="btn btn--sec" type="button" id="admin-novo">' + ICONES.mais + 'Adicionar produto</button>' +
-          '<button class="btn btn--fantasma" type="button" id="admin-exportar">Exportar JSON</button>' +
-          '<label class="btn btn--fantasma" style="cursor:pointer">Importar JSON<input type="file" accept="application/json,.json" id="admin-importar" hidden></label>' +
-        '</div>' +
-      '</section>';
-    $('#admin-corpo').innerHTML = h;
+    var p = rascunho.padaria, abas = abasDoPainel();
+    if (abertoNoAdmin) abaAdmin = 'produtos';
+    if (abas.indexOf(abaAdmin) < 0) abaAdmin = abas[0];
+    var plano = LOJA && servidor ? rascunho.padaria.plano : null;
+    var conteudo = {
+      inicio: function () {
+        return htmlAvisoPlano(plano) +
+          '<section class="secao-admin"><h3>Últimos 7 dias</h3><div id="resultados"><p class="mini">Carregando os números…</p></div></section>' +
+          '<div class="atalhos">' +
+            '<a class="btn btn--sec" href="/' + esc(LOJA) + '" target="_blank" rel="noopener">Ver meu ' + termo(rascunho) + '</a>' +
+            '<button class="btn btn--contorno" type="button" data-aba-ir="produtos">Editar produtos</button>' +
+            '<button class="btn btn--contorno" type="button" data-aba-ir="divulgar">Cartaz com QR</button>' +
+            '<button class="btn btn--contorno" type="button" data-ajuda="loja">Como usar</button>' +
+          '</div>';
+      },
+      lojas: function () {
+        return '<span class="dica">Você é o dono do MenuReal: aqui ficam as lojas clientes e a demonstração da página inicial.</span>' +
+          campo('Código de acesso', '<input id="admin-codigo" type="password" autocomplete="off" maxlength="80" value="' + esc(lerCodigo()) + '">') +
+          '<section class="secao-admin"><div id="lojas"><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Ver lojas e planos</button></div></section>';
+      },
+      produtos: function () {
+        return '<section class="secao-admin"><h3>Produtos (' + rascunho.produtos.length + ')</h3>' +
+          rascunho.produtos.map(function (x, i) { return htmlProdutoAdmin(x, i); }).join('') +
+          '<div class="linha-acoes" style="margin-top:12px">' +
+            '<button class="btn btn--sec" type="button" id="admin-novo">' + ICONES.mais + 'Adicionar produto</button>' +
+            '<button class="btn btn--contorno" type="button" id="admin-foto">' + ICONES.camera + 'Ler cardápio por foto</button>' +
+          '</div>' +
+          '<details class="conta-det" style="margin-top:14px"><summary>Cópia de segurança</summary><div class="linha-acoes" style="margin-top:10px">' +
+            '<button class="btn btn--fantasma btn--p" type="button" id="admin-exportar">Baixar cópia (JSON)</button>' +
+            '<label class="btn btn--fantasma btn--p" style="cursor:pointer">Restaurar cópia<input type="file" accept="application/json,.json" id="admin-importar" hidden></label>' +
+          '</div></details></section>';
+      },
+      loja: function () {
+        return (!servidor ? '<div class="aviso-admin"><strong>Só neste aparelho</strong>Sem o servidor do MenuReal, as alterações ficam salvas só neste navegador.</div>' : '') +
+          '<section class="secao-admin"><h3>Sua loja</h3><div class="campos">' +
+          campo('Nome', '<input name="p-nome" required maxlength="60" value="' + esc(p.nome) + '">') +
+          campo('Frase curta (aparece embaixo do nome)', '<input name="p-slogan" maxlength="90" value="' + esc(p.slogan) + '">') +
+          campo('WhatsApp que recebe os pedidos', '<input name="p-zap" inputmode="numeric" maxlength="15" placeholder="55 + DDD + número" value="' + esc(p.whatsapp) + '">') +
+          '<div class="campos campos--2">' +
+            campo('Abre às', '<input type="time" name="p-abre" value="' + esc(p.abre) + '">') +
+            campo('Fecha às', '<input type="time" name="p-fecha" value="' + esc(p.fecha) + '">') +
+          '</div>' +
+          '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Dias abertos</legend><div class="linha-acoes">' +
+            DIAS.map(function (d, i) {
+              return '<label class="checar" style="min-height:auto"><input type="checkbox" name="p-dia" value="' + i + '"' + (p.dias.indexOf(i) > -1 ? ' checked' : '') + '>' + d + '</label>';
+            }).join('') +
+          '</div></fieldset>' +
+          campo('Categorias (separe por vírgula)', '<input name="p-cats" maxlength="400" value="' + esc(rascunho.categorias.join(', ')) + '">') +
+          campo('Tipo de negócio', '<select name="p-tipo"><option value="alimentos"' + (p.tipo !== 'produtos' ? ' selected' : '') + '>Comida e bebida</option>' +
+            '<option value="produtos"' + (p.tipo === 'produtos' ? ' selected' : '') + '>Produtos e objetos</option></select>') +
+          '</div></section>';
+      },
+      pedidos: function () { return htmlPedidoAdmin(p.pedido); },
+      visual: function () { return htmlAparencia(p); },
+      divulgar: function () { return htmlCartazAdmin(); },
+      conta: function () {
+        return '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>' + esc(location.host + '/' + LOJA) + '</span>' +
+          '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>' + htmlContaAdmin();
+      }
+    };
+    $('#admin-corpo').innerHTML =
+      '<div class="abas-admin" role="tablist" aria-label="Partes do painel">' + abas.map(function (a) {
+        var ponto = a === 'inicio' && plano && plano.situacao !== 'ativo';
+        return '<button class="aba-admin" type="button" role="tab" data-aba-btn="' + a + '" aria-selected="' + (a === abaAdmin) + '">' + ABAS[a] + (ponto ? '<span class="ponto" aria-hidden="true"></span>' : '') + '</button>';
+      }).join('') + '</div>' +
+      abas.map(function (a) {
+        return '<div class="painel-aba" role="tabpanel" data-aba="' + a + '"' + (a === abaAdmin ? '' : ' hidden') + '>' + conteudo[a]() + '</div>';
+      }).join('');
+    if (abaAdmin === 'inicio') carregarResultados();
   }
+  function mostrarAba(a) {
+    abaAdmin = a;
+    $$('#admin-corpo [data-aba-btn]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-aba-btn') === a)); });
+    $$('#admin-corpo .painel-aba').forEach(function (d) { d.hidden = d.getAttribute('data-aba') !== a; });
+    var corpo = $('#admin-corpo'); if (corpo) corpo.scrollTop = 0;
+    var b = $('#admin-corpo [data-aba-btn="' + a + '"]'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', inline: 'center' });
+    if (a === 'inicio') carregarResultados();
+  }
+
+  // ---- Números da loja (contagens anônimas por dia)
+  function carregarResultados() {
+    var alvo = $('#resultados');
+    if (!alvo || !LOJA || !servidor) return;
+    fetch(comLoja('api/evento') + '&dias=14', { headers: cabecalhos(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) { var el = $('#resultados'); if (el) el.innerHTML = htmlResultados(j); })
+      .catch(function (e) { var el = $('#resultados'); if (el) el.innerHTML = '<p class="mini">Não deu para carregar os números agora (' + esc(e.message) + ').</p>'; });
+  }
+  function htmlResultados(j) {
+    var dias = [], porDia = {}, tot = { visita: 0, produto: 0, ar: 0, pedido: 0 }, prods = {};
+    for (var i = 13; i >= 0; i--) {
+      var d = new Date(Date.parse(j.hoje + 'T12:00:00Z') - i * 864e5).toISOString().slice(0, 10);
+      dias.push(d); porDia[d] = { visita: 0, pedido: 0 };
+    }
+    var sete = dias.slice(7);
+    j.linhas.forEach(function (l) {
+      if (porDia[l.dia] && (l.tipo === 'visita' || l.tipo === 'pedido')) porDia[l.dia][l.tipo] += l.n;
+      if (sete.indexOf(l.dia) < 0) return;
+      tot[l.tipo] = (tot[l.tipo] || 0) + l.n;
+      if (l.tipo === 'produto') prods[l.chave] = (prods[l.chave] || 0) + l.n;
+    });
+    var max = Math.max.apply(null, dias.map(function (d) { return porDia[d].visita; }).concat([1]));
+    var conv = tot.visita ? Math.round(tot.pedido / tot.visita * 100) : 0;
+    var nomeDe = function (id) { var x = rascunho.produtos.filter(function (q) { return q.id === id; })[0]; return x ? x.nome : 'Produto removido'; };
+    var top = Object.keys(prods).sort(function (a, b) { return prods[b] - prods[a]; }).slice(0, 5);
+    var dataBr = function (d) { return d.slice(8, 10) + '/' + d.slice(5, 7); };
+    var tile = function (v, rot) { return '<div class="numero"><strong>' + v + '</strong><span>' + rot + '</span></div>'; };
+    if (!tot.visita && !tot.pedido) {
+      return '<div class="numeros">' + tile(0, 'visitas') + tile(0, 'pedidos enviados') + tile(0, 'viram na mesa') + tile('0%', 'visitas que pediram') + '</div>' +
+        '<p class="mini">Ainda não há visitas. Mande o link no WhatsApp e cole o cartaz com QR nas mesas: os números aparecem aqui. (Suas próprias visitas logado não contam.)</p>';
+    }
+    return '<div class="numeros">' + tile(tot.visita, 'visitas') + tile(tot.pedido, 'pedidos enviados') + tile(tot.ar, 'viram na mesa') + tile(conv + '%', 'visitas que pediram') + '</div>' +
+      '<p class="mini" style="margin:0">Visitas por dia (14 dias)</p>' +
+      '<div class="grafico" role="img" aria-label="Visitas por dia nos últimos 14 dias: ' + dias.map(function (d) { return dataBr(d) + ' ' + porDia[d].visita; }).join(', ') + '">' +
+        dias.map(function (d, k) {
+          var v = porDia[d].visita;
+          return '<i' + (k === dias.length - 1 ? ' class="hoje"' : '') + ' style="height:' + Math.max(2, Math.round(v / max * 100)) + '%" title="' + dataBr(d) + ': ' + v + ' visitas, ' + porDia[d].pedido + ' pedidos"></i>';
+        }).join('') +
+      '</div><div class="grafico-eixo"><span>' + dataBr(dias[0]) + '</span><span>hoje</span></div>' +
+      (top.length ? '<p class="mini" style="margin:0 0 8px">Mais vistos</p><ol class="top-produtos">' + top.map(function (id) {
+        return '<li><span>' + esc(nomeDe(id)) + '</span><span>' + prods[id] + '</span><b style="width:' + Math.round(prods[id] / prods[top[0]] * 100) + '%"></b></li>';
+      }).join('') + '</ol>' : '');
+  }
+  // Registra uma visita/produto/câmera/pedido (anônimo; a própria loja logada não conta)
+  function registrar(tipo, chave) {
+    if (!LOJA || !servidor || indisponivel || lerTokenLoja()) return;
+    var k = 'menureal:ev:' + LOJA + ':' + tipo + ':' + (chave || '');
+    if (tipo !== 'pedido') { try { if (sessionStorage.getItem(k)) return; sessionStorage.setItem(k, '1'); } catch (e) { /* conta mesmo assim */ } }
+    var corpo = JSON.stringify({ loja: LOJA, tipo: tipo, chave: chave || '' });
+    try {
+      if (navigator.sendBeacon && navigator.sendBeacon('api/evento', new Blob([corpo], { type: 'application/json' }))) return;
+    } catch (e) { /* tenta com fetch */ }
+    fetch('api/evento', { method: 'POST', headers: { 'content-type': 'application/json' }, body: corpo, keepalive: true }).catch(function () {});
+  }
+
 
   // ---- Pedidos: entrega, retirada, taxas, pagamento e Pix
   function htmlPedidoAdmin(c) {
@@ -1691,12 +1808,12 @@
         chk('entrega', 'Entrega', c.entrega) + chk('retirada', 'Retirar na loja', c.retirada) + chk('local', 'Consumir no local', c.local) +
       '</div></fieldset>' +
       '<div class="campos campos--2">' +
-        campo('Taxa de entrega (R$)', '<input data-ped="taxa" inputmode="decimal" placeholder="0,00 = grátis" value="' + din(c.taxa) + '">', 'Usada quando não há lista de bairros.') +
+        campo('Taxa de entrega (R$)', '<input data-ped="taxa" inputmode="decimal" placeholder="0,00 = grátis" value="' + din(c.taxa) + '">') +
         campo('Pedido mínimo (R$)', '<input data-ped="minimo" inputmode="decimal" placeholder="Sem mínimo" value="' + din(c.minimo) + '">') +
       '</div>' +
       campo('Taxa por bairro (opcional)', '<textarea data-ped="bairros" rows="4" maxlength="3000" placeholder="Centro = 4\nVila Nova = 6,50\nJardim América = 8">' +
         esc(c.bairros.map(function (b) { return b.nome + ' = ' + (b.taxa ? din(b.taxa) : '0'); }).join('\n')) + '</textarea>',
-        'Um bairro por linha: nome = taxa. Com a lista, o cliente escolhe o bairro e só entrega onde estiver nela.') +
+        'Um por linha. Com a lista, a taxa fixa acima não é usada.') +
       '<div class="campos campos--2">' +
         campo('Tempo de entrega', '<input data-ped="tempo" maxlength="40" placeholder="Ex.: 30 a 45 min" value="' + esc(c.tempo) + '">') +
         campo('Fora do horário', '<select data-ped="foraDoHorario"><option value="bloquear"' + (c.foraDoHorario !== 'agendar' ? ' selected' : '') + '>Não aceitar pedidos</option>' +
@@ -1707,7 +1824,7 @@
         chk('pg-pix', 'Pix', c.pagamento.pix) + chk('pg-cartao', 'Cartão', c.pagamento.cartao) + chk('pg-dinheiro', 'Dinheiro', c.pagamento.dinheiro) +
       '</div></fieldset>' +
       '<fieldset class="campo tams-admin"><legend>Chave Pix (opcional)</legend>' +
-        '<small>Com a chave, o cliente recebe o Pix copia e cola <strong>já com o valor do pedido</strong>. O dinheiro cai direto na sua conta; o MenuReal não passa por ele. Confira o comprovante antes de preparar.</small>' +
+        '<small>O cliente recebe o Pix <strong>já com o valor</strong>. O dinheiro cai direto na sua conta.</small>' +
         '<div class="campos campos--2">' +
           campo('Tipo', '<select data-ped="pix-tipo">' + TIPOS_PIX.map(function (t) { return '<option value="' + t[0] + '"' + (t[0] === c.pix.tipo ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>') +
           campo('Chave', '<input data-ped="pix-chave" maxlength="77" autocomplete="off" value="' + esc(c.pix.chave) + '">') +
@@ -2259,7 +2376,10 @@
     $$('.erro-campo', f).forEach(function (e) { e.remove(); });
     $$('[aria-invalid]', f).forEach(function (e) { e.removeAttribute('aria-invalid'); });
     var primeiro = null;
-    function erro(input, msg) { marcarErro(input, msg); if (!primeiro) primeiro = input; }
+    function erro(input, msg) {
+      marcarErro(input, msg);
+      if (!primeiro) { primeiro = input; var pa = input.closest('.painel-aba'); if (pa && pa.hidden) mostrarAba(pa.getAttribute('data-aba')); }
+    }
     if (!rascunho.padaria.nome) erro(f.elements['p-nome'], 'Informe o nome do estabelecimento.');
     var zap = rascunho.padaria.whatsapp;
     if (zap && (zap.length < 10 || zap.length > 15)) erro(f.elements['p-zap'], 'Número inválido. Use DDI + DDD + número (10 a 15 dígitos).');
@@ -2302,7 +2422,7 @@
   }
 
   $('#btn-admin').addEventListener('click', function () {
-    abertoNoAdmin = null;
+    abertoNoAdmin = null; abaAdmin = '';
     if (indisponivel && lerTokenLoja()) { abrirDialogo($('#dlg-admin')); abrirAdminCompleto(); return; }
     rascunho = clonar(dados);
     renderAdmin();
@@ -2365,6 +2485,9 @@
     if (codAdmin && codAdmin.value.trim()) guardarCodigo(codAdmin.value.trim());
     if (e.target.closest('#login-entrar')) { entrar(); return; }
     if (e.target.closest('#login-esqueci')) { renderRecuperar(); return; }
+    var ab = e.target.closest('[data-aba-btn]') || e.target.closest('[data-aba-ir]');
+    if (ab) { mostrarAba(ab.getAttribute('data-aba-btn') || ab.getAttribute('data-aba-ir')); return; }
+    if (e.target.closest('[data-ajuda]')) { abrirAjuda(e.target.closest('[data-ajuda]').getAttribute('data-ajuda')); return; }
     if (e.target.closest('#rec-voltar')) { renderLogin(); return; }
     if (e.target.closest('#rec-enviar')) { recuperarSenha(); return; }
     if (e.target.closest('#codigo-ok')) { abrirAdminCompleto(); return; }
@@ -3004,8 +3127,8 @@
       return r.ok ? r.json() : null;
     }).then(function (d) {
       if (d && d.indisponivel) { lojaIndisponivel(d); return; }
-      if (d) indisponivel = false;
-      var v = d && validarDados(d);
+      if (d) { indisponivel = false; registrar('visita'); }
+      var v = d && comAcaiDemo(validarDados(d));
       if (!v || JSON.stringify(v) === JSON.stringify(dados)) return;
       dados = v;
       CATEGORIAS = dados.categorias;
@@ -3198,7 +3321,7 @@
         c('Crie uma senha (8+ caracteres)', 'senha', 'type="password" maxlength="120" autocomplete="new-password"') +
         '<input id="cad-site" tabindex="-1" autocomplete="off" aria-hidden="true" class="isca">' +
         (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
-        '<p class="mini">Ao criar, você confirma que é responsável por esta loja. Seus dados são usados só para o seu acesso e para o suporte.</p>' +
+        '<p class="mini">Ao criar, você concorda com os <a href="/termos" target="_blank" rel="noopener">termos de uso e privacidade</a>.</p>' +
       '</div>';
     $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">Criar meu cardápio grátis</button>';
     if (cad.slug) conferirSlug();
@@ -3303,6 +3426,77 @@
     });
   }
 
+  // ---------------------------------------------------------------------
+  // Como usar: passo a passo que só abre quando a pessoa toca no "?"
+  // ---------------------------------------------------------------------
+  var IC = {
+    toque: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 24V10a3 3 0 0 1 6 0v12"/><path d="M26 20a3 3 0 0 1 6 0v4"/><path d="M32 22a3 3 0 0 1 6 0v8c0 7-5 12-12 12h-2c-5 0-8-3-10-7l-4-8a3 3 0 0 1 5-3l5 6"/></svg>',
+    copo: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M10 14h28l-4 28H14z"/><path d="M12 24h24M13 32h22" stroke-linecap="round"/><path d="M16 14c0-5 4-8 8-8s8 3 8 8"/></svg>',
+    camera: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><rect x="6" y="12" width="36" height="26" rx="6"/><circle cx="24" cy="25" r="7"/><path d="M17 12l3-5h8l3 5"/></svg>',
+    sacola: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M10 16h28l-2 26H12z"/><path d="M18 16v-3a6 6 0 0 1 12 0v3" stroke-linecap="round"/></svg>',
+    zap: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round"><path d="M8 40l3-9a16 16 0 1 1 6 6z"/><path d="M18 18c0 7 5 12 12 12l2-3-4-2-2 2c-2-1-4-3-5-5l2-2-2-4z" stroke-width="2.4"/></svg>',
+    chave: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="24" r="8"/><path d="M24 24h18M36 24v6M42 24v4"/></svg>',
+    lista: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 12h22M18 24h22M18 36h22"/><circle cx="9" cy="12" r="2"/><circle cx="9" cy="24" r="2"/><circle cx="9" cy="36" r="2"/></svg>',
+    moto: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="34" r="6"/><circle cx="37" cy="34" r="6"/><path d="M17 34h12l6-12h-8M27 14h6l4 8"/><path d="M11 28l6-8h8"/></svg>',
+    pincel: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M30 8l10 10-16 16-10-10z"/><path d="M14 24c-6 0-8 4-8 8 0 4-2 6-2 6s10 2 14-2c3-3 2-6 2-6"/></svg>',
+    qr: '<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3"><rect x="7" y="7" width="13" height="13" rx="2"/><rect x="28" y="7" width="13" height="13" rx="2"/><rect x="7" y="28" width="13" height="13" rx="2"/><path d="M28 28h5v5h-5zM36 36h5v5h-5zM36 28h5M28 41h3" stroke-linecap="round"/></svg>'
+  };
+  var TUTORIAIS = {
+    cliente: [
+      ['#7B2CBF', IC.toque, 'Escolha o produto', 'Toque na foto ou no + . Dá para girar o produto com o dedo e ver de todos os lados.'],
+      ['#FF3D8B', IC.copo, 'Monte o seu', 'No açaí, cada toque coloca uma camada no copo: açaí, creme, fruta… até encher. "Desfazer" tira a última.'],
+      ['#0096C7', IC.camera, 'Veja na mesa', 'Toque no botão da câmera e aponte o celular para a mesa: o copo aparece no tamanho real.'],
+      ['#FF8A00', IC.sacola, 'Feche o pedido', 'Toque em Pedido → Continuar. Escolha entrega ou retirada e a forma de pagamento.'],
+      ['#2E9E4F', IC.zap, 'Envie no WhatsApp', 'O pedido vai prontinho para a loja. No Pix, o código já vem com o valor certo.']
+    ],
+    loja: [
+      ['#7B2CBF', IC.chave, 'Crie e entre', 'Toque em "Criar meu cardápio grátis". Depois, para editar, use o botão de ajustes no topo da sua página.'],
+      ['#FF3D8B', IC.lista, 'Produtos', 'Na aba Produtos, coloque nome, preço e tamanhos. "Lista pronta de açaí" já preenche os adicionais.'],
+      ['#9D4EDD', IC.copo, 'Copo da sua loja', 'Em cada açaí, informe os ml do copo e toque em "Gerar copo 3D": ele sai no tamanho certo e com a sua logo.'],
+      ['#0096C7', IC.moto, 'Pedidos e Pix', 'Na aba Pedidos: entrega ou retirada, taxa por bairro, pedido mínimo e a sua chave Pix.'],
+      ['#FF8A00', IC.pincel, 'A cara da loja', 'Na aba Visual: cores, logo e foto de capa. Toque sempre em "Salvar alterações" para publicar.'],
+      ['#2E9E4F', IC.qr, 'Divulgue', 'Na aba Divulgar, baixe o cartaz com QR Code para as mesas e mande o link no WhatsApp. Os números aparecem no Início.']
+    ]
+  };
+  var ajuda = { tipo: 'cliente', i: 0 };
+  function abrirAjuda(tipo) {
+    ajuda = { tipo: TUTORIAIS[tipo] ? tipo : 'cliente', i: 0 };
+    $('#ajuda-titulo').textContent = ajuda.tipo === 'loja' ? 'Como usar (para a loja)' : 'Como pedir';
+    renderAjuda();
+    abrirDialogo($('#dlg-ajuda'));
+  }
+  function renderAjuda() {
+    var lista = TUTORIAIS[ajuda.tipo], p = lista[ajuda.i], ultimo = ajuda.i === lista.length - 1;
+    $('#ajuda-corpo').innerHTML = '<div class="ajuda">' +
+      '<div class="ajuda__icone" style="background:' + p[0] + ';color:' + p[0] + '"><span style="color:#fff;display:contents">' + p[1] + '</span></div>' +
+      '<span class="ajuda__passo">Passo ' + (ajuda.i + 1) + ' de ' + lista.length + '</span>' +
+      '<h3>' + esc(p[2]) + '</h3><p>' + esc(p[3]) + '</p>' +
+      '<div class="ajuda__pontos" aria-hidden="true">' + lista.map(function (_, k) { return '<i' + (k === ajuda.i ? ' class="ativo"' : '') + '></i>'; }).join('') + '</div>' +
+      '</div>';
+    $('#ajuda-rodape').innerHTML = '<div class="ajuda-nav">' +
+      '<button class="btn btn--fantasma" type="button" data-ajuda-ir="-1"' + (ajuda.i ? '' : ' disabled') + '>Voltar</button>' +
+      (ultimo ? '<button class="btn btn--primario" type="button" data-fechar>' + (ajuda.tipo === 'loja' && !LOJA ? 'Entendi' : 'Começar') + '</button>'
+        : '<button class="btn btn--primario" type="button" data-ajuda-ir="1">Próximo</button>') + '</div>';
+  }
+  $('#dlg-ajuda').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ajuda-ir]');
+    if (!b) return;
+    ajuda.i = Math.max(0, Math.min(TUTORIAIS[ajuda.tipo].length - 1, ajuda.i + Number(b.getAttribute('data-ajuda-ir'))));
+    renderAjuda();
+  });
+  // deslizar o dedo troca de passo
+  (function () {
+    var x0 = null, alvo = $('#ajuda-corpo');
+    alvo.addEventListener('touchstart', function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    alvo.addEventListener('touchend', function (e) {
+      if (x0 === null) return;
+      var dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) < 50) return;
+      ajuda.i = Math.max(0, Math.min(TUTORIAIS[ajuda.tipo].length - 1, ajuda.i + (dx < 0 ? 1 : -1)));
+      renderAjuda();
+    }, { passive: true });
+  })();
+
   // Confirmação dentro da página (não usa window.confirm, que alguns
   // ambientes incorporados bloqueiam)
   function confirmar(msg, rotulo) {
@@ -3400,8 +3594,10 @@
     }
   });
   setInterval(renderCabecalho, 60000);
-  $('#cta-loja').hidden = !!LOJA;
-  $('#cta-criar').addEventListener('click', abrirCadastro);
+  $('#land-criar').addEventListener('click', abrirCadastro);
+  $('#land-como').addEventListener('click', function () { abrirAjuda('loja'); });
+  $('#btn-ajuda').addEventListener('click', function () { abrirAjuda(LOJA ? 'cliente' : 'loja'); });
+  $('#admin-ajuda').addEventListener('click', function () { abrirAjuda('loja'); });
   if (ABRIR_CADASTRO) abrirCadastro();
 
   carregarModelViewer().then(function (ok) {

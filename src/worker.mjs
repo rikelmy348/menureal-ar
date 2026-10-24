@@ -18,6 +18,7 @@ import copo from './api/copo.mjs';
 import cadastro from './api/cadastro.mjs';
 import recuperar from './api/recuperar.mjs';
 import conta from './api/conta.mjs';
+import evento from './api/evento.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -31,7 +32,8 @@ const ROTAS = {
   '/api/copo': copo,
   '/api/cadastro': cadastro,
   '/api/recuperar': recuperar,
-  '/api/conta': conta
+  '/api/conta': conta,
+  '/api/evento': evento
 };
 
 // ---------------------------------------------------------------------------

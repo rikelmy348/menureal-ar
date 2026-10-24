@@ -391,6 +391,15 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 - **Prévia do link**: o Worker coloca título, descrição e imagem da loja no HTML (WhatsApp/Instagram não rodam JavaScript). Ao salvar, o painel gera uma imagem 1200×630 com capa, logo, nome e cores da loja (`uso: og`). Sem capa, usa o açaí 3D. Página inicial: `assets/og.jpg`.
   - Por isso `run_worker_first` passa as páginas pelo Worker, mas arquivos (`/assets`, `/vendor`, `app.js`, `style.css`) saem direto, sem gastar requisições do Worker.
 
+## 7g. Visual, tutorial, números e termos
+
+- **Visual**: cores padrão vibrantes (roxo açaí, rosa e amarelo), topo colorido em cada loja, categorias em pílulas, cartões mais limpos (selo "Monte o seu", só o essencial). Paletas novas: Morango, Tropical, Laranja, Céu, Chiclete.
+- **Página inicial** virou apresentação para lojistas ("Criar meu cardápio grátis", "Como funciona", 3 passos) com a demonstração logo abaixo. A demonstração sempre inclui o açaí montável.
+- **Painel em abas**: Início (números + atalhos), Produtos, Loja, Pedidos, Visual, Divulgar e Conta. Se houver erro numa aba escondida, ela abre sozinha ao salvar.
+- **Como usar**: botão **?** no topo (passo a passo para o cliente nas lojas; para o lojista na página inicial) e no painel. Só abre quando a pessoa toca.
+- **Números da loja** (`/api/evento`): visitas, produtos vistos, "viram na mesa" e pedidos enviados, por dia, anônimos. Cada aparelho conta uma visita por sessão; a loja logada não conta.
+- **Termos e privacidade**: `/termos` (modelo em linguagem simples; revise com um advogado antes de cobrar).
+
 ## 7d. Banco de dados
 
 Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são

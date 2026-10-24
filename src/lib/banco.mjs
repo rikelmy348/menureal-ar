@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 6; // 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
+const VERSAO_ESQUEMA = 7; // 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -55,6 +55,14 @@ const ESQUEMA = [
      loja      TEXT NOT NULL DEFAULT '',
      resultado TEXT NOT NULL,
      criada_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS eventos (
+     loja  TEXT NOT NULL,
+     dia   TEXT NOT NULL,          -- AAAA-MM-DD (horário de Brasília)
+     tipo  TEXT NOT NULL,          -- visita | produto | ar | pedido
+     chave TEXT NOT NULL DEFAULT '',
+     n     INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (loja, dia, tipo, chave)
    )`,
   `CREATE TABLE IF NOT EXISTS limites (
      chave TEXT PRIMARY KEY,
@@ -357,4 +365,18 @@ export async function gravarConfig(env, chave, valor) {
 }
 export async function bancoOk(env) {
   try { await env.DB.prepare('SELECT 1').first(); return true; } catch (e) { console.error('banco:', e.message); return false; }
+}
+
+// ---------------------------------------------------------------------------
+// Números da loja: contagens por dia, sem dados pessoais
+// ---------------------------------------------------------------------------
+export function diaBrasil(ms = Date.now()) { return new Date(ms - 3 * 36e5).toISOString().slice(0, 10); }
+export async function registrarEvento(env, slug, tipo, chave = '') {
+  await env.DB.prepare('INSERT INTO eventos (loja, dia, tipo, chave, n) VALUES (?, ?, ?, ?, 1) ON CONFLICT (loja, dia, tipo, chave) DO UPDATE SET n = n + 1')
+    .bind(slug, diaBrasil(), tipo, chave).run();
+}
+export async function lerEventos(env, slug, dias = 30) {
+  const desde = diaBrasil(Date.now() - (dias - 1) * 864e5);
+  const { results } = await env.DB.prepare('SELECT dia, tipo, chave, n FROM eventos WHERE loja = ? AND dia >= ? ORDER BY dia').bind(slug, desde).all();
+  return { desde, hoje: diaBrasil(), linhas: results };
 }

@@ -28,6 +28,7 @@
         <span class="logo__txt">MenuReal</span><span class="logo__ar">AR</span>
       </a>
       <div class="topbar__acoes">
+        <button class="icone-btn icone-btn--ajuda" id="btn-ajuda" type="button" aria-label="Como usar">?</button>
         <button class="icone-btn" id="btn-admin" type="button" aria-label="Abrir painel administrativo">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
           <span class="icone-btn__rot">Admin</span>
@@ -42,6 +43,27 @@
   </header>
 
   <main id="cardapio">
+    <!-- Página inicial: apresentação para lojistas (escondida nas páginas das lojas) -->
+    <section class="landing" id="landing" hidden aria-labelledby="land-titulo">
+      <div class="land-hero">
+        <span class="land-selo">Para açaí e sorveteria</span>
+        <h1 class="land-titulo" id="land-titulo">O cliente <em>monta o açaí em 3D</em> e pede no WhatsApp</h1>
+        <p class="land-sub">Cardápio digital com o copo no tamanho real, Pix com o valor certo e pedido completo. Pronto em 2 minutos.</p>
+        <div class="land-acoes">
+          <button class="btn btn--sol" type="button" id="land-criar">Criar meu cardápio grátis</button>
+          <button class="btn btn--vidro" type="button" id="land-como">Como funciona</button>
+        </div>
+        <p class="land-mini">7 dias grátis · sem cartão</p>
+        <img class="land-copo" src="assets/og-acai.png" alt="Copo de açaí em 3D com camadas de creme e morango" width="371" height="540">
+      </div>
+      <div class="land-passos">
+        <div class="land-passo"><b aria-hidden="true">1</b><div><strong>Monta camada por camada</strong><span>Açaí, creme, fruta… cada toque aparece no copo, com animação.</span></div></div>
+        <div class="land-passo"><b aria-hidden="true">2</b><div><strong>Vê na mesa, no tamanho real</strong><span>Pela câmera do celular, antes de pedir.</span></div></div>
+        <div class="land-passo"><b aria-hidden="true">3</b><div><strong>Pedido pronto no WhatsApp</strong><span>Com endereço, taxa e Pix já com o valor.</span></div></div>
+      </div>
+      <div class="land-demo"><h2>Experimente agora</h2><span>monte um açaí aqui embaixo ↓</span></div>
+    </section>
+
     <section class="hero" aria-labelledby="nome-padaria">
       <div class="hero__capa" id="hero-capa" hidden><img alt="" decoding="async"></div>
       <h1 class="hero__nome" id="nome-padaria">Padaria Sabor da Vila</h1>
@@ -51,11 +73,6 @@
         <span class="status" id="status-horario"><span class="status__ponto" aria-hidden="true"></span><span id="status-texto">—</span></span>
         <span class="hero__horario" id="horario-texto">—</span>
         <span class="hero__selo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span id="selo-texto">Cardápio em 3D</span></span>
-      </div>
-      <!-- Só na página inicial: chamada para lojistas -->
-      <div class="cta-loja" id="cta-loja" hidden>
-        <button class="btn btn--primario" type="button" id="cta-criar">Criar o cardápio da minha loja</button>
-        <span>7 dias grátis · sem cartão · pronto em 2 minutos</span>
       </div>
     </section>
 
@@ -81,7 +98,7 @@
   </main>
 
   <footer class="rodape" id="rodape">
-    <p>Feito com <strong>MenuReal AR</strong>. Visualização 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a>.</p>
+    <p>Feito com <strong>MenuReal</strong> · <a href="/termos">Termos e privacidade</a> · 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a></p>
   </footer>
 
   <!-- ================= Visualizador 3D / AR ================= -->
@@ -159,7 +176,8 @@
   <dialog class="folha folha--admin" id="dlg-admin" aria-labelledby="admin-titulo">
     <form class="painel" id="form-admin" novalidate>
       <div class="painel__topo">
-        <h2 id="admin-titulo">Painel administrativo</h2>
+        <h2 id="admin-titulo">Painel</h2>
+        <button class="icone-btn icone-btn--ajuda" type="button" id="admin-ajuda" aria-label="Como usar o painel" style="margin-left:auto;margin-right:8px">?</button>
         <button class="fechar" type="button" data-fechar aria-label="Fechar painel">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
@@ -211,6 +229,20 @@
       </div>
       <div class="painel__corpo" id="cadastro-corpo"></div>
       <div class="painel__rodape" id="cadastro-rodape"></div>
+    </div>
+  </dialog>
+
+  <!-- ================= Como usar (tutorial) ================= -->
+  <dialog class="folha folha--lateral folha--ajuda" id="dlg-ajuda" aria-labelledby="ajuda-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="ajuda-titulo">Como usar</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="ajuda-corpo" aria-live="polite"></div>
+      <div class="painel__rodape" id="ajuda-rodape"></div>
     </div>
   </dialog>
 
