@@ -9,7 +9,7 @@
      coberturas: lista de COBERTURAS
      animar:     { bola: índice } | { cobertura: tipo }  (só na tela)
    ========================================================================= */
-import { escreverGlb } from './glb.mjs';
+import { escreverGlb, lerGlb } from './glb.mjs';
 
 // ---------------------------------------------------------------------------
 // Catálogo
@@ -447,6 +447,8 @@ const MATERIAIS = {
   vidro: { alphaMode: 'BLEND', doubleSided: false, pbrMetallicRoughness: { baseColorFactor: [0.96, 0.98, 1, 0.2], metallicFactor: 0, roughnessFactor: 0.03 },
     extensions: { KHR_materials_ior: { ior: 1.5 }, KHR_materials_specular: { specularFactor: 1 } } },
   vidro_borda: { alphaMode: 'BLEND', doubleSided: false, pbrMetallicRoughness: { baseColorFactor: [0.97, 0.99, 1, 0.5], metallicFactor: 0, roughnessFactor: 0.05 } },
+  metal: { pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 1, roughnessFactor: 0.26 } },
+  tecido: { pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.7 } },
   papel: { pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 0.8 } }
 };
 function material(c, nome) {
@@ -512,6 +514,127 @@ function animDeslizar(c, n, pos, dir, dist, inicio = 0.05) {
   canal(c, n, 'scale', [0, inicio], [MIN, MIN, MIN, 1, 1, 1], 'STEP');
 }
 
+
+// ---------------------------------------------------------------------------
+// Ajudantes da animação (só na tela): pegador de sorvete, frasco/jarra de vidro,
+// saco de confeitar e a mão (arquivo _mao.glb, o mesmo do açaí)
+// ---------------------------------------------------------------------------
+const ESC_MAO = 0.09;
+/** Pegador (boleador): concha de metal virada para baixo, com cabo rosa. Origem: centro da concha (onde fica a bola). */
+function pegador(R) {
+  const Rp = R * 1.1, aco = corLin('#C9CED6');
+  const fora = grade((u, v) => {
+    const th = u * Math.PI * 2, ph = v * Math.PI * 0.5;
+    return { p: [Rp * Math.sin(ph) * Math.cos(th), Rp * Math.cos(ph), -Rp * Math.sin(ph) * Math.sin(th)], c: aco };
+  }, 40, 14, true, false);
+  const dentro = grade((u, v) => {
+    const th = u * Math.PI * 2, ph = v * Math.PI * 0.5, r = Rp - 0.0012;
+    return { p: [r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), -r * Math.sin(ph) * Math.sin(th)], c: aco.map((x) => x * 0.8) };
+  }, 40, 14, true, false);
+  virar(dentro);
+  const aro = tubo((t) => [(Rp - 0.0006) * Math.cos(t * Math.PI * 2), 0, -(Rp - 0.0006) * Math.sin(t * Math.PI * 2)], () => 0.0009, 6, 60, () => 1, () => aco);
+  // alavanca (a lâmina que solta a bola) e o pescoço do cabo
+  const lamina = tubo((t) => { const a = -0.9 + t * 1.8; return [Rp * 0.98 * Math.sin(a) * 0.15, Rp * 0.98 * Math.cos(a) * 0.98, -Rp * 0.98 * Math.sin(a)]; }, () => 0.0011, 6, 20, () => 1, () => aco);
+  const ini = [Rp * 0.55, Rp * 0.82, 0], dir = norm([1, 0.55, 0]);
+  const pescoco = tubo((t) => [ini[0] + dir[0] * 0.03 * t, ini[1] + dir[1] * 0.03 * t, 0], () => 0.0028, 10, 6, () => 1, () => aco);
+  const metal = juntar([fora, dentro, aro, lamina, pescoco]);
+  const rosa = corLin('#FF3D8B');
+  const cabo = tubo((t) => [ini[0] + dir[0] * (0.03 + 0.085 * t), ini[1] + dir[1] * (0.03 + 0.085 * t), 0], (t) => 0.0052 * (0.85 + 0.15 * Math.sin(t * Math.PI)), 14, 16,
+    (al) => 1 - 0.12 * Math.abs(Math.sin(al)), (u, v) => rosa.map((x) => x * (0.92 + 0.08 * Math.cos(v * 40))));
+  return { metal, cabo };
+}
+/** Frasco (ou jarra) de vidro em pé, com o bico na origem e o corpo para baixo. */
+function frasco(corHex, grande) {
+  const rn = grande ? 0.011 : 0.0055, rb = grande ? 0.04 : 0.019, L = grande ? 0.13 : 0.075;
+  const pts = [[rn + 0.0012, 0], [rn, -0.002], [rn, -L * 0.18], [rb * 0.9, -L * 0.3], [rb, -L * 0.36], [rb, -L * 0.96], [rb * 0.92, -L], [0.001, -L]];
+  const perfil = (v) => {
+    const x = v * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(x)), f = x - i, k = f * f * (3 - 2 * f);
+    return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k];
+  };
+  const vidro = revolucao(perfil, 48, 60, 1, () => COR_VIDRO);
+  const cor = corLin(corHex);
+  const liquido = revolucao((v) => [(rb - 0.002) * Math.min(1, Math.sin(v * Math.PI) * 3), -L * 0.97 + L * 0.55 * v], 40, 16, 1, (u, v) => cor.map((x) => x * (0.9 + 0.12 * v)));
+  const borda = tubo((t) => [(rn + 0.0008) * Math.cos(t * Math.PI * 2), 0, -(rn + 0.0008) * Math.sin(t * Math.PI * 2)], () => 0.0012, 6, 40, () => 1, () => COR_VIDRO);
+  return { vidro: juntar([vidro, borda]), liquido };
+}
+/** Fio de calda saindo do bico: comprimento 1 para baixo (a escala Y dá o tamanho). */
+function jato(corHex, grosso) {
+  const cor = corLin(corHex), r = grosso ? 0.0032 : 0.0017;
+  return tubo((t) => [0, -t, 0], (t) => r * (1 - 0.25 * t), 8, 8, () => 1, () => cor);
+}
+/** Saco de confeitar com bico de estrela. Origem: ponta do bico. */
+function sacoConfeitar() {
+  const aco = corLin('#C9CED6'), pano = corLin('#E3F0FF');
+  const bico = revolucao((v) => [0.0022 + 0.0045 * v, 0.014 * v], 16, 4, 1, (u) => aco.map((x) => x * (0.85 + 0.15 * Math.cos(u * Math.PI * 16))));
+  const saco = revolucao((v) => [0.0066 + 0.03 * Math.sin(Math.min(1, v * 1.25) * Math.PI / 2) * (v > 0.85 ? 1 - (v - 0.85) * 4.5 : 1), 0.013 + 0.12 * v], 32, 24, 1,
+    (u, v) => pano.map((x) => x * (0.9 + 0.1 * Math.sin(u * Math.PI * 10 + v * 6))));
+  return { bico, saco };
+}
+/** Incorpora um GLB (a mão) à cena. Devolve o nó-pai (escondido em repouso). */
+function incorporar(c, bytes, nome, escala) {
+  const { json, bin } = lerGlb(bytes);
+  const j = c.json;
+  j.images = j.images || []; j.textures = j.textures || []; j.samplers = j.samplers || [];
+  const off = { bv: j.bufferViews.length, acc: j.accessors.length, img: j.images.length, smp: j.samplers.length, tex: j.textures.length, mat: j.materials.length, mesh: j.meshes.length, node: j.nodes.length };
+  const pad = (4 - (c.bin % 4)) % 4;
+  if (pad) { c.partes.push(new Uint8Array(pad)); c.bin += pad; }
+  const base = c.bin;
+  if (bin) { c.partes.push(bin); c.bin += bin.length; }
+  (json.bufferViews || []).forEach((v) => j.bufferViews.push({ ...v, buffer: 0, byteOffset: (v.byteOffset || 0) + base }));
+  (json.accessors || []).forEach((a) => j.accessors.push({ ...a, bufferView: a.bufferView + off.bv }));
+  (json.images || []).forEach((im) => j.images.push({ ...im, bufferView: im.bufferView + off.bv }));
+  (json.samplers || []).forEach((x) => j.samplers.push({ ...x }));
+  (json.textures || []).forEach((t) => j.textures.push({ ...t, source: t.source + off.img, sampler: t.sampler == null ? undefined : t.sampler + off.smp }));
+  const tex = (o) => { if (o && typeof o.index === 'number') o.index += off.tex; };
+  (json.materials || []).forEach((m) => {
+    const n = JSON.parse(JSON.stringify(m));
+    if (n.pbrMetallicRoughness) { tex(n.pbrMetallicRoughness.baseColorTexture); tex(n.pbrMetallicRoughness.metallicRoughnessTexture); }
+    tex(n.normalTexture); tex(n.occlusionTexture); tex(n.emissiveTexture);
+    j.materials.push(n);
+  });
+  (json.meshes || []).forEach((m) => {
+    const n = JSON.parse(JSON.stringify(m));
+    n.primitives.forEach((p) => {
+      for (const k of Object.keys(p.attributes)) p.attributes[k] += off.acc;
+      if (p.indices != null) p.indices += off.acc;
+      if (p.material != null) p.material += off.mat;
+    });
+    j.meshes.push(n);
+  });
+  (json.nodes || []).forEach((n) => j.nodes.push({ ...n, mesh: n.mesh == null ? undefined : n.mesh + off.mesh, children: n.children ? n.children.map((x) => x + off.node) : undefined }));
+  const filhos = ((json.scenes || [])[json.scene || 0] || { nodes: [] }).nodes.map((x) => x + off.node);
+  j.nodes.push({ name: nome, scale: [MIN, MIN, MIN], children: filhos });
+  j.scenes[0].nodes.push(j.nodes.length - 1);
+  return { no: j.nodes.length - 1, escala };
+}
+/** Nó de ajudante feito aqui (escondido em repouso), com várias malhas. */
+function ajudante(c, nome, partes) {
+  const pai = no(c, { name: nome, scale: [MIN, MIN, MIN] });
+  partes.forEach(([m, mat], i) => no(c, { name: nome + '_' + i, mesh: malhaGltf(c, nome + '_' + i, m, mat) }, pai));
+  return { no: pai, escala: 1 };
+}
+/** Movimento de um ajudante: kf = [[t, posição, rotação?], ...]; aparece no 1º e some depois do último. */
+function mover(c, aj, kf) {
+  const T = kf.map((k) => +k[0].toFixed(3));
+  canal(c, aj.no, 'translation', T, kf.flatMap((k) => k[1]));
+  if (kf.some((k) => k[2])) canal(c, aj.no, 'rotation', T, kf.flatMap((k) => k[2] || [0, 0, 0, 1]));
+  const e = aj.escala, fim = T[T.length - 1];
+  canal(c, aj.no, 'scale', [0, fim + 0.01], [e, e, e, MIN, MIN, MIN], 'STEP');
+}
+const soma = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+/** Bola que chega no pegador e cai no lugar. */
+function animBolaComPegador(c, nBola, pos, peg) {
+  const S = soma(pos, [0.11, 0.17, 0.07]), A = soma(pos, [0, 0.07, 0]);
+  canal(c, nBola, 'translation', [0, 0.45, 0.58, 0.8, 0.88, 0.97], [...S, ...A, ...A, ...pos, ...soma(pos, [0, 0.004, 0]), ...pos]);
+  canal(c, nBola, 'scale', [0, 0.58, 0.8, 0.88, 0.97], [1, 1, 1, 1, 1, 1, 1.12, 0.84, 1.12, 0.96, 1.05, 0.96, 1, 1, 1]);
+  if (peg) {
+    const giro = quatEixo([0, 0, 1], 0.35);
+    mover(c, peg, [[0, S], [0.45, A], [0.55, soma(A, [0, 0.004, 0]), giro], [0.8, soma(A, [0.03, 0.05, 0.01])], [1.1, soma(S, [0.05, 0.06, 0])]]
+      .map((k, i) => [k[0], k[1], i === 2 ? giro : [0, 0, 0, 1]]));
+  }
+}
+const POUR = quatEixo([0, 0, 1], 2.3), DE_PE = quatEixo([0, 0, 1], 0.55);
+
 /**
  * Posições das bolas no recipiente. Devolve [{ x, y, z }] (centros) e quais ficam expostas por cima.
  */
@@ -548,7 +671,8 @@ export function montarSorvete(opcoes = {}) {
   const R = info0.R;
   const temCalda = cobs.find((x) => CALDA[x]);
 
-  if (info0.milk) return montarMilkshake(c, rec, sabores, cobs, an, det);
+  const mao = () => (opcoes.mao ? incorporar(c, opcoes.mao, 'mao', ESC_MAO) : null);
+  if (info0.milk) return montarMilkshake(c, rec, sabores, cobs, an, det, mao);
 
   // recipiente
   let info;
@@ -566,7 +690,10 @@ export function montarSorvete(opcoes = {}) {
     const seed = semente(sab + '#' + i + rec);
     const giro = quatEixo([0, 1, 0], i * 2.1);
     const n = no(c, { name: 'bola_' + i + '_' + sab, mesh: malhaGltf(c, 'bola_' + sab, malhaBola(sab, R, seed, det), 'sorvete'), translation: pos[i], rotation: giro });
-    if (an.bola === i) animQueda(c, n, pos[i], 0.13);
+    if (an.bola === i) {
+      const pg = pegador(R);
+      animBolaComPegador(c, n, pos[i], ajudante(c, 'pegador', [[pg.metal, 'metal'], [pg.cabo, 'doce']]));
+    }
     return { n, seed, p: pos[i], giro };
   });
   if (!sabores.length) return fecharCena(c);
@@ -580,41 +707,97 @@ export function montarSorvete(opcoes = {}) {
   cobs.forEach((tipo) => {
     const animar = an.cobertura === tipo;
     if (CALDA[tipo]) {
+      // frasco de vidro chega, inclina e despeja a calda em cada bola
+      const fr = animar ? frasco(CALDA[tipo], false) : null;
+      const aj = fr ? ajudante(c, 'frasco', [[fr.liquido, 'calda'], [fr.vidro, 'vidro']]) : null;
+      const jt = fr ? no(c, { name: 'jato', mesh: malhaGltf(c, 'jato', jato(CALDA[tipo]), 'calda'), scale: [MIN, MIN, MIN] }) : null;
+      const kf = [], kj = { T: [0], P: [0, 0, 0], E: [MIN, MIN, MIN] };
+      const ALT = 0.045;
       alvo.forEach((b, k) => {
         const t = topoDe(b);
         const n = no(c, { name: 'calda_' + k, mesh: malhaGltf(c, 'calda_' + tipo + k, caldaNaBola(R, b.seed, tipo, det), 'calda'), translation: t, rotation: b.giro });
-        if (animar) animEscorrer(c, n, 0.05 + k * 0.18);
+        if (!animar) return;
+        const t0 = 0.4 + k * 0.6, bico = soma(t, [0, ALT, 0]);
+        if (!k) kf.push([0, soma(bico, [0.12, 0.02, 0.05]), DE_PE]);
+        kf.push([t0 - 0.05, bico, POUR], [t0 + 0.45, soma(bico, [0.004, 0, 0]), POUR]);
+        animEscorrer(c, n, t0, 0.9);
+        kj.T.push(t0 - 0.01, t0, t0 + 0.45, t0 + 0.46); kj.P.push(...bico, ...bico, ...bico, ...bico); kj.E.push(MIN, MIN, MIN, 1, ALT, 1, 1, ALT, 1, MIN, MIN, MIN);
       });
+      if (animar) {
+        const ult = kf[kf.length - 1];
+        kf.push([ult[0] + 0.4, soma(ult[1], [0.1, 0.06, 0.04]), DE_PE]);
+        mover(c, aj, kf);
+        canal(c, jt, 'translation', kj.T, kj.P, 'STEP');
+        canal(c, jt, 'scale', kj.T, kj.E, 'STEP');
+      }
     } else if (tipo === 'granulado' || tipo === 'confete' || tipo === 'amendoim') {
+      // a mão salpica por cima de cada bola
+      const m = animar ? mao() : null, kf = [];
       alvo.forEach((b, k) => {
         const grupos = confeitos(R, b.seed + k, tipo, temCalda ? 0.0017 : 0, animar ? 5 : 1, det);
+        const t0 = 0.4 + k * 0.55, pinca = soma(b.p, [0, 0.09, 0]);
+        if (m && !k) kf.push([0, soma(pinca, [0.14, 0.1, -0.06])]);
+        if (m) for (let j = 0; j <= 5; j++) kf.push([t0 - 0.05 + j * 0.09, soma(pinca, [0.008 * Math.cos(j * 1.7), 0.006 * Math.sin(j * 2.3), 0.008 * Math.sin(j * 1.7)])]);
         grupos.forEach((g, j) => {
           const n = no(c, { name: tipo + '_' + k + '_' + j, mesh: malhaGltf(c, tipo + k + j, g, 'doce'), translation: b.p, rotation: b.giro });
-          if (animar) animQueda(c, n, b.p, 0.09, 0.05 + j * 0.09 + k * 0.05);
+          if (animar) animQueda(c, n, b.p, 0.09, t0 + j * 0.09);
         });
       });
+      if (m) { const u = kf[kf.length - 1]; kf.push([u[0] + 0.45, soma(u[1], [-0.1, 0.1, -0.06])]); mover(c, m, kf); }
     } else if (tipo === 'chantilly') {
       const raio = rec === 'taca' && sabores.length >= 2 && sabores.length < 4 ? R * 1.05 : R * 0.82;
       const centro = rec === 'taca' && sabores.length >= 2 && sabores.length < 4
         ? [0, Math.max(...alvo.map((b) => topoDe(b)[1])) - R * 0.35, sabores.length === 3 ? R * 0.02 : 0] : [topoFinal[0], topoFinal[1] - R * 0.18, topoFinal[2]];
       const n = no(c, { name: 'chantilly', mesh: malhaGltf(c, 'chantilly', chantilly(raio, det), 'sorvete'), translation: centro });
-      if (animar) animCrescer(c, n);
+      if (animar) { animCrescer(c, n, 0.4); animarSaco(c, centro, raio); }
       topoFinal = [centro[0], centro[1] + raio * 1.2, centro[2]];
     } else if (tipo === 'cereja') {
       const p = [topoFinal[0], topoFinal[1] - 0.003, topoFinal[2]];
-      const n = no(c, { name: 'cereja', mesh: malhaGltf(c, 'cereja', cereja(), 'cereja'), translation: p, rotation: quatEixo([0.3, 0, 1], 0.25) });
-      if (animar) animQueda(c, n, p, 0.12);
+      const rot = quatEixo([0.3, 0, 1], 0.25);
+      const n = no(c, { name: 'cereja', mesh: malhaGltf(c, 'cereja', cereja(), 'cereja'), translation: p, rotation: rot });
+      if (animar) animCerejaComMao(c, n, p, rot, mao());
     } else if (tipo === 'wafer') {
       const b = maisAlta, dir = norm([0.55, 0.75, 0.35]);
       const p = [b.p[0] + dir[0] * R * 0.55, b.p[1] + dir[1] * R * 0.55, b.p[2] + dir[2] * R * 0.55];
       const n = no(c, { name: 'wafer', mesh: malhaGltf(c, 'wafer', wafer(), 'massa'), translation: p, rotation: quatYpara(dir) });
-      if (animar) animDeslizar(c, n, p, dir, 0.07);
+      if (animar) animWaferComMao(c, n, p, dir, mao());
     }
   });
   return fecharCena(c);
 }
 
-function montarMilkshake(c, rec, sabores, cobs, an, det) {
+/** Cereja: a mão traz pelo cabinho e solta em cima. */
+function animCerejaComMao(c, n, p, rot, m) {
+  const solta = soma(p, [0, 0.07, 0]), ini = soma(solta, [0.14, 0.09, -0.06]);
+  const cabo = [0.006, 0.041, 0.002];   // onde a mão segura (ponta do cabinho)
+  canal(c, n, 'translation', [0, 0.45, 0.55, 0.78, 0.86, 0.95], [...ini, ...solta, ...solta, ...p, ...soma(p, [0, 0.004, 0]), ...p]);
+  canal(c, n, 'scale', [0, 0.55, 0.78, 0.86, 0.95], [1, 1, 1, 1, 1, 1, 1.1, 0.85, 1.1, 0.97, 1.04, 0.97, 1, 1, 1]);
+  if (m) mover(c, m, [[0, soma(ini, cabo)], [0.45, soma(solta, cabo)], [0.58, soma(solta, soma(cabo, [0, 0.008, 0]))], [1.0, soma(solta, [-0.1, 0.12, -0.06])]]);
+}
+/** Wafer: a mão espeta o biscoito no sorvete. */
+function animWaferComMao(c, n, p, dir, m) {
+  const L = 0.07, D = 0.07, ini = soma(p, dir.map((x) => x * D));
+  canal(c, n, 'translation', [0, 0.4, 0.85], [...ini, ...ini, ...p]);
+  if (m) {
+    const ponta = (q) => soma(q, dir.map((x) => x * (L - 0.004)));
+    mover(c, m, [[0, soma(ponta(ini), [0.12, 0.08, -0.05])], [0.4, ponta(ini)], [0.85, ponta(p)], [0.95, ponta(p)], [1.3, soma(ponta(p), [0.09, 0.1, -0.05])]]);
+  }
+}
+/** Saco de confeitar fazendo o chantilly em espiral (sobe enquanto o chantilly cresce). */
+function animarSaco(c, centro, raio) {
+  const sc = sacoConfeitar();
+  const aj = ajudante(c, 'saco', [[sc.bico, 'metal'], [sc.saco, 'tecido']]);
+  const kf = [[0, soma(centro, [0.1, 0.16, 0.05])]];
+  for (let i = 0; i <= 12; i++) {
+    const u = i / 12, a = u * Math.PI * 2 * 2.6, rho = raio * 0.62 * (1 - u);
+    kf.push([0.4 + u * 0.6, soma(centro, [rho * Math.cos(a), raio * 1.25 * u + 0.004, -rho * Math.sin(a)])]);
+  }
+  const u = kf[kf.length - 1];
+  kf.push([u[0] + 0.15, soma(u[1], [0, 0.02, 0])], [u[0] + 0.5, soma(u[1], [0.08, 0.12, 0.04])]);
+  mover(c, aj, kf);
+}
+
+function montarMilkshake(c, rec, sabores, cobs, an, det, mao) {
   const copo = copoMilk(RECIPIENTES[rec].H, det);
   const { H, base } = copo;
   const topoLiq = H * 0.84;
@@ -633,7 +816,16 @@ function montarMilkshake(c, rec, sabores, cobs, an, det) {
         (u) => (ultimo ? mistura(cor, [1, 1, 1], 0.3) : cor).map((x) => x * (0.95 + 0.06 * ruido(u * 20, 0, 0, seed))));
       const fundo = i === 0 ? revolucao((v) => [(copo.raioDentro(y0) - 0.0005) * v, 0], 48, 2, -1, () => cor) : null;
       const n = no(c, { name: 'liquido_' + i + '_' + sab, mesh: malhaGltf(c, 'liquido_' + i, juntar([parede, tampa, fundo]), 'liquido'), translation: [0, y0, 0] });
-      if (an.bola === i) canal(c, n, 'scale', [0, 0.05, 0.75], [MIN, MIN, MIN, 1, 0.02, 1, 1, 1, 1]);
+      if (an.bola === i) {
+        // jarra de vidro despeja o milkshake no copo
+        canal(c, n, 'scale', [0, 0.45, 1.25], [MIN, MIN, MIN, 1, 0.02, 1, 1, 1, 1]);
+        const jr = frasco(s.cor, true);
+        const aj = ajudante(c, 'jarra', [[jr.liquido, 'liquido'], [jr.vidro, 'vidro']]);
+        const bico = [copo.rt * 0.35, H + 0.035, 0], alt = bico[1] - y0;
+        mover(c, aj, [[0, soma(bico, [0.16, 0.02, 0.06]), DE_PE], [0.4, bico, POUR], [1.25, soma(bico, [0.004, 0, 0]), POUR], [1.65, soma(bico, [0.15, 0.05, 0.06]), DE_PE]]);
+        const jt = no(c, { name: 'jato', mesh: malhaGltf(c, 'jato_milk', jato(s.cor, true), 'liquido'), translation: bico, scale: [MIN, MIN, MIN] });
+        canal(c, jt, 'scale', [0, 0.42, 1.25], [MIN, MIN, MIN, 1, alt, 1, MIN, MIN, MIN], 'STEP');
+      }
     });
   }
   let topo = sabores.length ? topoLiq : base;
@@ -653,14 +845,29 @@ function montarMilkshake(c, rec, sabores, cobs, an, det) {
         }, (t) => w * 0.6 * (1 - 0.3 * t) * (t > 0.94 ? 1.3 : 1), 10, 30, () => 1, () => cor));
       }
       const n = no(c, { name: 'calda_copo', mesh: malhaGltf(c, 'calda_copo_' + tipo, juntar(fios), 'calda'), translation: [0, H - 0.004, 0] });
-      if (animar) animEscorrer(c, n, 0.05, 1.1);
+      if (animar) {
+        animEscorrer(c, n, 0.4, 1.1);
+        // frasco de vidro dá a volta na borda despejando
+        const fr = frasco(CALDA[tipo], false);
+        const aj = ajudante(c, 'frasco', [[fr.liquido, 'calda'], [fr.vidro, 'vidro']]);
+        const kf = [[0, [0.14, H + 0.06, 0.06], DE_PE]], P = [], T = [];
+        for (let i = 0; i <= 8; i++) {
+          const a = (i / 8) * Math.PI * 2, r = copo.rt * 0.78, b = [r * Math.cos(a), H + 0.03, -r * Math.sin(a)];
+          kf.push([0.4 + i * 0.1, b, POUR]); T.push(+(0.4 + i * 0.1).toFixed(3)); P.push(...b);
+        }
+        kf.push([1.6, [0.14, H + 0.08, 0.06], DE_PE]);
+        mover(c, aj, kf);
+        const jt = no(c, { name: 'jato', mesh: malhaGltf(c, 'jato', jato(CALDA[tipo]), 'calda'), scale: [MIN, MIN, MIN] });
+        canal(c, jt, 'translation', T, P);
+        canal(c, jt, 'scale', [0, 0.41, 1.21], [MIN, MIN, MIN, 1, 0.03, 1, MIN, MIN, MIN], 'STEP');
+      }
     }
   });
   if (temChantilly) {
     const raio = copo.rt * 0.98;
     const p = [0, H - 0.008, 0];
     const n = no(c, { name: 'chantilly', mesh: malhaGltf(c, 'chantilly', chantilly(raio, det), 'sorvete'), translation: p });
-    if (an.cobertura === 'chantilly') animCrescer(c, n);
+    if (an.cobertura === 'chantilly') { animCrescer(c, n, 0.4); animarSaco(c, p, raio); }
     topo = p[1] + raio * 1.22;
     const caldaTop = cobs.find((x) => CALDA[x]);
     if (caldaTop) {
@@ -683,17 +890,24 @@ function montarMilkshake(c, rec, sabores, cobs, an, det) {
       const p = [0, temChantilly ? H + 0.004 : topo - raio * 0.98, 0];
       grupos.forEach((g, j) => {
         const n = no(c, { name: tipo + '_' + j, mesh: malhaGltf(c, tipo + j, g, 'doce'), translation: p, scale: [1, temChantilly ? 1 : 0.15, 1] });
-        if (animar) animQueda(c, n, p, 0.09, 0.05 + j * 0.09);
+        if (animar) animQueda(c, n, p, 0.09, 0.4 + j * 0.09);
       });
+      const m = animar ? mao() : null;
+      if (m) {
+        const pinca = soma(p, [0, 0.1, 0]), kf = [[0, soma(pinca, [0.14, 0.1, -0.06])]];
+        for (let j = 0; j <= 5; j++) kf.push([0.35 + j * 0.09, soma(pinca, [0.01 * Math.cos(j * 1.7), 0, 0.01 * Math.sin(j * 1.7)])]);
+        kf.push([1.2, soma(pinca, [-0.1, 0.1, -0.06])]);
+        mover(c, m, kf);
+      }
     } else if (tipo === 'cereja') {
       const p = [0.004, topo - 0.004, 0];
       const n = no(c, { name: 'cereja', mesh: malhaGltf(c, 'cereja', cereja(), 'cereja'), translation: p });
-      if (animar) animQueda(c, n, p, 0.12);
+      if (animar) animCerejaComMao(c, n, p, [0, 0, 0, 1], mao());
     } else if (tipo === 'wafer') {
       const dir = norm([-0.45, 0.85, 0.3]);
       const p = [-0.012, topo - 0.022, 0.004];
       const n = no(c, { name: 'wafer', mesh: malhaGltf(c, 'wafer', wafer(), 'massa'), translation: p, rotation: quatYpara(dir) });
-      if (animar) animDeslizar(c, n, p, dir, 0.07);
+      if (animar) animWaferComMao(c, n, p, dir, mao());
     }
   });
   // canudo aparece quando há bebida
@@ -701,7 +915,7 @@ function montarMilkshake(c, rec, sabores, cobs, an, det) {
     const comp = H * 1.28, dir = norm([0.28, 1, -0.12]);
     const p = [-0.011, base + 0.003, 0.004];
     const n = no(c, { name: 'canudo', mesh: malhaGltf(c, 'canudo', canudo(comp), 'doce'), translation: p, rotation: quatYpara(dir) });
-    if (an.bola === 0 && sabores.length === 1) animDeslizar(c, n, p, dir, 0.1, 0.6);
+    if (an.bola === 0 && sabores.length === 1) animDeslizar(c, n, p, dir, 0.1, 1.5);
   }
   // o vidro por último (transparência desenhada por cima do conteúdo)
   no(c, { name: 'copo', mesh: malhaGltf(c, 'copo', copo.malha, 'vidro') });

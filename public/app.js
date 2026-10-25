@@ -1084,9 +1084,12 @@
     delete mv.dataset.arPronto;
     var spec = specSorvete(p);
     var anim = reduzMovimento ? null : Number.isInteger(animarCamada) ? { bola: animarCamada } : animarTipo && /^cob_/.test(animarTipo) ? { cobertura: animarTipo.slice(4) } : null;
-    carregarSorvete().then(function (m) {
+    // mãozinha para granulado, confete, amendoim, cereja e wafer (o pegador e o frasco são gerados no código)
+    var precisaMao = anim && anim.cobertura && ['granulado', 'confete', 'amendoim', 'cereja', 'wafer'].indexOf(anim.cobertura) > -1;
+    Promise.all([carregarSorvete(), precisaMao ? baixarArquivo('assets/adicionais/_mao.glb').catch(function () { return null; }) : null]).then(function (r) {
+      var m = r[0];
       if (seq !== seqMontagem || !mv.isConnected) return;
-      var glb = m.montarSorvete(Object.assign({ animar: anim }, spec));
+      var glb = m.montarSorvete(Object.assign({ animar: anim, mao: r[1] ? new Uint8Array(r[1]) : null }, spec));
       var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
       var antigo = blobAtual;
       blobAtual = url;
