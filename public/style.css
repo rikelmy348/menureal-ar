@@ -841,3 +841,36 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
   display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 16px; border-radius: 999px; background: var(--tinta); color: var(--fundo);
   font-size: 14px; font-weight: 650; box-shadow: 0 10px 30px rgba(0,0,0,.3); max-width: calc(100vw - 24px); }
 .versao-nova button { border: 0; border-radius: 999px; padding: 8px 14px; background: var(--limao); color: var(--sobre-limao); font-weight: 800; }
+
+/* ============ Cenário atrás do 3D (cor da loja + logo em marca d'água) ============ */
+:root:not([data-cenario="claro"]) .palco {
+  background:
+    radial-gradient(60% 34% at 50% 86%, color-mix(in srgb, #fff 34%, transparent) 0%, transparent 70%),
+    radial-gradient(90% 70% at 50% 36%, color-mix(in srgb, var(--hero) 30%, #fff) 0%, color-mix(in srgb, var(--hero) 82%, #fff) 48%, color-mix(in srgb, var(--hero) 78%, #000) 100%);
+}
+.palco__marca { position: absolute; inset: 8% 10% 40%; display: grid; place-items: center; pointer-events: none; z-index: 0; opacity: .2; mix-blend-mode: soft-light; }
+.palco__marca img { max-width: 100%; max-height: 100%; object-fit: contain; filter: saturate(.6); }
+.palco__marca--texto { opacity: .16; mix-blend-mode: normal; }
+.palco__marca span { font-family: var(--fonte-titulo); font-weight: 800; color: #fff; font-size: clamp(34px, 11vw, 84px); line-height: .95; text-align: center; letter-spacing: -.02em; text-wrap: balance; }
+:root[data-cenario="claro"] .palco__marca, :root[data-cenario="cor"] .palco__marca { display: none; }
+.palco model-viewer { z-index: 1; }
+/* nos cartões, só um toque da cor (o produto continua o destaque) */
+:root:not([data-cenario="claro"]) .card__vitrine {
+  background: radial-gradient(110% 75% at 50% 25%, #fff 0%, color-mix(in srgb, var(--hero) 10%, #fff) 45%, color-mix(in srgb, var(--hero) 30%, #fff) 100%);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-cenario="claro"]) .card__vitrine {
+    background: radial-gradient(110% 75% at 50% 25%, color-mix(in srgb, var(--hero) 35%, #2a1d3a) 0%, color-mix(in srgb, var(--hero) 22%, #120a1c) 100%);
+  }
+}
+/* escolha no painel */
+.cenarios { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.cenario-op { display: grid; gap: 6px; justify-items: center; font-size: 13px; font-weight: 650; cursor: pointer; }
+.cenario-op input { position: absolute; opacity: 0; }
+.cenario-op__amostra { width: 100%; aspect-ratio: 1; border-radius: 14px; border: 2px solid var(--linha); display: grid; place-items: center; overflow: hidden;
+  background: radial-gradient(90% 70% at 50% 36%, color-mix(in srgb, var(--hero) 30%, #fff), color-mix(in srgb, var(--hero) 78%, #000)); }
+.cenario-op__amostra--claro { background: radial-gradient(120% 75% at 50% 20%, #fff 30%, #EEE6F7); }
+.cenario-op__amostra img { width: 60%; opacity: .45; mix-blend-mode: soft-light; }
+.cenario-op__amostra b { color: #fff; opacity: .5; font-size: 13px; }
+.cenario-op input:checked + .cenario-op__amostra { border-color: var(--verde); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 30%, transparent); }
+.cenario-op input:focus-visible + .cenario-op__amostra { outline: 3px solid var(--limao); outline-offset: 2px; }

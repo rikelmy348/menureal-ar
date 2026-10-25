@@ -183,7 +183,8 @@ export function limparVisual(v, slug) {
     capa: img(v.capa),
     og: img(v.og),                                            // imagem de prévia do link (WhatsApp, Instagram)
     ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
-    marca: v.marca !== false
+    marca: v.marca !== false,
+    cenario: ['logo', 'cor', 'claro'].includes(v.cenario) ? v.cenario : 'logo'   // fundo atrás do 3D
   };
 }
 

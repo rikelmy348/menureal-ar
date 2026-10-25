@@ -409,6 +409,10 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 - Modelos de vitrine dos cartões: `node tools/gerar_sorvetes.mjs` → `assets/models/sorvete-*.glb` e `milkshake-*.glb`.
 - Lojas novas do tipo "Açaí e sorveteria" já nascem com açaí, sorvete e milkshake prontos.
 
+- **Cenário do 3D** (aba Visual): "Cor + logo" (padrão: fundo na cor da loja com a logo, ou o nome, em marca d'água), "Só a cor" ou "Claro". Realça o vidro e os recheios no modo claro.
+- **Câmera**: o arquivo publicado para a câmera é preparado sozinho, em segundo plano, quando a animação termina; assim o toque em "Ver na mesa" abre direto (o celular só abre a câmera logo após um toque). Se a pessoa tocar antes de ficar pronto e demorar, aparece "Pronto! Toque de novo".
+- **Demonstração** da página inicial: só sorveteria (açaí, sorvete, milkshake, casquinha, sundae, cascão e copinho).
+
 ## 7d. Banco de dados
 
 Os dados ficam no **Cloudflare D1** (SQLite gerenciado). As tabelas são

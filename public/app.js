@@ -25,7 +25,7 @@
   var CHAVE_DADOS = 'menureal:dados:v1' + SUFIXO;
   var CHAVE_CARRINHO = 'menureal:carrinho:v1' + SUFIXO;
   var CHAVE_TOKEN = 'menureal:token' + SUFIXO;
-  var CATEGORIAS_PADRAO = ['Salgados', 'Doces', 'Pães', 'Bebidas'];
+  var CATEGORIAS_PADRAO = ['Açaí', 'Sorvetes', 'Milkshakes'];
   var CATEGORIAS = CATEGORIAS_PADRAO.slice();
   // Alérgenos de declaração obrigatória no Brasil (RDC Anvisa 26/2015), agrupados
   var ALERGENOS = ['Glúten', 'Leite', 'Ovos', 'Soja', 'Amendoim', 'Castanhas e nozes', 'Peixes', 'Crustáceos', 'Látex natural'];
@@ -93,11 +93,11 @@
 
   var PADRAO = {
     padaria: {
-      nome: 'Padaria Sabor da Vila',
-      slogan: 'Veja antes de pedir',
-      abre: '06:00',
-      fecha: '20:00',
-      dias: [1, 2, 3, 4, 5, 6],
+      nome: 'Sorveteria da Praça',
+      slogan: 'Monte o seu e veja na mesa',
+      abre: '13:00',
+      fecha: '22:00',
+      dias: [0, 1, 2, 3, 4, 5, 6],
       whatsapp: '', // ex.: 5511999999999 (DDI + DDD + número). Vazio = desativado.
       pedido: { entrega: true, retirada: true, taxa: 5, bairros: [{ nome: 'Centro', taxa: 4 }, { nome: 'Vila Nova', taxa: 6 }], minimo: 15, tempo: '30 a 45 min',
         endereco: 'Rua das Flores, 100 — Centro', pix: { tipo: 'email', chave: '', nome: '', cidade: '' } }
@@ -120,24 +120,22 @@
         descricao: 'Escolha até 2 sabores, chantilly, calda e cereja. Vem com canudo.',
         dim: clonar(RECIPIENTES_SV.milkshake[2]), modelo: RECIPIENTES_SV.milkshake[3], ilustrativo: true,
         tamanhos: MILK_PRONTO.tamanhos, adicionais: MILK_PRONTO.adicionais, montar: true, modo: 'milkshake' },
-      { id: 'coxinha', nome: 'Coxinha de frango', categoria: 'Salgados', preco: 8.00,
-        descricao: 'Massa de batata com recheio de frango desfiado temperado, empanada e frita na hora.',
-        dim: { largura: 5, profundidade: 5, altura: 9 }, modelo: 'assets/models/coxinha.glb', ilustrativo: true },
-      { id: 'pao-de-queijo', nome: 'Pão de queijo', categoria: 'Pães', preco: 4.50,
-        descricao: 'Feito com polvilho e queijo meia-cura. Casquinha crocante e miolo macio.',
-        dim: { largura: 5, profundidade: 5, altura: 4 }, modelo: 'assets/models/pao-de-queijo.glb', ilustrativo: true },
-      { id: 'pastel', nome: 'Pastel assado', categoria: 'Salgados', preco: 7.00,
-        descricao: 'Massa amanteigada assada, pincelada com gema. Recheio de carne moída.',
-        dim: { largura: 12, profundidade: 8, altura: 3 }, modelo: 'assets/models/pastel.glb', ilustrativo: true },
-      { id: 'croissant', nome: 'Croissant', categoria: 'Pães', preco: 9.00,
-        descricao: 'Massa folhada na manteiga, dourada e crocante por fora, leve por dentro.',
-        dim: { largura: 12, profundidade: 7, altura: 5 }, modelo: 'assets/models/croissant.glb', ilustrativo: true },
-      { id: 'empada', nome: 'Empada de frango', categoria: 'Salgados', preco: 7.50,
-        descricao: 'Massa podre que derrete na boca, recheada com frango cremoso e azeitona.',
-        dim: { largura: 8, profundidade: 8, altura: 4 }, modelo: 'assets/models/empada.glb', ilustrativo: true },
-      { id: 'brigadeiro', nome: 'Brigadeiro', categoria: 'Doces', preco: 3.50,
-        descricao: 'Chocolate e leite condensado no ponto, coberto com granulado.',
-        dim: { largura: 3, profundidade: 3, altura: 3 }, modelo: 'assets/models/brigadeiro.glb', ilustrativo: true }
+      { id: 'casquinha', nome: 'Casquinha', categoria: 'Sorvetes', preco: 7,
+        descricao: 'Uma bola do sabor que você escolher, na casquinha crocante.',
+        dim: clonar(RECIPIENTES_SV.casquinha[2]), modelo: RECIPIENTES_SV.casquinha[3], ilustrativo: true,
+        tamanhos: [tamSv('c1', '1 bola', 7, 'casquinha', 1)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
+      { id: 'sundae', nome: 'Sundae na taça', categoria: 'Sorvetes', preco: 18,
+        descricao: 'Três bolas na taça de vidro, com calda, chantilly e cereja.',
+        dim: clonar(RECIPIENTES_SV.taca[2]), modelo: RECIPIENTES_SV.taca[3], ilustrativo: true,
+        tamanhos: [tamSv('t3', '3 bolas', 18, 'taca', 3), tamSv('t4', '4 bolas', 22, 'taca', 4)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
+      { id: 'cascao', nome: 'Cascão', categoria: 'Sorvetes', preco: 15,
+        descricao: 'O cascão grande, com até 3 bolas.',
+        dim: clonar(RECIPIENTES_SV.cascao[2]), modelo: RECIPIENTES_SV.cascao[3], ilustrativo: true,
+        tamanhos: [tamSv('k2', '2 bolas', 12, 'cascao', 2), tamSv('k3', '3 bolas', 15, 'cascao', 3)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
+      { id: 'copinho', nome: 'Copinho', categoria: 'Sorvetes', preco: 10,
+        descricao: 'Duas bolas no copinho, para comer de colher.',
+        dim: clonar(RECIPIENTES_SV.copinho[2]), modelo: RECIPIENTES_SV.copinho[3], ilustrativo: true,
+        tamanhos: [tamSv('p2', '2 bolas', 10, 'copinho', 2)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' }
     ]
   };
 
@@ -221,15 +219,19 @@
 
   var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
   // Na página inicial, a demonstração sempre tem o açaí montável (é o que a apresentação promete)
+  var DEMO_ANTIGOS = ['coxinha', 'pao-de-queijo', 'pastel', 'croissant', 'empada', 'brigadeiro'];
   function comAcaiDemo(d) {
     if (LOJA || !d) return d;
-    // açaí, sorvete e milkshake montáveis sempre na demonstração
-    PADRAO.produtos.slice(0, 3).reverse().forEach(function (base) {
-      var modo = base.modo || 'acai';
-      if (d.produtos.some(function (x) { return x.montar && (x.modo || 'acai') === modo; })) return;
-      var a = validarDados({ padaria: {}, produtos: [clonar(base)] }).produtos[0];
-      d.produtos.unshift(a);
-      if (d.categorias.indexOf(a.categoria) < 0) d.categorias.unshift(a.categoria);
+    // a demonstração é de sorveteria: sem os salgados antigos e com todos os sorvetes de exemplo
+    d.produtos = d.produtos.filter(function (x) { return DEMO_ANTIGOS.indexOf(x.id) < 0; });
+    d.categorias = d.categorias.filter(function (cat) { return ['Salgados', 'Doces', 'Pães'].indexOf(cat) < 0 || d.produtos.some(function (x) { return x.categoria === cat; }); });
+    // todos os produtos de exemplo, na ordem da demonstração (açaí, sorvete e milkshake montáveis primeiro)
+    var faltam = PADRAO.produtos.filter(function (base) { return !d.produtos.some(function (x) { return x.id === base.id; }); });
+    var novos = validarDados({ padaria: {}, produtos: clonar(faltam) }).produtos;
+    novos.forEach(function (a) {
+      var i = PADRAO.produtos.findIndex(function (b) { return b.id === a.id; });
+      d.produtos.splice(Math.min(i, d.produtos.length), 0, a);
+      if (d.categorias.indexOf(a.categoria) < 0) d.categorias.push(a.categoria);
     });
     return d;
   }
@@ -320,7 +322,8 @@
       capa: img(v.capa),
       og: img(v.og),
       ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
-      marca: v.marca !== false
+      marca: v.marca !== false,
+      cenario: ['logo', 'cor', 'claro'].indexOf(v.cenario) > -1 ? v.cenario : 'logo'
     };
   }
 
@@ -377,6 +380,14 @@
     if (LOJA && logo) {
       logo.setAttribute('aria-label', p.nome + ', início');
       logo.innerHTML = v.logo ? '<img class="logo__img" src="' + esc(v.logo) + '" alt="' + esc(p.nome) + '">' : '<span class="logo__loja">' + esc(p.nome) + '</span>';
+    }
+    // cenário atrás do 3D: cor da loja (realça o vidro e os recheios) e a logo ou o nome em marca d'água
+    document.documentElement.setAttribute('data-cenario', v.cenario || 'logo');
+    var marcaPalco = $('#palco-marca');
+    if (marcaPalco) {
+      marcaPalco.hidden = v.cenario !== 'logo';
+      marcaPalco.innerHTML = v.logo ? '<img src="' + esc(v.logo) + '" alt="">' : '<span>' + esc(p.nome || '') + '</span>';
+      marcaPalco.classList.toggle('palco__marca--texto', !v.logo);
     }
     var capa = $('#hero-capa');
     if (capa) {
@@ -595,7 +606,7 @@
     aplicarVisual(p);
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
     $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
-    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar açaí, coxinha…') : 'Buscar produtos…';
+    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar açaí, sorvete…') : 'Buscar produtos…';
     $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
     var nota = $('#nota-demo');
     if (nota) nota.hidden = true;          // as explicações agora ficam no "Como usar" (?)
@@ -987,14 +998,19 @@
           clearTimeout(mv._voltaCamera);
           mv._voltaCamera = setTimeout(function () {
             if (!mv.isConnected) return;
-            mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + o.radius + 'm';
-            mv.cameraTarget = alvo.x + 'm ' + alvo.y + 'm ' + alvo.z + 'm';
+            // volta enquadrando o produto inteiro (o tamanho muda a cada bola/camada)
+            mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad auto';
+            mv.cameraTarget = 'auto auto auto';
           }, Math.max(800, (mv.duration || 1.6) * 1000 - 200));
         } catch (e3) { /* sem animação */ }
       }
       if (mv.dataset.abrirAR) {
         delete mv.dataset.abrirAR;
-        try { mv.activateAR(); } catch (e4) { toast('Toque de novo em “Ver na mesa”.'); }
+        // só dá para abrir a câmera logo depois do toque; se passou muito tempo, pede outro toque
+        if (Date.now() - (mv._cliqueAR || 0) < 4000) { try { mv.activateAR(); } catch (e4) { toast('Pronto! Toque em “Ver na mesa” de novo.'); } }
+        else toast('Pronto! Toque em “Ver na mesa” de novo para abrir a câmera.');
+      } else {
+        agendarAR(mv);
       }
       atualizarAvisoAR();
     });
@@ -1143,37 +1159,54 @@
       })
       .catch(function (e) { console.warn('[MenuReal] montagem', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });
   }
+  /**
+   * Arquivo publicado para a câmera (o 3D da tela é um blob só deste navegador).
+   * botao = null: preparo silencioso em segundo plano, depois da animação.
+   * O celular só abre a câmera logo após um toque; se demorar, pede para tocar de novo.
+   */
   function prepararMontagemAR(mv, botao) {
     var p = produtoAtual;
     if (!p) return;
-    var ef = efetivo(p, tamAtual);
-    var html = botao.innerHTML;
-    botao.disabled = true;
-    botao.textContent = 'Preparando para a câmera…';
+    if (mv._preparandoAR) {   // já está preparando em segundo plano: abre quando ficar pronto
+      if (botao) { mv._querAR = true; mv._cliqueAR = Date.now(); toast('Preparando para a câmera…'); }
+      return;
+    }
+    var ef = efetivo(p, tamAtual), seq = seqMontagem;
+    var html = botao ? botao.innerHTML : '';
+    mv._preparandoAR = true;
+    if (botao) { botao.disabled = true; botao.textContent = 'Preparando para a câmera…'; mv._cliqueAR = Date.now(); }
+    var pedido;
     if (ehSorvete(p)) {
       // o celular monta a versão leve e envia (o servidor só guarda)
       var spec = specSorvete(p);
-      carregarSorvete().then(function (m) {
+      pedido = carregarSorvete().then(function (m) {
         var glb = m.montarSorvete(Object.assign({ leve: true }, spec));
         return fetch('api/sorvete-ar?recipiente=' + encodeURIComponent(spec.recipiente) + '&sabores=' + encodeURIComponent(spec.sabores.join('.')) +
           '&coberturas=' + encodeURIComponent(spec.coberturas.join('.')), { method: 'POST', headers: { 'content-type': 'model/gltf-binary' }, body: glb });
-      })
-        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
-        .then(function (j) { if (!mv.isConnected) return; mv.dataset.arPronto = '1'; mv.dataset.abrirAR = '1'; mv.src = j.url; })
-        .catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); })
-        .then(function () { botao.disabled = false; botao.innerHTML = html; });
-      return;
+      });
+    } else {
+      pedido = fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p), pilha: p.montar ? pilhaTipos(p) : undefined }) });
     }
-    fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p), pilha: p.montar ? pilhaTipos(p) : undefined }) })
+    pedido
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
       .then(function (j) {
-        if (!mv.isConnected) return;
+        if (!mv.isConnected || seq !== seqMontagem) return;   // o cliente mudou a montagem enquanto preparava
         mv.dataset.arPronto = '1';
-        mv.dataset.abrirAR = '1';
+        if (botao || mv._querAR) mv.dataset.abrirAR = '1';
+        mv._querAR = false;
         mv.src = j.url;
       })
-      .catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); })
-      .then(function () { botao.disabled = false; botao.innerHTML = html; });
+      .catch(function (e) { if (botao) toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); })
+      .then(function () { mv._preparandoAR = false; if (botao) { botao.disabled = false; botao.innerHTML = html; } });
+  }
+  // Depois que a montagem aparece (e a animação termina), já deixa o arquivo da câmera pronto
+  function agendarAR(mv) {
+    clearTimeout(mv._timerAR);
+    if (!servidor || mv.dataset.montagem !== '1' || mv.dataset.arPronto === '1') return;
+    var seq = seqMontagem;
+    mv._timerAR = setTimeout(function () {
+      if (seq === seqMontagem && mv.isConnected && dlgViewer.open && mv.dataset.arPronto !== '1') prepararMontagemAR(mv, null);
+    }, ((mv.duration || 0) * 1000) + 1800);
   }
   $('#viewer-adicionais').addEventListener('change', function (e) {
     var c = e.target.closest('[data-adic]');
@@ -2151,6 +2184,11 @@
       '</div></fieldset>' +
       imagem('logo', 'Logo', 'Aparece no topo da página. PNG com fundo transparente fica melhor.') +
       imagem('capa', 'Foto de capa', 'Foto horizontal no topo: fachada, vitrine ou um produto em destaque.') +
+      '<fieldset class="campo"><legend>Cenário atrás do produto em 3D</legend><div class="cenarios">' +
+        [['logo', 'Cor + logo'], ['cor', 'Só a cor'], ['claro', 'Claro']].map(function (o) {
+          return '<label class="cenario-op"><input type="radio" name="v-cenario" value="' + o[0] + '"' + ((v.cenario || 'logo') === o[0] ? ' checked' : '') + '>' +
+            '<span class="cenario-op__amostra cenario-op__amostra--' + o[0] + '">' + (o[0] === 'logo' ? (v.logo ? '<img src="' + esc(v.logo) + '" alt="">' : '<b>' + esc((p.nome || 'Loja').slice(0, 10)) + '</b>') : '') + '</span>' + o[1] + '</label>';
+        }).join('') + '</div></fieldset>' +
       '<label class="checar"><input type="checkbox" data-v="marca"' + (v.marca ? ' checked' : '') + '> Mostrar “' + (ehAlimento(rascunho) ? 'Cardápio' : 'Catálogo') + ' em 3D por MenuReal” no rodapé</label>' +
       '<p class="mini">As mudanças aparecem na hora; toque em “Salvar alterações” para publicar.</p>' +
     '</div></section>';
@@ -2286,6 +2324,7 @@
       return;
     }
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
+    if (t.name === 'v-cenario') { visualRascunho(function (v) { v.cenario = t.value; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
   });
   // Fechou o painel sem salvar: volta à aparência publicada
