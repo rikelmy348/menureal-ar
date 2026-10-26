@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Ver na sua casa — MenuReal</title>
+  <meta name="description" content="Veja o móvel em tamanho real na sua casa, pela câmera do celular. Funciona em qualquer celular.">
+  <meta name="theme-color" content="#1D0F2E">
+  <style>
+    @font-face { font-family: "Bricolage Grotesque"; src: url("vendor/fontes/bricolage-grotesque.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    :root { --marca: #6A1BB3; --rosa: #FF3D8B; --tinta: #1D0F2E; --claro: #F7F3FC; --vidro: rgba(20, 10, 32, .62); color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font: 500 16px/1.4 "Bricolage Grotesque", system-ui, sans-serif; overscroll-behavior: none; }
+    button { font: inherit; cursor: pointer; }
+    #video, #cena { position: fixed; inset: 0; width: 100%; height: 100%; }
+    #video { object-fit: cover; background: #111; }
+    #cena { touch-action: none; }
+
+    /* tela inicial */
+    #inicio { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: radial-gradient(120% 80% at 80% 0%, #FF3D8B55, transparent 60%), linear-gradient(160deg, #3B0D6E, #1D0F2E 70%); padding: max(24px, env(safe-area-inset-top)) 16px 32px; }
+    .cartao { max-width: 460px; margin: 0 auto; }
+    .selo { display: inline-block; font-size: 13px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; background: #ffffff1f; padding: 5px 11px; border-radius: 999px; }
+    h1 { font-size: clamp(30px, 8.5vw, 42px); line-height: 1.02; letter-spacing: -.02em; margin: 14px 0 10px; }
+    .sub { color: #E4D9F2; margin: 0 0 20px; }
+    .escolha { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; margin: 0 -16px 18px; padding-left: 16px; padding-right: 16px; scrollbar-width: none; }
+    .escolha button { flex: 0 0 auto; border: 2px solid #ffffff2e; background: #ffffff12; color: #fff; border-radius: 14px; padding: 10px 14px; text-align: left; }
+    .escolha button[aria-pressed="true"] { border-color: var(--rosa); background: #FF3D8B2a; }
+    .escolha small { display: block; color: #CDBFE0; font-weight: 500; font-size: 13px; }
+    label.campo { display: block; font-weight: 650; margin-bottom: 18px; }
+    label.campo select { display: block; width: 100%; margin-top: 6px; padding: 12px; border-radius: 12px; border: 2px solid #ffffff2e; background: #2A1640; color: #fff; font: inherit; }
+    .grande { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-weight: 800; font-size: 19px; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); box-shadow: 0 10px 30px #FF3D8B55; }
+    .grande:disabled { opacity: .6; }
+    .aviso { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: #FFC24B22; border: 1px solid #FFC24B66; color: #FFE6B0; font-size: 15px; }
+    .aviso[hidden] { display: none; }
+    .diag { margin-top: 22px; font-size: 14px; color: #CDBFE0; border-top: 1px solid #ffffff22; padding-top: 14px; }
+    .diag b { color: #fff; }
+    .diag ul { margin: 6px 0 0; padding-left: 18px; }
+
+    /* durante a câmera */
+    .barra { position: fixed; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+    #topo { top: 0; padding-top: max(10px, env(safe-area-inset-top)); background: linear-gradient(#000a, transparent); }
+    #topo .nome { flex: 1; min-width: 0; }
+    #topo .nome b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #topo .nome span { font-size: 14px; color: #E4D9F2; }
+    .redondo { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--vidro); color: #fff; font-size: 20px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    #baixo { bottom: 0; flex-direction: column; align-items: stretch; padding-bottom: max(14px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, #000b); }
+    #dica { align-self: center; text-align: center; background: var(--vidro); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 9px 14px; border-radius: 14px; font-size: 15px; max-width: 420px; }
+    .acoes { display: flex; gap: 8px; justify-content: center; }
+    .acoes button { border: 0; border-radius: 14px; padding: 13px 16px; font-weight: 750; color: #fff; background: var(--vidro); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    .acoes button.forte { background: linear-gradient(135deg, var(--rosa), #FF7A45); }
+    #ajuste { position: fixed; z-index: 4; left: 12px; right: 12px; bottom: max(150px, calc(env(safe-area-inset-bottom) + 150px)); max-width: 440px; margin: 0 auto; background: #1D0F2Ef0; border: 1px solid #ffffff22; border-radius: 18px; padding: 14px 16px; font-size: 15px; }
+    #ajuste[hidden], .camera[hidden], #inicio[hidden] { display: none; }
+    #ajuste input { width: 100%; accent-color: var(--rosa); }
+    #ajuste p { margin: 0 0 8px; color: #E4D9F2; }
+    #ajuste .linha { display: flex; justify-content: space-between; font-weight: 750; }
+    #carregando { position: fixed; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--vidro); padding: 12px 18px; border-radius: 14px; }
+    #carregando[hidden] { display: none; }
+    #flash { position: fixed; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  </style>
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+  <video id="video" playsinline muted autoplay hidden></video>
+  <canvas id="cena" hidden></canvas>
+
+  <section id="inicio">
+    <div class="cartao">
+      <span class="selo">Página de teste</span>
+      <h1>Veja o móvel na sua casa</h1>
+      <p class="sub">Funciona em qualquer celular com câmera. Aponte para o chão, toque para colocar e ande em volta do lugar.</p>
+
+      <div class="escolha" id="escolha" role="group" aria-label="Escolha o móvel"></div>
+
+      <label class="campo">Sua altura (para acertar o tamanho)
+        <select id="altura"></select>
+      </label>
+
+      <button class="grande" id="comecar">Abrir a câmera</button>
+      <p class="aviso" id="aviso-app" hidden>Você abriu o link dentro de um aplicativo. Se a câmera não abrir, toque nos <b>⋮</b> ou <b>…</b> e escolha <b>“Abrir no navegador”</b>.</p>
+      <p class="aviso" id="aviso-erro" hidden></p>
+
+      <div class="diag" id="diag"><b>Sobre este celular</b><ul id="diag-lista"><li>Verificando…</li></ul></div>
+    </div>
+  </section>
+
+  <div class="camera" hidden>
+    <div class="barra" id="topo">
+      <button class="redondo" id="voltar" aria-label="Voltar">←</button>
+      <div class="nome"><b id="nome-prod"></b><span id="medidas-prod"></span></div>
+      <button class="redondo" id="btn-ajuste" aria-label="Ajustar tamanho">⚙</button>
+    </div>
+    <div class="barra" id="baixo">
+      <div id="dica">Aponte o celular para o chão onde quer o móvel</div>
+      <div class="acoes">
+        <button id="colocar" class="forte">Colocar aqui</button>
+        <button id="girar" hidden>↻ Girar</button>
+        <button id="mover" hidden>Mover</button>
+        <button id="foto" hidden>📷 Foto</button>
+      </div>
+    </div>
+    <div id="ajuste" hidden>
+      <p>Se o móvel parecer maior ou menor do que deveria, ajuste a altura em que você segura o celular:</p>
+      <div class="linha"><span>Altura do celular</span><span id="ajuste-valor"></span></div>
+      <input type="range" id="ajuste-h" min="0.7" max="1.8" step="0.01">
+      <p style="margin-top:10px">Dica: compare com algo que você conhece, como uma porta (cerca de 2,10 m de altura).</p>
+    </div>
+    <div id="carregando" hidden>Carregando o móvel…</div>
+  </div>
+  <div id="flash"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/three/addons/GLTFLoader.js';
+    import { RoomEnvironment } from './vendor/three/addons/RoomEnvironment.js';
+
+    const MOVEIS = [
+      { id: 'sofa-veludo', nome: 'Sofá 3 lugares Veludo', arq: 'assets/moveis/sofa-veludo.glb' },
+      { id: 'poltrona', nome: 'Poltrona Concha', arq: 'assets/moveis/poltrona.glb' },
+      { id: 'poltrona-damasco', nome: 'Poltrona Damasco', arq: 'assets/moveis/poltrona-damasco.glb' },
+      { id: 'puff-seda', nome: 'Puff Redondo Seda', arq: 'assets/moveis/puff-seda.glb' },
+      { id: 'vaso-flores', nome: 'Vaso com Flores', arq: 'assets/moveis/vaso-flores.glb' }
+    ];
+    const $ = (id) => document.getElementById(id);
+    const cm = (m) => (m * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    const ler = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const gravar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+    // ----- escolha do móvel (também aceita ?m=arquivo.glb&n=Nome) -----
+    const qs = new URLSearchParams(location.search);
+    let escolhido = MOVEIS[0];
+    if (qs.get('m') && /^(assets\/|api\/arquivo\/)[\w\/.-]+\.glb$/.test(qs.get('m'))) {
+      escolhido = { id: 'url', nome: (qs.get('n') || 'Produto').slice(0, 80), arq: qs.get('m') };
+      MOVEIS.unshift(escolhido);
+    } else if (qs.get('p')) escolhido = MOVEIS.find((m) => m.id === qs.get('p')) || escolhido;
+    function desenharEscolha() {
+      $('escolha').innerHTML = '';
+      MOVEIS.forEach((m) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.setAttribute('aria-pressed', m === escolhido);
+        b.textContent = m.nome;
+        b.onclick = () => { escolhido = m; desenharEscolha(); };
+        $('escolha').appendChild(b);
+      });
+    }
+    desenharEscolha();
+
+    // ----- altura da pessoa → altura do celular (segurado na frente do peito) -----
+    for (let a = 1.40; a <= 2.001; a += 0.05) {
+      const o = document.createElement('option'); o.value = a.toFixed(2); o.textContent = a.toFixed(2).replace('.', ',') + ' m';
+      $('altura').appendChild(o);
+    }
+    $('altura').value = ler('mr-altura') || '1.70';
+
+    // ----- diagnóstico -----
+    const DENTRO_DE_APP = /Instagram|FBAN|FBAV|FB_IAB|Line\/|musical_ly|BytedanceWebview|TikTok|Snapchat/i.test(navigator.userAgent);
+    $('aviso-app').hidden = !DENTRO_DE_APP;
+    const diag = { nativa: 'verificando', sensor: 'aparece depois de abrir a câmera', camera: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) };
+    function mostrarDiag() {
+      const it = [
+        'RA do Google/Apple: <b>' + (diag.nativa === true ? 'tem' : diag.nativa === false ? 'não tem' : diag.nativa) + '</b>',
+        'Câmera pelo navegador: <b>' + (diag.camera ? 'sim' : 'não') + '</b>',
+        'Sensor de movimento: <b>' + diag.sensor + '</b>',
+        'Aberto dentro de app: <b>' + (DENTRO_DE_APP ? 'sim' : 'não') + '</b>'
+      ];
+      $('diag-lista').innerHTML = it.map((t) => '<li>' + t + '</li>').join('');
+    }
+    (async () => {
+      const iosQL = (() => { try { return document.createElement('a').relList.supports('ar'); } catch (e) { return false; } })();
+      let xr = false;
+      try { if (navigator.xr && navigator.xr.isSessionSupported) xr = await navigator.xr.isSessionSupported('immersive-ar'); } catch (e) {}
+      diag.nativa = iosQL || xr;
+      mostrarDiag();
+    })();
+    mostrarDiag();
+
+    // ----- three.js -----
+    const canvas = $('cena');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    const cena = new THREE.Scene();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    cena.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    cena.add(new THREE.HemisphereLight(0xffffff, 0x8a7f74, 0.5));
+    const sol = new THREE.DirectionalLight(0xffffff, 1.1); sol.position.set(1, 3, 2); cena.add(sol);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 50);
+    camera.rotation.order = 'YXZ';
+    let alturaCel = 1.3;
+
+    // anel no chão que mostra onde o móvel vai ficar
+    const anel = new THREE.Mesh(new THREE.RingGeometry(0.235, 0.25, 64).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
+    anel.renderOrder = 2; cena.add(anel);
+
+    // sombra de contato (mancha escura e suave embaixo do móvel)
+    function texturaSombra() {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+      gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(0.55, 'rgba(0,0,0,.45)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    }
+    const sombra = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: texturaSombra(), transparent: true, depthWrite: false }));
+
+    const suporte = new THREE.Group(); // posição e giro no chão
+    suporte.add(sombra); cena.add(suporte); suporte.visible = false;
+    let modelo = null, tamanho = null;
+    const loader = new GLTFLoader();
+    const cache = {};
+
+    async function carregarModelo(m) {
+      $('carregando').hidden = false;
+      try {
+        if (!cache[m.arq]) cache[m.arq] = await loader.loadAsync(m.arq);
+        const gltf = cache[m.arq];
+        if (modelo) suporte.remove(modelo);
+        modelo = gltf.scene.clone(true);
+        modelo.traverse((o) => {
+          if (o.isLight) o.visible = false;
+          if (o.isMesh) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach((mt) => {
+              // vidro: a câmera fica atrás do 3D, então simula a transparência
+              if (mt.transmission > 0) { mt.transmission = 0; mt.transparent = true; mt.opacity = 0.35; mt.depthWrite = false; }
+            });
+          }
+        });
+        const caixa = new THREE.Box3().setFromObject(modelo);
+        tamanho = caixa.getSize(new THREE.Vector3());
+        const centro = caixa.getCenter(new THREE.Vector3());
+        modelo.position.set(-centro.x, -caixa.min.y, -centro.z);
+        suporte.add(modelo);
+        sombra.scale.set(tamanho.x * 1.25, 1, tamanho.z * 1.25);
+        sombra.position.y = 0.002;
+        $('nome-prod').textContent = m.nome;
+        $('medidas-prod').textContent = cm(tamanho.x) + ' × ' + cm(tamanho.z) + ' × ' + cm(tamanho.y) + ' cm (L × P × A)';
+        anel.scale.setScalar(Math.max(0.6, Math.min(3, Math.max(tamanho.x, tamanho.z) / 0.5)));
+      } catch (e) {
+        console.error(e); avisar('Não consegui carregar o móvel. Verifique a internet e tente de novo.');
+      } finally { $('carregando').hidden = true; }
+    }
+
+    // ----- orientação do celular -----
+    const alvo = new THREE.Quaternion();
+    let temSensor = false, fonte = 'nenhum';
+    const euler = new THREE.Euler(), q0 = new THREE.Quaternion(), qTela = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
+    const eixoZ = new THREE.Vector3(0, 0, 1);
+    const anguloTela = () => ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
+    let alfa0 = null; // para o móvel começar na frente de quem está olhando
+    function aplicarOrientacao(alpha, beta, gamma) {
+      const d = Math.PI / 180;
+      euler.set(beta * d, alpha * d, -gamma * d, 'YXZ');
+      alvo.setFromEuler(euler).multiply(qTela).multiply(q0.setFromAxisAngle(eixoZ, -anguloTela()));
+    }
+    function aoGirar(ev) {
+      if (ev.beta == null) return;
+      if (ev.type === 'deviceorientationabsolute' && fonte === 'giroscopio') return;
+      if (ev.alpha != null) {
+        if (ev.type === 'deviceorientation') fonte = 'giroscopio'; else if (fonte !== 'giroscopio') fonte = 'bussola';
+        temSensor = true;
+        aplicarOrientacao(ev.alpha, ev.beta, ev.gamma);
+      }
+    }
+    // último recurso: só a gravidade (inclinação), sem saber para que lado gira
+    let gravidade = null;
+    function aoMover(ev) {
+      if (fonte === 'giroscopio' || fonte === 'bussola') return;
+      const g = ev.accelerationIncludingGravity; if (!g || g.x == null) return;
+      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ? -1 : 1;
+      const gx = g.x * ios, gy = g.y * ios, gz = g.z * ios;
+      gravidade = gravidade ? { x: gravidade.x * 0.8 + gx * 0.2, y: gravidade.y * 0.8 + gy * 0.2, z: gravidade.z * 0.8 + gz * 0.2 } : { x: gx, y: gy, z: gz };
+      const beta = Math.atan2(gravidade.y, gravidade.z) * 180 / Math.PI;
+      const gamma = Math.atan2(-gravidade.x, Math.hypot(gravidade.y, gravidade.z)) * 180 / Math.PI;
+      fonte = 'gravidade'; temSensor = true;
+      aplicarOrientacao(0, beta, gamma);
+    }
+    async function ligarSensores() {
+      try {
+        if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') await DeviceOrientationEvent.requestPermission();
+      } catch (e) {}
+      try {
+        if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') await DeviceMotionEvent.requestPermission();
+      } catch (e) {}
+      window.addEventListener('deviceorientation', aoGirar);
+      window.addEventListener('deviceorientationabsolute', aoGirar);
+      window.addEventListener('devicemotion', aoMover);
+    }
+    // sem nenhum sensor: celular parado, inclinado para o chão
+    alvo.setFromEuler(new THREE.Euler(-35 * Math.PI / 180, 0, 0, 'YXZ'));
+
+    // ----- câmera de verdade -----
+    const video = $('video');
+    let fluxo = null;
+    const FOV_LADO_MAIOR = 66; // graus — câmera principal típica de celular
+    function ajustarTamanho() {
+      const W = window.innerWidth, H = window.innerHeight;
+      renderer.setSize(W, H, false);
+      camera.aspect = W / H;
+      const vw = video.videoWidth || W, vh = video.videoHeight || H;
+      const f = (Math.max(vw, vh) / 2) / Math.tan(FOV_LADO_MAIOR * Math.PI / 360); // foco em pixels do vídeo
+      const s = Math.max(W / vw, H / vh); // o vídeo cobre a tela (object-fit: cover)
+      camera.fov = 2 * Math.atan((H / 2) / (f * s)) * 180 / Math.PI;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('resize', ajustarTamanho);
+
+    async function abrirCamera() {
+      if (!diag.camera) throw new Error('sem-camera');
+      fluxo = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      video.srcObject = fluxo;
+      video.hidden = false;
+      await video.play().catch(() => {});
+      await new Promise((r) => { if (video.videoWidth) r(); else video.addEventListener('loadedmetadata', r, { once: true }); setTimeout(r, 2500); });
+    }
+
+    // ----- colocar no chão -----
+    const raio = new THREE.Raycaster();
+    const chao = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const ponto = new THREE.Vector3();
+    let estado = 'mirando';
+    let ultimoPonto = new THREE.Vector3(0, 0, -2);
+    function noChao(nx, ny) {
+      raio.setFromCamera({ x: nx, y: ny }, camera);
+      const d = raio.ray.direction;
+      if (d.y > -0.05) return null; // olhando para cima: não acerta o chão
+      if (!raio.ray.intersectPlane(chao, ponto)) return null;
+      const dist = Math.hypot(ponto.x - camera.position.x, ponto.z - camera.position.z);
+      if (dist > 7) return null;
+      return ponto.clone();
+    }
+
+    function mudarEstado(e) {
+      estado = e;
+      const mirando = e === 'mirando';
+      $('colocar').hidden = !mirando;
+      $('girar').hidden = $('mover').hidden = $('foto').hidden = mirando;
+      anel.visible = mirando;
+      $('dica').textContent = mirando
+        ? (temSensor ? 'Aponte o celular para o chão onde quer o móvel' : 'Arraste o móvel com o dedo até o lugar')
+        : 'Arraste para mudar de lugar · gire com dois dedos';
+    }
+
+    // ----- toque: arrastar e girar -----
+    const dedos = new Map();
+    let arrasto = null, giro = null;
+    const ndc = (x, y) => ({ x: (x / window.innerWidth) * 2 - 1, y: -(y / window.innerHeight) * 2 + 1 });
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (dedos.size === 1) {
+        const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
+        if (estado === 'mirando' && !temSensor) mudarEstado('colocado');
+        if (estado === 'colocado' && p) arrasto = suporte.position.clone().sub(p);
+      } else if (dedos.size === 2) {
+        arrasto = null;
+        const [a, b] = [...dedos.values()];
+        giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y };
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dedos.has(e.pointerId)) return;
+      dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (dedos.size === 2 && giro) {
+        const [a, b] = [...dedos.values()];
+        suporte.rotation.y = giro.rot - (Math.atan2(b.y - a.y, b.x - a.x) - giro.ang);
+      } else if (dedos.size === 1 && arrasto) {
+        const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
+        if (p) suporte.position.copy(p.add(arrasto));
+      }
+    });
+    const soltar = (e) => { dedos.delete(e.pointerId); if (dedos.size < 2) giro = null; if (!dedos.size) arrasto = null; };
+    canvas.addEventListener('pointerup', soltar);
+    canvas.addEventListener('pointercancel', soltar);
+
+    $('colocar').onclick = () => { suporte.position.copy(ultimoPonto); mudarEstado('colocado'); };
+    $('mover').onclick = () => mudarEstado('mirando');
+    $('girar').onclick = () => { suporte.rotation.y += Math.PI / 4; };
+    $('btn-ajuste').onclick = () => { $('ajuste').hidden = !$('ajuste').hidden; };
+    function mostrarAltura() { $('ajuste-valor').textContent = alturaCel.toFixed(2).replace('.', ',') + ' m'; $('ajuste-h').value = alturaCel; }
+    $('ajuste-h').oninput = (e) => {
+      // mantém o móvel no mesmo ponto da tela: a distância muda junto com a altura
+      const k = parseFloat(e.target.value) / alturaCel;
+      alturaCel = parseFloat(e.target.value);
+      suporte.position.x *= k; suporte.position.z *= k; ultimoPonto.multiplyScalar(k);
+      camera.position.y = alturaCel; mostrarAltura();
+    };
+
+    // ----- foto (câmera + móvel numa imagem só) -----
+    $('foto').onclick = async () => {
+      const W = canvas.width, H = canvas.height;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (vw) { const s = Math.max(W / vw, H / vh); g.drawImage(video, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); }
+      renderer.render(cena, camera);
+      g.drawImage(canvas, 0, 0);
+      g.font = '600 ' + Math.round(W / 34) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.85)';
+      g.fillText('MenuReal · ' + $('nome-prod').textContent, Math.round(W / 30), H - Math.round(W / 24));
+      $('flash').style.opacity = 0.8; setTimeout(() => { $('flash').style.opacity = 0; }, 120);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.88));
+      const arq = new File([blob], 'menureal-na-minha-casa.jpg', { type: 'image/jpeg' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [arq] })) { await navigator.share({ files: [arq], title: 'Olha como ficaria aqui em casa' }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = arq.name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+
+    // ----- laço de desenho -----
+    let rodando = false;
+    function quadro() {
+      if (!rodando) return;
+      camera.quaternion.slerp(alvo, 0.35);
+      if (estado === 'mirando') {
+        const p = temSensor ? noChao(0, -0.15) : null;
+        if (p) ultimoPonto.copy(p);
+        anel.position.copy(ultimoPonto); anel.position.y = 0.005;
+        suporte.position.copy(ultimoPonto);
+        suporte.visible = !!modelo;
+      }
+      renderer.render(cena, camera);
+      requestAnimationFrame(quadro);
+    }
+
+    function avisar(t) { const a = $('aviso-erro'); a.textContent = t; a.hidden = !t; }
+
+    // ----- começar -----
+    $('comecar').onclick = async () => {
+      avisar('');
+      $('comecar').disabled = true; $('comecar').textContent = 'Abrindo…';
+      gravar('mr-altura', $('altura').value);
+      alturaCel = Math.round(parseFloat($('altura').value) * 0.76 * 100) / 100; // celular na altura do peito
+      camera.position.set(0, alturaCel, 0); mostrarAltura();
+      const sensores = ligarSensores(); // precisa ser no toque (iPhone)
+      try {
+        await abrirCamera();
+      } catch (e) {
+        console.error(e);
+        $('comecar').disabled = false; $('comecar').textContent = 'Abrir a câmera';
+        avisar(e && e.name === 'NotAllowedError'
+          ? 'A câmera foi bloqueada. Toque no cadeado ao lado do endereço do site, permita a câmera e tente de novo.'
+          : DENTRO_DE_APP ? 'Este aplicativo não deixa abrir a câmera. Abra o link no navegador (Chrome ou Safari).'
+          : 'Não consegui abrir a câmera deste celular.');
+        return;
+      }
+      await sensores;
+      $('inicio').hidden = true;
+      document.querySelector('.camera').hidden = false;
+      canvas.hidden = false;
+      ajustarTamanho();
+      rodando = true; requestAnimationFrame(quadro);
+      await carregarModelo(escolhido);
+      // espera um pouco para saber se o celular tem sensor
+      setTimeout(() => {
+        diag.sensor = fonte === 'giroscopio' ? 'giroscópio' : fonte === 'bussola' ? 'bússola (menos estável)' : fonte === 'gravidade' ? 'só inclinação' : 'nenhum';
+        mostrarDiag();
+        mudarEstado(estado);
+      }, 1200);
+      mudarEstado('mirando');
+    };
+
+    $('voltar').onclick = () => {
+      rodando = false;
+      if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
+      video.hidden = true; canvas.hidden = true;
+      document.querySelector('.camera').hidden = true;
+      $('ajuste').hidden = true;
+      $('inicio').hidden = false;
+      $('comecar').disabled = false; $('comecar').textContent = 'Abrir a câmera';
+      desenharEscolha();
+    };
+  </script>
+</body>
+</html>
