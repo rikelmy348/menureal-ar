@@ -698,7 +698,65 @@
     atualizarPrecoViewer(p);
   }
 
+  // ----- "Cabe no meu espaço?": conta simples com as medidas que o cliente mediu -----
+  var espacoCliente = { l: '', p: '', a: '' };
+  function lerCm(v) { var n = parseFloat(String(v || '').replace(',', '.')); return n > 0 && n < 5000 ? n : null; }
+  function atualizarCabe() {
+    var p = produtoAtual, caixa = $('#viewer-cabe');
+    if (!caixa) return;
+    var mostrar = !!(p && !p.combo && !ehAlimento());
+    caixa.hidden = !mostrar;
+    if (!mostrar) return;
+    var d = efetivo(p, tamAtual).dim;
+    var L = lerCm(espacoCliente.l), P = lerCm(espacoCliente.p), A = lerCm(espacoCliente.a);
+    var res = $('#cabe-res');
+    if (!L) { res.innerHTML = ''; return; }
+    var cm = function (n) { return num(Math.abs(n)) + ' cm'; };
+    var cabeL = L >= d.largura, cabeP = !P || P >= d.profundidade, cabeA = !A || A >= d.altura;
+    var cabe = cabeL && cabeP && cabeA;
+    var virado = !cabe && cabeA && P && L >= d.profundidade && P >= d.largura;
+    var linhas = [];
+    if (virado) {
+      linhas.push('Virado, com a lateral encostada na parede: sobram <b>' + cm(L - d.profundidade) + '</b> na largura e <b>' + cm(P - d.largura) + '</b> na frente');
+      linhas.push('Na posição normal faltam <b>' + cm(d.largura - L) + '</b> na largura');
+    } else linhas.push(cabeL ? 'Largura: sobram <b>' + cm(L - d.largura) + '</b>' + (L - d.largura >= 2 ? ' (' + cm((L - d.largura) / 2) + ' de cada lado)' : '') : 'Largura: faltam <b>' + cm(d.largura - L) + '</b>');
+    if (P && !virado) linhas.push(cabeP ? 'Profundidade: sobram <b>' + cm(P - d.profundidade) + '</b> na frente' : 'Profundidade: faltam <b>' + cm(d.profundidade - P) + '</b>');
+    if (A) linhas.push(cabeA ? 'Altura: sobram <b>' + cm(A - d.altura) + '</b>' : 'Altura: faltam <b>' + cm(d.altura - A) + '</b>');
+    var titulo, classe;
+    if (cabe && L - d.largura < 3) { titulo = 'Cabe, mas bem justo'; classe = 'justo'; }
+    else if (cabe) { titulo = 'Cabe!'; classe = 'sim'; }
+    else if (virado) { titulo = 'Só cabe virado de lado'; classe = 'justo'; }
+    else { titulo = 'Não cabe'; classe = 'nao'; }
+    var aviso = '';
+    if (cabe && P && P - d.profundidade < 60 && d.profundidade > 30) aviso = '<p class="mini">Para passar com conforto na frente, o ideal é deixar uns 60 cm livres.</p>';
+    if (cabe && L - d.largura < 3) aviso += '<p class="mini">Com menos de 3 cm de folga, confira a medida de rodapés, tomadas e janelas antes de comprar.</p>';
+    res.innerHTML = '<p class="cabe__titulo cabe__titulo--' + classe + '">' + titulo + '</p>' + desenhoCabe(d, L, P, cabe || virado ? classe : 'nao', virado) +
+      '<ul>' + linhas.map(function (t) { return '<li>' + t + '</li>'; }).join('') + '</ul>' + aviso;
+  }
+  // planta vista de cima: o espaço e o móvel encostado na parede
+  function desenhoCabe(d, L, P, classe, virado) {
+    var ml = virado ? d.profundidade : d.largura, mp = virado ? d.largura : d.profundidade;
+    var esp = P || Math.max(mp * 1.6, mp + 40);
+    var largTotal = Math.max(L, ml), profTotal = Math.max(esp, mp);
+    var W = 300, H = Math.max(70, Math.min(170, W * profTotal / largTotal));
+    var k = Math.min((W - 20) / largTotal, (H - 20) / profTotal);
+    var ox = (W - largTotal * k) / 2, oy = 10;
+    var ex = ox + (largTotal - L) / 2 * k, mx = ox + (largTotal - ml) / 2 * k;
+    var cor = classe === 'nao' ? 'var(--rosa)' : 'var(--verde)';
+    return '<svg class="cabe__planta" viewBox="0 0 ' + W + ' ' + Math.round(H) + '" role="img" aria-label="Planta vista de cima do espaço com o móvel">' +
+      '<rect x="' + ex + '" y="' + oy + '" width="' + (L * k) + '" height="' + (esp * k) + '" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-width="1.5"' + (P ? '' : ' stroke-dasharray="5 4"') + ' rx="2"/>' +
+      '<line x1="' + ex + '" y1="' + oy + '" x2="' + (ex + L * k) + '" y2="' + oy + '" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>' +
+      '<rect x="' + mx + '" y="' + (oy + 2) + '" width="' + (ml * k) + '" height="' + (mp * k) + '" fill="' + cor + '" fill-opacity=".28" stroke="' + cor + '" stroke-width="2" rx="4"/>' +
+      '<text x="' + (W / 2) + '" y="' + (oy + 2 + mp * k / 2 + 4) + '" text-anchor="middle" font-size="12" font-weight="700" fill="currentColor">' + num(ml) + ' × ' + num(mp) + ' cm</text>' +
+      '</svg><p class="mini cabe__legenda">Vista de cima. A linha grossa é a parede' + (P ? '' : '; sem a profundidade, o fundo é só ilustrativo') + '.</p>';
+  }
+  ['l', 'p', 'a'].forEach(function (k) {
+    var el = document.getElementById('cabe-' + k);
+    if (el) el.addEventListener('input', function () { espacoCliente[k] = el.value; atualizarCabe(); });
+  });
+
   function atualizarPrecoViewer(p) {
+    atualizarCabe();
     var preco = p.combo ? p.preco : precoMontado(p, tamAtual, adicSel);
     $('#viewer-preco').textContent = brl(preco);
     var add = $('#viewer-add');

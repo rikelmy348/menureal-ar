@@ -137,20 +137,30 @@
             <div><dt>Medidas do arquivo 3D</dt><dd id="viewer-dim-modelo">calculando…</dd></div>
           </dl>
           <p class="escala" id="viewer-escala" hidden></p>
+          <details class="cabe" id="viewer-cabe" hidden>
+            <summary>Cabe no meu espaço?</summary>
+            <p class="mini">Meça o lugar com uma trena e digite as medidas. Só a largura já basta.</p>
+            <div class="cabe__campos">
+              <label>Largura<span><input id="cabe-l" type="text" inputmode="decimal" autocomplete="off" placeholder="ex.: 240"> cm</span></label>
+              <label>Profundidade<span><input id="cabe-p" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
+              <label>Altura livre<span><input id="cabe-a" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
+            </div>
+            <div class="cabe__res" id="cabe-res" aria-live="polite"></div>
+          </details>
           <p class="viewer__desc" id="viewer-desc"></p>
           <dl class="viewer__info" id="viewer-info" hidden></dl>
         </div>
 
         <div id="painel-ar" role="tabpanel" aria-labelledby="aba-ar" hidden>
           <ol class="passos">
-            <li>Aponte a câmera para uma mesa ou bancada bem iluminada.</li>
+            <li>Aponte a câmera para o chão onde o móvel ficaria, com o lugar bem iluminado.</li>
             <li>Mova o celular devagar até o aparelho reconhecer a superfície.</li>
             <li id="passo-posicionar">Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.</li>
             <li>Para sair, use o botão de fechar da câmera ou o “voltar” do celular.</li>
             <li>Com <strong>Medidas</strong> ligado, as etiquetas de largura, altura e profundidade aparecem junto do produto. No Android elas aparecem na câmera; no iPhone, só no 3D.</li>
           </ol>
           <div class="ar-indisp" id="ar-indisp" hidden role="status"></div>
-          <p class="mini">A precisão do tamanho real depende das medidas usadas na criação do modelo 3D. Medidas desta demonstração são fictícias.</p>
+          <p class="mini">A precisão do tamanho real depende das medidas do modelo 3D. Para ter certeza se cabe, use também o “Cabe no meu espaço?” na aba Ver em 3D.</p>
         </div>
 
         <div class="viewer__acoes">
