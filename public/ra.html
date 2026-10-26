@@ -249,14 +249,13 @@
     const euler = new THREE.Euler(), q0 = new THREE.Quaternion(), qTela = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5));
     const eixoZ = new THREE.Vector3(0, 0, 1);
     const anguloTela = () => ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
-    let alfa0 = null; // para o móvel começar na frente de quem está olhando
     function aplicarOrientacao(alpha, beta, gamma) {
       const d = Math.PI / 180;
       euler.set(beta * d, alpha * d, -gamma * d, 'YXZ');
       alvo.setFromEuler(euler).multiply(qTela).multiply(q0.setFromAxisAngle(eixoZ, -anguloTela()));
     }
     // gravidade medida pelo acelerômetro (todo celular tem): serve para conferir o giroscópio
-    let gravidade = null, sinal = 1, ultimo = null, divergencia = 0, corrigir = false;
+    let gravidade = null, sinal = 1, ultimo = null;
     function inclinacaoDaGravidade() {
       if (!gravidade) return null;
       const g = { x: gravidade.x * sinal, y: gravidade.y * sinal, z: gravidade.z * sinal };
@@ -264,26 +263,16 @@
     }
     function aoGirar(ev) {
       if (ev.beta == null || ev.alpha == null) return;
-      if (ev.type === 'deviceorientationabsolute' && fonte === 'giroscopio') return;
-      if (ev.type === 'deviceorientation') fonte = 'giroscopio'; else if (fonte !== 'giroscopio') fonte = 'bussola';
-      temSensor = true;
-      ultimo = { alpha: ev.alpha, beta: ev.beta, gamma: ev.gamma };
-      const gr = inclinacaoDaGravidade();
-      if (gr) {
-        // se o sensor de orientação discorda da gravidade, confia na gravidade para a inclinação
-        const dif = Math.abs(gr.beta - ev.beta) + Math.abs(gr.gamma - ev.gamma);
-        divergencia = divergencia * 0.95 + dif * 0.05;
-        corrigir = divergencia > 20;
-      }
-      if (corrigir && gr) aplicarOrientacao(ev.alpha, gr.beta, gr.gamma);
-      else aplicarOrientacao(ev.alpha, ev.beta, ev.gamma);
+      if (ev.type === 'deviceorientation') ultimo = { alpha: ev.alpha, beta: ev.beta, gamma: ev.gamma };
+      if (gravidade) return; // com acelerômetro, a inclinação vem da gravidade (mais confiável)
+      fonte = 'orientacao'; temSensor = true;
+      aplicarOrientacao(0, ev.beta, ev.gamma);
     }
     function aoMover(ev) {
       const g = ev.accelerationIncludingGravity; if (!g || g.x == null) return;
-      gravidade = gravidade ? { x: gravidade.x * 0.85 + g.x * 0.15, y: gravidade.y * 0.85 + g.y * 0.15, z: gravidade.z * 0.85 + g.z * 0.15 } : { x: g.x, y: g.y, z: g.z };
+      gravidade = gravidade ? { x: gravidade.x * 0.7 + g.x * 0.3, y: gravidade.y * 0.7 + g.y * 0.3, z: gravidade.z * 0.7 + g.z * 0.3 } : { x: g.x, y: g.y, z: g.z };
       // com o celular em pé, o eixo Y aponta para cima; se vier negativo, o aparelho usa o sinal invertido
       if (Math.abs(gravidade.y) > 4) sinal = gravidade.y > 0 ? 1 : -1;
-      if (fonte === 'giroscopio' || fonte === 'bussola') return;
       const gr = inclinacaoDaGravidade();
       fonte = 'gravidade'; temSensor = true;
       aplicarOrientacao(0, gr.beta, gr.gamma);
@@ -410,6 +399,7 @@
       const k = parseFloat(e.target.value) / alturaCel;
       alturaCel = parseFloat(e.target.value);
       suporte.position.x *= k; suporte.position.z *= k; ultimoPonto.multiplyScalar(k);
+      pose.cx *= k; pose.cz *= k; pontos.forEach((p) => { p.W.x *= k; p.W.z *= k; });
       camera.position.y = alturaCel; mostrarAltura();
     };
 
@@ -434,19 +424,161 @@
       setTimeout(() => URL.revokeObjectURL(a.href), 4000);
     };
 
-    // ----- laço de desenho -----
-    let rodando = false;
+
     let contaQuadro = 0;
     const r0 = (v) => (v == null ? '–' : Math.round(v));
-    function quadro() {
-      if (!rodando) return;
-      if (++contaQuadro % 15 === 0) {
-        const gr = inclinacaoDaGravidade();
-        $('depura').textContent = fonte + (corrigir ? '+corr' : '') + ' β' + r0(ultimo && ultimo.beta) + '/' + r0(gr && gr.beta) +
-          ' γ' + r0(ultimo && ultimo.gamma) + '/' + r0(gr && gr.gamma) + ' s' + sinal + ' tela' + r0(anguloTela() * 180 / Math.PI) +
-          ' v' + video.videoWidth + 'x' + video.videoHeight + ' fov' + r0(camera.fov) + ' h' + alturaCel;
+    // ----- rastreio pela imagem: pontos do chão seguidos de um quadro para o outro -----
+    // A inclinação vem da gravidade; para onde o celular virou e quanto a pessoa andou
+    // sai de como os desenhos do chão (rejunte, tapete, manchas) se mexem na imagem.
+    const LARG_PROC = 144, P = 5, LADO = 2 * P + 1, BUSCA = 10, MAX_PONTOS = 10;
+    const proc = document.createElement('canvas');
+    const pctx = proc.getContext('2d', { willReadFrequently: true });
+    let pw = 0, ph = 0, kProc = 1, cinza = null, focoV = 1;
+    let pontos = []; // { x, y, tpl: Float32Array, W: {x,z}, falhas }
+    const pose = { psi: 0, cx: 0, cz: 0 };
+    let qInc = new THREE.Quaternion(); // só inclinação (sem giro)
+    const qYaw = new THREE.Quaternion(), eixoY = new THREE.Vector3(0, 1, 0);
+    let perdido = 0;
+
+    function prepararProc() {
+      const vw = video.videoWidth, vh = video.videoHeight; if (!vw) return false;
+      kProc = LARG_PROC / Math.min(vw, vh);
+      pw = Math.round(vw * kProc); ph = Math.round(vh * kProc);
+      proc.width = pw; proc.height = ph; cinza = new Float32Array(pw * ph);
+      focoV = (Math.max(vw, vh) / 2) / Math.tan(FOV_LADO_MAIOR * Math.PI / 360) * kProc; // foco em pixels da imagem pequena
+      return true;
+    }
+    function lerQuadro() {
+      if (!pw && !prepararProc()) return false;
+      pctx.drawImage(video, 0, 0, pw, ph);
+      const d = pctx.getImageData(0, 0, pw, ph).data;
+      for (let i = 0, j = 0; i < cinza.length; i++, j += 4) cinza[i] = d[j] * 0.3 + d[j + 1] * 0.59 + d[j + 2] * 0.11;
+      return true;
+    }
+    const vDir = new THREE.Vector3();
+    // pixel da imagem pequena → ponto no chão relativo ao celular (sem o giro), em metros
+    function pixelNoChao(x, y) {
+      vDir.set((x - pw / 2) / focoV, -(y - ph / 2) / focoV, -1).applyQuaternion(qInc);
+      if (vDir.y > -0.08) return null;
+      const t = alturaCel / -vDir.y;
+      const L = { x: vDir.x * t, z: vDir.z * t };
+      return Math.hypot(L.x, L.z) > 5 ? null : L;
+    }
+    function girarXZ(v, a) { const c = Math.cos(a), s2 = Math.sin(a); return { x: v.x * c + v.z * s2, z: -v.x * s2 + v.z * c }; }
+    function paraMundo(L) { const r = girarXZ(L, pose.psi); return { x: r.x + pose.cx, z: r.z + pose.cz }; }
+    function recorte(cx, cy) {
+      const t = new Float32Array(LADO * LADO); let m = 0, k = 0;
+      for (let y = -P; y <= P; y++) for (let x = -P; x <= P; x++) { const v = cinza[(cy + y) * pw + cx + x]; t[k++] = v; m += v; }
+      m /= t.length; for (let i = 0; i < t.length; i++) t[i] -= m;
+      return t;
+    }
+    function nota(cx, cy) { // quanto o ponto tem "cantos" (dá para seguir nas duas direções)
+      let a = 0, b = 0, c = 0;
+      for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) {
+        const i = (cy + y) * pw + cx + x;
+        const gx = (cinza[i + 1] - cinza[i - 1]) / 2, gy = (cinza[i + pw] - cinza[i - pw]) / 2;
+        a += gx * gx; b += gx * gy; c += gy * gy;
       }
-      camera.quaternion.slerp(alvo, 0.35);
+      return (a + c) / 2 - Math.sqrt(((a - c) / 2) ** 2 + b * b);
+    }
+    function acharPontos() {
+      const borda = P + BUSCA + 2, cand = [];
+      for (let y = borda; y < ph - borda; y += 4) for (let x = borda; x < pw - borda; x += 4) {
+        if (pontos.some((p) => Math.abs(p.x - x) < 14 && Math.abs(p.y - y) < 14)) continue;
+        const n = nota(x, y); if (n < 250) continue;
+        if (!pixelNoChao(x, y)) continue;
+        cand.push({ x, y, n });
+      }
+      cand.sort((u, v) => v.n - u.n);
+      for (const c of cand) {
+        if (pontos.length >= MAX_PONTOS) break;
+        if (pontos.some((p) => Math.abs(p.x - c.x) < 14 && Math.abs(p.y - c.y) < 14)) continue;
+        const L = pixelNoChao(c.x, c.y); if (!L) continue;
+        pontos.push({ x: c.x, y: c.y, tpl: recorte(c.x, c.y), W: paraMundo(L), falhas: 0 });
+      }
+    }
+    function seguir(p) {
+      const x0 = Math.round(p.x), y0 = Math.round(p.y), borda = P + 1;
+      let melhor = Infinity, bx = 0, by = 0; const custos = {};
+      for (let dy = -BUSCA; dy <= BUSCA; dy++) for (let dx = -BUSCA; dx <= BUSCA; dx++) {
+        const cx = x0 + dx, cy = y0 + dy;
+        if (cx < borda || cy < borda || cx >= pw - borda || cy >= ph - borda) continue;
+        let m = 0;
+        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) m += cinza[o + x]; }
+        m /= LADO * LADO;
+        let sad = 0, k = 0;
+        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) sad += Math.abs(cinza[o + x] - m - p.tpl[k++]); }
+        custos[dx + ',' + dy] = sad;
+        if (sad < melhor) { melhor = sad; bx = dx; by = dy; }
+      }
+      if (melhor / (LADO * LADO) > 16) return false;
+      // ajuste fino entre pixels (parábola)
+      const c0 = melhor, cl = custos[(bx - 1) + ',' + by], cr = custos[(bx + 1) + ',' + by], cu = custos[bx + ',' + (by - 1)], cd = custos[bx + ',' + (by + 1)];
+      let sx = 0, sy = 0;
+      if (cl != null && cr != null && cl + cr - 2 * c0 > 0) sx = 0.5 * (cl - cr) / (cl + cr - 2 * c0);
+      if (cu != null && cd != null && cu + cd - 2 * c0 > 0) sy = 0.5 * (cu - cd) / (cu + cd - 2 * c0);
+      p.x = x0 + bx + Math.max(-0.5, Math.min(0.5, sx)); p.y = y0 + by + Math.max(-0.5, Math.min(0.5, sy));
+      const novo = recorte(x0 + bx, y0 + by);
+      for (let i = 0; i < novo.length; i++) p.tpl[i] = p.tpl[i] * 0.85 + novo[i] * 0.15;
+      return true;
+    }
+    function resolverPose(pares) {
+      const n = pares.length;
+      if (n === 1) { const r = girarXZ(pares[0].L, pose.psi); return { psi: pose.psi, cx: pares[0].W.x - r.x, cz: pares[0].W.z - r.z }; }
+      let lx = 0, lz = 0, wx = 0, wz = 0;
+      pares.forEach((q) => { lx += q.L.x; lz += q.L.z; wx += q.W.x; wz += q.W.z; });
+      lx /= n; lz /= n; wx /= n; wz /= n;
+      let S = 0, C = 0;
+      pares.forEach((q) => { const a = q.L.x - lx, b = q.L.z - lz, c = q.W.x - wx, d = q.W.z - wz; S += c * b - d * a; C += c * a + d * b; });
+      const psi = Math.atan2(S, C), r = girarXZ({ x: lx, z: lz }, psi);
+      return { psi, cx: wx - r.x, cz: wz - r.z };
+    }
+    function rastrear() {
+      if (!lerQuadro()) return;
+      const pares = [];
+      pontos = pontos.filter((p) => {
+        if (!seguir(p)) return ++p.falhas < 3;
+        const L = pixelNoChao(p.x, p.y);
+        if (!L) return false;
+        p.falhas = 0; p.L = L; pares.push(p);
+        return true;
+      });
+      let usados = pares;
+      if (usados.length) {
+        let est = resolverPose(usados);
+        // tira os pontos que não combinam com os outros (algo que não é chão, reflexo…)
+        for (let volta = 0; volta < 2 && usados.length >= 3; volta++) {
+          const res = usados.map((q) => { const r = girarXZ(q.L, est.psi); return Math.hypot(r.x + est.cx - q.W.x, r.z + est.cz - q.W.z); });
+          const pior = res.indexOf(Math.max(...res));
+          if (res[pior] < 0.12) break;
+          usados[pior].falhas = 3; usados = usados.filter((_, i) => i !== pior);
+          est = resolverPose(usados);
+        }
+        pontos = pontos.filter((p) => p.falhas < 3);
+        let dpsi = est.psi - pose.psi; dpsi = Math.atan2(Math.sin(dpsi), Math.cos(dpsi));
+        pose.psi += dpsi * 0.7; pose.cx += (est.cx - pose.cx) * 0.7; pose.cz += (est.cz - pose.cz) * 0.7;
+        perdido = 0;
+      } else perdido++;
+      if (pontos.length < 6 && contaQuadro % 3 === 0) acharPontos();
+    }
+
+    // ----- laço de desenho -----
+    let rodando = false;
+        function quadro() {
+      if (!rodando) return;
+      contaQuadro++;
+      qInc.slerp(alvo, 0.5);
+      try { if (video.videoWidth) rastrear(); } catch (e) { console.error(e); }
+      qYaw.setFromAxisAngle(eixoY, pose.psi);
+      camera.quaternion.copy(qYaw).multiply(qInc);
+      camera.position.set(pose.cx, alturaCel, pose.cz);
+      if (contaQuadro % 15 === 0) {
+        const gr = inclinacaoDaGravidade();
+        $('depura').textContent = fonte + ' β' + r0(ultimo && ultimo.beta) + '/' + r0(gr && gr.beta) + ' γ' + r0(gr && gr.gamma) +
+          ' pts' + pontos.length + ' giro' + r0(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) +
+          ' v' + video.videoWidth + 'x' + video.videoHeight + ' fov' + r0(camera.fov);
+        if (estado === 'colocado') $('dica').textContent = perdido > 20 ? 'Aponte para o chão perto do móvel para ele não se perder' : 'Arraste para mudar de lugar · gire com dois dedos';
+      }
       if (estado === 'mirando') {
         const p = temSensor ? noChao(0, -0.15) : null;
         if (p) ultimoPonto.copy(p);
@@ -485,18 +617,20 @@
       canvas.hidden = false;
       ajustarTamanho();
       rodando = true; requestAnimationFrame(quadro);
+      mudarEstado('mirando');
       await carregarModelo(escolhido);
+      fantasma(estado === 'mirando');
       // espera um pouco para saber se o celular tem sensor
       setTimeout(() => {
-        diag.sensor = fonte === 'giroscopio' ? 'giroscópio' : fonte === 'bussola' ? 'bússola (menos estável)' : fonte === 'gravidade' ? 'só inclinação' : 'nenhum';
+        diag.sensor = fonte === 'gravidade' ? 'acelerômetro' : fonte === 'orientacao' ? 'orientação' : 'nenhum';
         mostrarDiag();
         mudarEstado(estado);
       }, 1200);
-      mudarEstado('mirando');
     };
 
     $('voltar').onclick = () => {
       rodando = false;
+      pontos = []; pose.psi = pose.cx = pose.cz = 0; pw = 0;
       if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
       video.hidden = true; canvas.hidden = true;
       document.querySelector('.camera').hidden = true;
