@@ -86,7 +86,7 @@
   <div class="camera" hidden>
     <div class="barra" id="topo">
       <button class="redondo" id="voltar" aria-label="Voltar">←</button>
-      <div class="nome"><b id="nome-prod"></b><span id="medidas-prod"></span></div>
+      <div class="nome"><b id="nome-prod"></b><span id="medidas-prod"></span><small id="depura" style="display:block;font-size:11px;color:#FFE6B0;font-family:monospace"></small></div>
       <button class="redondo" id="btn-ajuste" aria-label="Ajustar tamanho">⚙</button>
     </div>
     <div class="barra" id="baixo">
@@ -237,7 +237,7 @@
         sombra.position.y = 0.002;
         $('nome-prod').textContent = m.nome;
         $('medidas-prod').textContent = cm(tamanho.x) + ' × ' + cm(tamanho.z) + ' × ' + cm(tamanho.y) + ' cm (L × P × A)';
-        anel.scale.setScalar(Math.max(0.6, Math.min(3, Math.max(tamanho.x, tamanho.z) / 0.5)));
+        anel.scale.setScalar(Math.max(0.6, Math.min(2, Math.max(tamanho.x, tamanho.z) / 0.6)));
       } catch (e) {
         console.error(e); avisar('Não consegui carregar o móvel. Verifique a internet e tente de novo.');
       } finally { $('carregando').hidden = true; }
@@ -255,27 +255,38 @@
       euler.set(beta * d, alpha * d, -gamma * d, 'YXZ');
       alvo.setFromEuler(euler).multiply(qTela).multiply(q0.setFromAxisAngle(eixoZ, -anguloTela()));
     }
-    function aoGirar(ev) {
-      if (ev.beta == null) return;
-      if (ev.type === 'deviceorientationabsolute' && fonte === 'giroscopio') return;
-      if (ev.alpha != null) {
-        if (ev.type === 'deviceorientation') fonte = 'giroscopio'; else if (fonte !== 'giroscopio') fonte = 'bussola';
-        temSensor = true;
-        aplicarOrientacao(ev.alpha, ev.beta, ev.gamma);
-      }
+    // gravidade medida pelo acelerômetro (todo celular tem): serve para conferir o giroscópio
+    let gravidade = null, sinal = 1, ultimo = null, divergencia = 0, corrigir = false;
+    function inclinacaoDaGravidade() {
+      if (!gravidade) return null;
+      const g = { x: gravidade.x * sinal, y: gravidade.y * sinal, z: gravidade.z * sinal };
+      return { beta: Math.atan2(g.y, g.z) * 180 / Math.PI, gamma: Math.atan2(-g.x, Math.hypot(g.y, g.z)) * 180 / Math.PI };
     }
-    // último recurso: só a gravidade (inclinação), sem saber para que lado gira
-    let gravidade = null;
+    function aoGirar(ev) {
+      if (ev.beta == null || ev.alpha == null) return;
+      if (ev.type === 'deviceorientationabsolute' && fonte === 'giroscopio') return;
+      if (ev.type === 'deviceorientation') fonte = 'giroscopio'; else if (fonte !== 'giroscopio') fonte = 'bussola';
+      temSensor = true;
+      ultimo = { alpha: ev.alpha, beta: ev.beta, gamma: ev.gamma };
+      const gr = inclinacaoDaGravidade();
+      if (gr) {
+        // se o sensor de orientação discorda da gravidade, confia na gravidade para a inclinação
+        const dif = Math.abs(gr.beta - ev.beta) + Math.abs(gr.gamma - ev.gamma);
+        divergencia = divergencia * 0.95 + dif * 0.05;
+        corrigir = divergencia > 20;
+      }
+      if (corrigir && gr) aplicarOrientacao(ev.alpha, gr.beta, gr.gamma);
+      else aplicarOrientacao(ev.alpha, ev.beta, ev.gamma);
+    }
     function aoMover(ev) {
-      if (fonte === 'giroscopio' || fonte === 'bussola') return;
       const g = ev.accelerationIncludingGravity; if (!g || g.x == null) return;
-      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ? -1 : 1;
-      const gx = g.x * ios, gy = g.y * ios, gz = g.z * ios;
-      gravidade = gravidade ? { x: gravidade.x * 0.8 + gx * 0.2, y: gravidade.y * 0.8 + gy * 0.2, z: gravidade.z * 0.8 + gz * 0.2 } : { x: gx, y: gy, z: gz };
-      const beta = Math.atan2(gravidade.y, gravidade.z) * 180 / Math.PI;
-      const gamma = Math.atan2(-gravidade.x, Math.hypot(gravidade.y, gravidade.z)) * 180 / Math.PI;
+      gravidade = gravidade ? { x: gravidade.x * 0.85 + g.x * 0.15, y: gravidade.y * 0.85 + g.y * 0.15, z: gravidade.z * 0.85 + g.z * 0.15 } : { x: g.x, y: g.y, z: g.z };
+      // com o celular em pé, o eixo Y aponta para cima; se vier negativo, o aparelho usa o sinal invertido
+      if (Math.abs(gravidade.y) > 4) sinal = gravidade.y > 0 ? 1 : -1;
+      if (fonte === 'giroscopio' || fonte === 'bussola') return;
+      const gr = inclinacaoDaGravidade();
       fonte = 'gravidade'; temSensor = true;
-      aplicarOrientacao(0, beta, gamma);
+      aplicarOrientacao(0, gr.beta, gr.gamma);
     }
     async function ligarSensores() {
       try {
@@ -332,12 +343,26 @@
       return ponto.clone();
     }
 
+    // enquanto mira, o móvel fica meio transparente para dar para ver o chão
+    function fantasma(sim) {
+      if (!modelo) return;
+      modelo.traverse((o) => {
+        if (!o.isMesh) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((mt) => {
+          if (!mt.userData.orig) mt.userData.orig = { transparent: mt.transparent, opacity: mt.opacity, depthWrite: mt.depthWrite };
+          const o0 = mt.userData.orig;
+          mt.transparent = sim || o0.transparent; mt.opacity = sim ? o0.opacity * 0.45 : o0.opacity; mt.depthWrite = sim ? false : o0.depthWrite;
+          mt.needsUpdate = true;
+        });
+      });
+    }
     function mudarEstado(e) {
       estado = e;
       const mirando = e === 'mirando';
       $('colocar').hidden = !mirando;
       $('girar').hidden = $('mover').hidden = $('foto').hidden = mirando;
       anel.visible = mirando;
+      fantasma(mirando);
       $('dica').textContent = mirando
         ? (temSensor ? 'Aponte o celular para o chão onde quer o móvel' : 'Arraste o móvel com o dedo até o lugar')
         : 'Arraste para mudar de lugar · gire com dois dedos';
@@ -411,8 +436,16 @@
 
     // ----- laço de desenho -----
     let rodando = false;
+    let contaQuadro = 0;
+    const r0 = (v) => (v == null ? '–' : Math.round(v));
     function quadro() {
       if (!rodando) return;
+      if (++contaQuadro % 15 === 0) {
+        const gr = inclinacaoDaGravidade();
+        $('depura').textContent = fonte + (corrigir ? '+corr' : '') + ' β' + r0(ultimo && ultimo.beta) + '/' + r0(gr && gr.beta) +
+          ' γ' + r0(ultimo && ultimo.gamma) + '/' + r0(gr && gr.gamma) + ' s' + sinal + ' tela' + r0(anguloTela() * 180 / Math.PI) +
+          ' v' + video.videoWidth + 'x' + video.videoHeight + ' fov' + r0(camera.fov) + ' h' + alturaCel;
+      }
       camera.quaternion.slerp(alvo, 0.35);
       if (estado === 'mirando') {
         const p = temSensor ? noChao(0, -0.15) : null;
