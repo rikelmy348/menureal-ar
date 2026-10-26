@@ -1,0 +1,11 @@
+Modelos 3D de demonstração (catálogo da página inicial) — Khronos glTF Sample Assets
+https://github.com/KhronosGroup/glTF-Sample-Assets
+
+sofa-veludo.glb       GlamVelvetSofa          © Wayfair, LLC — Eric Chadwick — CC BY 4.0
+poltrona.glb          SheenChair              © Wayfair, LLC — Eric Chadwick — CC0 1.0
+poltrona-damasco.glb  ChairDamaskPurplegold   © Wayfair — Eric Chadwick — CC BY 4.0
+puff-seda.glb         SpecularSilkPouf        © 2023 Wayfair, LLC — Eric Chadwick — CC BY 4.0
+vaso-flores.glb       GlassVaseFlowers        Eric Chadwick, Rico Cilliers — CC0 1.0
+
+CC BY 4.0: https://creativecommons.org/licenses/by/4.0/
+Os arquivos não foram alterados.

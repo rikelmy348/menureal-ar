@@ -874,3 +874,13 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .cenario-op__amostra b { color: #fff; opacity: .5; font-size: 13px; }
 .cenario-op input:checked + .cenario-op__amostra { border-color: var(--verde); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 30%, transparent); }
 .cenario-op input:focus-visible + .cenario-op__amostra { outline: 3px solid var(--limao); outline-offset: 2px; }
+
+/* página inicial: sofá de vitrine (imagem larga) */
+.land-sofa { width: min(420px, 100%) !important; justify-self: center !important; margin: 4px 0 -2px !important; animation: none !important; filter: drop-shadow(0 18px 22px rgba(0,0,0,.28)); }
+@media (min-width: 760px) { .land-sofa { width: 460px !important; align-self: center !important; } }
+.cores { display: flex; flex-wrap: wrap; gap: 8px; }
+.cor-op { min-height: 40px; padding: 0 14px; border-radius: 999px; border: 1.5px solid var(--linha); background: var(--superficie); color: var(--tinta); font-weight: 650; font-size: 14px; }
+.cor-op[aria-pressed="true"] { border-color: var(--verde); background: var(--verde); color: var(--sobre-verde); }
+.modelo-admin__estado { margin: 0 0 10px; font-weight: 650; color: var(--perigo); }
+.modelo-admin__estado.ok { color: var(--ok); }
+.modelo-admin__estado small { color: var(--tinta-2); font-weight: 450; }

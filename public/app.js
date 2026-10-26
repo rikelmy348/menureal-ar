@@ -36,106 +36,44 @@
   var MODELOS_EMBUTIDOS = window.MENUREAL_MODELOS || null;
   var reduzMovimento = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // Dados de demonstração. Preços e medidas são FICTÍCIOS.
-  // Medidas em centímetros: largura (X), profundidade (Z), altura (Y).
-  var TIPOS_3D = [
-    ['', 'Não aparece no 3D'], ['granola', 'Granola'], ['banana', 'Banana'], ['morango', 'Morango em fatias'], ['morango_picado', 'Morango picado'],
-    ['leite_condensado', 'Leite condensado'], ['leite_po', 'Leite em pó'], ['pacoca', 'Paçoca'], ['confete', 'Confete'],
-    ['calda_chocolate', 'Calda de chocolate'], ['nutella', 'Nutella (por cima)'],
-    ['camada_creme', 'Camada de creme (dentro do copo)'], ['camada_morango', 'Camada de morango picado (dentro do copo)'],
-    ['camada_nutella', 'Camada de Nutella (dentro do copo)']
-  ];
   var TIPOS_PIX = [['cpf', 'CPF'], ['cnpj', 'CNPJ'], ['telefone', 'Celular'], ['email', 'E-mail'], ['aleatoria', 'Chave aleatória']];
-  // Sorvete e milkshake (montarSorvete em sorvete.mjs usa as mesmas chaves)
-  var SABORES_SV = [['creme', 'Creme'], ['chocolate', 'Chocolate'], ['morango', 'Morango'], ['flocos', 'Flocos'], ['napolitano', 'Napolitano'],
-    ['pistache', 'Pistache'], ['limao', 'Limão'], ['menta', 'Menta com chocolate'], ['coco', 'Coco'], ['doce_de_leite', 'Doce de leite'],
-    ['acai', 'Açaí'], ['uva', 'Uva'], ['maracuja', 'Maracujá'], ['cookies', 'Cookies'], ['chiclete', 'Chiclete']];
-  var COBERTURAS_SV = [['calda_chocolate', 'Calda de chocolate'], ['calda_morango', 'Calda de morango'], ['calda_caramelo', 'Calda de caramelo'],
-    ['chantilly', 'Chantilly'], ['granulado', 'Granulado'], ['confete', 'Confete colorido'], ['amendoim', 'Amendoim'], ['wafer', 'Biscoito wafer'], ['cereja', 'Cereja']];
-  var TIPOS_3D_SV = [['', 'Não aparece no 3D']].concat(SABORES_SV.map(function (x) { return ['sabor_' + x[0], 'Sabor (bola): ' + x[1]]; }),
-    COBERTURAS_SV.map(function (x) { return ['cob_' + x[0], 'Por cima: ' + x[1]]; }));
-  var RECIPIENTES_SV = { casquinha: ['Casquinha', 2, { largura: 6.2, profundidade: 6.2, altura: 16 }, 'assets/models/sorvete-casquinha.glb'],
-    cascao: ['Cascão', 3, { largura: 7.6, profundidade: 7.6, altura: 21 }, 'assets/models/sorvete-cascao.glb'],
-    taca: ['Taça', 4, { largura: 12.4, profundidade: 12.4, altura: 15 }, 'assets/models/sorvete-taca.glb'],
-    copinho: ['Copinho', 2, { largura: 8.2, profundidade: 8.2, altura: 9.5 }, 'assets/models/sorvete-copinho.glb'],
-    milkshake: ['Copo de milkshake 500 ml', 2, { largura: 8.2, profundidade: 8.2, altura: 20 }, 'assets/models/milkshake-500.glb'],
-    milkshake300: ['Copo de milkshake 300 ml', 2, { largura: 7.8, profundidade: 7.8, altura: 17.5 }, 'assets/models/milkshake-300.glb'] };
-  function tamSv(id, nome, preco, rec, bolas) {
-    var r = RECIPIENTES_SV[rec];
-    return { id: id, nome: nome, preco: preco, recipiente: rec, bolas: bolas, dim: clonar(r[2]), modelo: r[3] };
-  }
-  var SORVETE_PRONTO = {
-    tamanhos: [tamSv('c1', 'Casquinha 1 bola', 7, 'casquinha', 1), tamSv('c2', 'Casquinha 2 bolas', 11, 'casquinha', 2), tamSv('t3', 'Taça 3 bolas', 18, 'taca', 3)],
-    adicionais: [['creme', 0], ['chocolate', 0], ['morango', 0], ['flocos', 0], ['napolitano', 0], ['pistache', 2], ['menta', 0], ['coco', 0], ['doce_de_leite', 0], ['cookies', 2], ['chiclete', 0]]
-      .map(function (x) { return { id: 's-' + x[0], nome: SABORES_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'sabor_' + x[0] }; })
-      .concat([['calda_chocolate', 2], ['calda_morango', 2], ['calda_caramelo', 2], ['chantilly', 3], ['granulado', 1.5], ['confete', 2], ['amendoim', 2], ['wafer', 2.5], ['cereja', 1.5]]
-        .map(function (x) { return { id: 'c-' + x[0], nome: COBERTURAS_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'cob_' + x[0] }; }))
-  };
-  var MILK_PRONTO = {
-    tamanhos: [tamSv('300', '300 ml', 14, 'milkshake300', 2), tamSv('500', '500 ml', 18, 'milkshake', 2)],
-    adicionais: [['chocolate', 0], ['morango', 0], ['creme', 0], ['doce_de_leite', 0], ['cookies', 2], ['acai', 2]]
-      .map(function (x) { return { id: 's-' + x[0], nome: SABORES_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'sabor_' + x[0] }; })
-      .concat([['chantilly', 0], ['calda_chocolate', 2], ['calda_morango', 2], ['calda_caramelo', 2], ['granulado', 1.5], ['confete', 2], ['cereja', 1.5], ['wafer', 2.5]]
-        .map(function (x) { return { id: 'c-' + x[0], nome: COBERTURAS_SV.filter(function (y) { return y[0] === x[0]; })[0][1], preco: x[1], tipo3d: 'cob_' + x[0] }; }))
-  };
-  var ADICIONAIS_ACAI = [
-    { id: 'creme-ninho', nome: 'Creme de ninho', preco: 4.00, tipo3d: 'camada_creme' },
-    { id: 'morango', nome: 'Morango', preco: 3.00, tipo3d: 'morango_picado' },
-    { id: 'banana', nome: 'Banana', preco: 2.00, tipo3d: 'banana' },
-    { id: 'nutella', nome: 'Nutella', preco: 5.00, tipo3d: 'nutella' },
-    { id: 'leite-condensado', nome: 'Leite condensado', preco: 2.50, tipo3d: 'leite_condensado' },
-    { id: 'leite-po', nome: 'Leite em pó', preco: 2.50, tipo3d: 'leite_po' },
-    { id: 'granola', nome: 'Granola', preco: 2.00, tipo3d: 'granola' },
-    { id: 'pacoca', nome: 'Paçoca', preco: 2.00, tipo3d: 'pacoca' },
-    { id: 'confete', nome: 'Confete', preco: 2.50, tipo3d: 'confete' },
-    { id: 'calda-chocolate', nome: 'Calda de chocolate', preco: 3.00, tipo3d: 'calda_chocolate' }
-  ];
 
+  // Demonstração: loja de móveis. Os modelos 3D são de móveis reais (Wayfair, via Khronos
+  // glTF Sample Assets; créditos em assets/moveis/CREDITOS.txt). Preços FICTÍCIOS.
+  // Medidas em centímetros: largura (X), profundidade (Z), altura (Y) — as do próprio produto.
   var PADRAO = {
     padaria: {
-      nome: 'Sorveteria da Praça',
-      slogan: 'Monte o seu e veja na mesa',
-      abre: '13:00',
-      fecha: '22:00',
-      dias: [0, 1, 2, 3, 4, 5, 6],
-      whatsapp: '', // ex.: 5511999999999 (DDI + DDD + número). Vazio = desativado.
-      pedido: { entrega: true, retirada: true, taxa: 5, bairros: [{ nome: 'Centro', taxa: 4 }, { nome: 'Vila Nova', taxa: 6 }], minimo: 15, tempo: '30 a 45 min',
-        endereco: 'Rua das Flores, 100 — Centro', pix: { tipo: 'email', chave: '', nome: '', cidade: '' } }
+      nome: 'Casa & Sala Móveis',
+      slogan: 'Veja na sua casa antes de comprar',
+      abre: '09:00',
+      fecha: '18:00',
+      dias: [1, 2, 3, 4, 5, 6],
+      whatsapp: '',
+      tipo: 'produtos',
+      pedido: { entrega: true, retirada: true, taxa: 0, bairros: [], minimo: 0, tempo: '', endereco: '', pix: { tipo: 'email', chave: '', nome: '', cidade: '' } }
     },
+    categorias: ['Sofás', 'Poltronas', 'Puffs', 'Decoração'],
     produtos: [
-      { id: 'acai', nome: 'Açaí — monte o seu', categoria: 'Açaí', preco: 16.00,
-        descricao: 'Escolha o copo e os adicionais: cada um cai em cima do açaí. Depois veja na mesa, no tamanho real.',
-        dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-pet-500.glb', ilustrativo: true,
-        tamanhos: [
-          { id: '300', nome: '300 ml', preco: 13.00, dim: { largura: 8.6, profundidade: 8.6, altura: 9.6 }, modelo: 'assets/models/acai-pet-300.glb' },
-          { id: '500', nome: '500 ml', preco: 16.00, dim: { largura: 9.6, profundidade: 9.6, altura: 11.7 }, modelo: 'assets/models/acai-pet-500.glb' },
-          { id: '700', nome: '700 ml', preco: 20.00, dim: { largura: 10.6, profundidade: 10.6, altura: 13.5 }, modelo: 'assets/models/acai-pet-700.glb' }
-        ],
-        adicionais: ADICIONAIS_ACAI, montar: true },
-      { id: 'sorvete', nome: 'Sorvete — monte o seu', categoria: 'Sorvetes', preco: 11,
-        descricao: 'Casquinha ou taça: escolha os sabores, uma bola de cada vez, e a cobertura por cima.',
-        dim: clonar(RECIPIENTES_SV.casquinha[2]), modelo: RECIPIENTES_SV.casquinha[3], ilustrativo: true,
-        tamanhos: SORVETE_PRONTO.tamanhos, adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
-      { id: 'milkshake', nome: 'Milkshake', categoria: 'Milkshakes', preco: 18,
-        descricao: 'Escolha até 2 sabores, chantilly, calda e cereja. Vem com canudo.',
-        dim: clonar(RECIPIENTES_SV.milkshake[2]), modelo: RECIPIENTES_SV.milkshake[3], ilustrativo: true,
-        tamanhos: MILK_PRONTO.tamanhos, adicionais: MILK_PRONTO.adicionais, montar: true, modo: 'milkshake' },
-      { id: 'casquinha', nome: 'Casquinha', categoria: 'Sorvetes', preco: 7,
-        descricao: 'Uma bola do sabor que você escolher, na casquinha crocante.',
-        dim: clonar(RECIPIENTES_SV.casquinha[2]), modelo: RECIPIENTES_SV.casquinha[3], ilustrativo: true,
-        tamanhos: [tamSv('c1', '1 bola', 7, 'casquinha', 1)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
-      { id: 'sundae', nome: 'Sundae na taça', categoria: 'Sorvetes', preco: 18,
-        descricao: 'Três bolas na taça de vidro, com calda, chantilly e cereja.',
-        dim: clonar(RECIPIENTES_SV.taca[2]), modelo: RECIPIENTES_SV.taca[3], ilustrativo: true,
-        tamanhos: [tamSv('t3', '3 bolas', 18, 'taca', 3), tamSv('t4', '4 bolas', 22, 'taca', 4)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
-      { id: 'cascao', nome: 'Cascão', categoria: 'Sorvetes', preco: 15,
-        descricao: 'O cascão grande, com até 3 bolas.',
-        dim: clonar(RECIPIENTES_SV.cascao[2]), modelo: RECIPIENTES_SV.cascao[3], ilustrativo: true,
-        tamanhos: [tamSv('k2', '2 bolas', 12, 'cascao', 2), tamSv('k3', '3 bolas', 15, 'cascao', 3)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' },
-      { id: 'copinho', nome: 'Copinho', categoria: 'Sorvetes', preco: 10,
-        descricao: 'Duas bolas no copinho, para comer de colher.',
-        dim: clonar(RECIPIENTES_SV.copinho[2]), modelo: RECIPIENTES_SV.copinho[3], ilustrativo: true,
-        tamanhos: [tamSv('p2', '2 bolas', 10, 'copinho', 2)], adicionais: SORVETE_PRONTO.adicionais, montar: true, modo: 'sorvete' }
+      { id: 'sofa-veludo', nome: 'Sofá 3 lugares Veludo', categoria: 'Sofás', preco: 3899,
+        descricao: 'Veludo macio, braços curvos e pés dourados. Escolha a cor e veja na sua sala.',
+        dim: { largura: 218.8, profundidade: 102.3, altura: 78.8 }, modelo: 'assets/moveis/sofa-veludo.glb', ilustrativo: false,
+        ingredientes: 'Estrutura em madeira, espuma D33, tecido veludo, pés em metal dourado' },
+      { id: 'poltrona', nome: 'Poltrona Concha', categoria: 'Poltronas', preco: 1490,
+        descricao: 'Encosto envolvente em veludo. Duas cores à escolha.',
+        dim: { largura: 82.7, profundidade: 57, altura: 68.6 }, modelo: 'assets/moveis/poltrona.glb', ilustrativo: false,
+        ingredientes: 'Veludo, espuma, pés em madeira' },
+      { id: 'poltrona-damasco', nome: 'Poltrona Damasco', categoria: 'Poltronas', preco: 1690,
+        descricao: 'Tecido adamascado roxo e dourado, para dar destaque ao ambiente.',
+        dim: { largura: 82.9, profundidade: 57.2, altura: 68.7 }, modelo: 'assets/moveis/poltrona-damasco.glb', ilustrativo: false,
+        ingredientes: 'Tecido adamascado, espuma, pés em madeira' },
+      { id: 'puff-seda', nome: 'Puff Redondo Seda', categoria: 'Puffs', preco: 590,
+        descricao: 'Puff baixo, de 61 cm, que serve de apoio ou assento extra.',
+        dim: { largura: 61, profundidade: 61, altura: 19.8 }, modelo: 'assets/moveis/puff-seda.glb', ilustrativo: false,
+        ingredientes: 'Tecido acetinado, enchimento em fibra' },
+      { id: 'vaso-flores', nome: 'Vaso de Vidro com Flores', categoria: 'Decoração', preco: 189,
+        descricao: 'Arranjo de mesa para a sala de estar ou de jantar.',
+        dim: { largura: 21.7, profundidade: 14.2, altura: 20.3 }, modelo: 'assets/moveis/vaso-flores.glb', ilustrativo: false,
+        ingredientes: 'Vidro, flores artificiais' }
     ]
   };
 
@@ -217,25 +155,9 @@
   ];
   var COR_PADRAO = '#6A1BB3', DESTAQUE_PADRAO = '#FFD23F';
 
-  var VAZIO = { padaria: { nome: 'Carregando cardápio…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
-  // Na página inicial, a demonstração sempre tem o açaí montável (é o que a apresentação promete)
-  var DEMO_ANTIGOS = ['coxinha', 'pao-de-queijo', 'pastel', 'croissant', 'empada', 'brigadeiro'];
-  function comAcaiDemo(d) {
-    if (LOJA || !d) return d;
-    // a demonstração é de sorveteria: sem os salgados antigos e com todos os sorvetes de exemplo
-    d.produtos = d.produtos.filter(function (x) { return DEMO_ANTIGOS.indexOf(x.id) < 0; });
-    d.categorias = d.categorias.filter(function (cat) { return ['Salgados', 'Doces', 'Pães'].indexOf(cat) < 0 || d.produtos.some(function (x) { return x.categoria === cat; }); });
-    // todos os produtos de exemplo, na ordem da demonstração (açaí, sorvete e milkshake montáveis primeiro)
-    var faltam = PADRAO.produtos.filter(function (base) { return !d.produtos.some(function (x) { return x.id === base.id; }); });
-    var novos = validarDados({ padaria: {}, produtos: clonar(faltam) }).produtos;
-    novos.forEach(function (a) {
-      var i = PADRAO.produtos.findIndex(function (b) { return b.id === a.id; });
-      d.produtos.splice(Math.min(i, d.produtos.length), 0, a);
-      if (d.categorias.indexOf(a.categoria) < 0) d.categorias.push(a.categoria);
-    });
-    return d;
-  }
-  var dados = comAcaiDemo(validarDados(ler(CHAVE_DADOS)) || (LOJA ? validarDados(clonar(VAZIO)) : validarDados(clonar(PADRAO))));
+  var VAZIO = { padaria: { nome: 'Carregando…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
+  // Página inicial: sempre a demonstração da loja de móveis (não depende do que está salvo)
+  var dados = LOJA ? (validarDados(ler(CHAVE_DADOS)) || validarDados(clonar(VAZIO))) : validarDados(clonar(PADRAO));
   CATEGORIAS = dados.categorias;
   var carrinho = ler(CHAVE_CARRINHO) || {};
   var filtro = { cat: 'Todos', q: '' };
@@ -253,7 +175,7 @@
       fecha: /^\d{2}:\d{2}$/.test(p.fecha) ? p.fecha : PADRAO.padaria.fecha,
       dias: Array.isArray(p.dias) ? p.dias.filter(function (x) { return x >= 0 && x <= 6; }) : PADRAO.padaria.dias.slice(),
       whatsapp: String(p.whatsapp || '').replace(/\D/g, ''),
-      tipo: p.tipo === 'produtos' ? 'produtos' : 'alimentos', // alimentos = cardápio; produtos = catálogo de objetos
+      tipo: p.tipo === 'alimentos' ? 'alimentos' : 'produtos', // produtos = catálogo (móveis etc.); alimentos = cardápio (contas antigas)
       visual: validarVisual(p.visual),
       pedido: lerPedido(p.pedido),
       plano: (function (pl) {
@@ -294,14 +216,9 @@
           var tid = String(t.id || slug(t.nome));
           while (tids[tid]) tid += '-2';
           tids[tid] = 1;
-          var tam = { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
-          if (RECIPIENTES_SV[t.recipiente]) { tam.recipiente = t.recipiente; tam.bolas = Math.min(5, Math.max(1, Math.round(Number(t.bolas) || 1))); }
-          return tam;
+          return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
         }),
-        adicionais: lerAdicionais(x.adicionais),
-        montar: x.montar === true,   // o cliente monta (açaí em camadas, sorvete em bolas, milkshake)
-        modo: x.modo === 'sorvete' || x.modo === 'milkshake' ? x.modo : 'acai',
-        copo: lerCopo(x.copo),        // copo 3D sob medida (estilo, logo, medidas por tamanho)
+        adicionais: lerAdicionais(x.adicionais),   // opcionais com preço (ex.: montagem, pés de outra cor)
         esgotado: x.esgotado === true // acabou hoje: aparece, mas não dá para pedir
       };
     });
@@ -408,9 +325,8 @@
       var id = String(a.id || slug(a.nome) || 'a' + i).replace(/[^\w-]/g, '').slice(0, 40) || 'a' + i;
       while (ids[id]) id += '2';
       ids[id] = 1;
-      var t3 = String(a.tipo3d || '');
       return { id: id, nome: String(a.nome).slice(0, 40), preco: Math.max(0, Number(a.preco) || 0),
-        tipo3d: TIPOS_3D.concat(TIPOS_3D_SV).some(function (t) { return t[0] && t[0] === t3; }) ? t3 : '', esgotado: a.esgotado === true };
+        esgotado: a.esgotado === true };
     });
   }
   // Como a loja recebe pedidos (o servidor guarda a mesma estrutura)
@@ -431,74 +347,16 @@
       pausado: v.pausado === true
     };
   }
-  function lerCopo(c) {
-    c = c && typeof c === 'object' ? c : {};
-    var med = {};
-    Object.keys(c.medidas || {}).slice(0, 10).forEach(function (k) {
-      var m = c.medidas[k] || {};
-      var n = function (v, a, b) { v = Number(v); return v >= a && v <= b ? Math.round(v * 10) / 10 : 0; };
-      med[String(k).slice(0, 60)] = { ml: n(m.ml, 50, 3000), boca: n(m.boca, 2, 40), fundo: n(m.fundo, 2, 40), altura: n(m.altura, 3, 60) };
-    });
-    return { estilo: c.estilo === 'vidro' ? 'vidro' : 'pet', logo: c.logo !== false, medidas: med };
-  }
-
   function adicionaisDe(p, sel) {
     return (p.adicionais || []).filter(function (a) { return sel.indexOf(a.id) > -1; });
   }
   function somaAdicionais(p, sel) { return adicionaisDe(p, sel).reduce(function (s, a) { return s + a.preco; }, 0); }
 
-  // ---- Montagem em camadas pelo cliente (açaí, banana, açaí, creme… até encher o copo)
-  // Pesos iguais a VISUAL_CAMADA em public/glb.mjs (altura de cada camada no copo).
-  var CAPACIDADE_COPO = 5.5;
-  var PESO_CAMADA = { acai: 1, camada_creme: 0.55, creme: 0.55, camada_nutella: 0.5, nutella: 0.5, leite_condensado: 0.42,
-    calda_chocolate: 0.38, leite_po: 0.42, camada_morango: 0.62, morango: 0.45, morango_picado: 0.45, banana: 0.45,
-    granola: 0.4, pacoca: 0.38, confete: 0.32 };
-  var ACAI = '_acai';   // camada de açaí (já inclusa no preço do tamanho)
-  function ehSorvete(p) { return !!(p && p.montar && (p.modo === 'sorvete' || p.modo === 'milkshake')); }
-  function ehSabor(a) { return !!(a && /^sabor_/.test(a.tipo3d)); }
-  var menosBolas = 0;   // cliente tocou "pronto" com menos bolas que o tamanho permite
-  function bolasMax(p, tamId) {
-    var ef = efetivo(p, tamId === undefined ? tamAtual : tamId);
-    if (menosBolas && tamId === undefined && p === produtoAtual) return menosBolas;
-    if (ef.t && ef.t.bolas) return ef.t.bolas;
-    return p.modo === 'milkshake' ? 2 : 2;
-  }
-  function recipienteDe(p, tamId) {
-    var ef = efetivo(p, tamId === undefined ? tamAtual : tamId);
-    return ef.t && ef.t.recipiente ? ef.t.recipiente : p.modo === 'milkshake' ? 'milkshake' : 'casquinha';
-  }
-  function camadaDe(p, token) {
-    if (ehSorvete(p)) { var s = adicionaisDe(p, [token])[0]; return ehSabor(s) ? s : null; }
-    if (token === ACAI) return { id: ACAI, nome: 'Açaí', preco: 0, tipo3d: 'acai' };
-    var a = adicionaisDe(p, [token])[0];
-    return a && PESO_CAMADA[a.tipo3d] ? a : null;
-  }
-  function podeSerCamada(a) { return !!(a && PESO_CAMADA[a.tipo3d]); }
-  function enchimento(p, pilha) {
-    if (ehSorvete(p)) return Math.min(1, pilha.length / bolasMax(p));
-    var soma = 0;
-    pilha.forEach(function (t) { var c = camadaDe(p, t); if (c) soma += PESO_CAMADA[c.tipo3d]; });
-    return Math.min(1, soma / CAPACIDADE_COPO);
-  }
-  function copoCheio(p, pilha) {
-    if (ehSorvete(p)) return pilha.length >= bolasMax(p);
-    return enchimento(p, pilha) >= (CAPACIDADE_COPO - 0.05) / CAPACIDADE_COPO;
-  }
-  function somaPilha(p, pilha) { return pilha.reduce(function (s, t) { var c = camadaDe(p, t); return s + (c ? c.preco : 0); }, 0); }
-  function precoMontado(p, tamId, pilha, tops) { return efetivo(p, tamId).preco + somaPilha(p, pilha || []) + somaAdicionais(p, tops || []); }
-  function nomeMontado(p, pilha, tops) {
-    var cam = pilha.map(function (t) { var c = camadaDe(p, t); return c ? c.nome.toLowerCase() : ''; }).filter(Boolean);
-    var cob = adicionaisDe(p, tops).map(function (a) { return a.nome.toLowerCase(); });
-    // camadas iguais seguidas viram "açaí (3x)"
-    var junto = [];
-    cam.forEach(function (n) { var u = junto[junto.length - 1]; if (u && u.n === n) u.q++; else junto.push({ n: n, q: 1 }); });
-    cam = junto.map(function (x) { return x.n + (x.q > 1 ? ' (' + x.q + 'x)' : ''); });
-    var rotulo = ehSorvete(p) ? (p.modo === 'milkshake' ? ' — sabor: ' : ' — sabores: ') : ' — camadas: ';
-    return (cam.length ? rotulo + cam.join(', ') : '') + (cob.length ? ' · por cima: ' + cob.join(', ') : '');
-  }
+  function precoMontado(p, tamId, tops) { return efetivo(p, tamId).preco + somaAdicionais(p, tops || []); }
 
   // Vocabulário conforme o tipo de negócio
   function ehAlimento(d) { return (d || dados).padaria.tipo !== 'produtos'; }
+  function orc() { return ehAlimento() ? 'pedido' : 'orçamento'; }
   function termo(d) { return ehAlimento(d) ? 'cardápio' : 'catálogo'; }
 
   // Produto com o tamanho escolhido aplicado (preço, medidas e modelo do tamanho)
@@ -606,7 +464,9 @@
     aplicarVisual(p);
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
     $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
-    $('#busca').placeholder = ehAlimento() ? (LOJA ? 'Buscar no cardápio…' : 'Buscar açaí, sorvete…') : 'Buscar produtos…';
+    $('#busca').placeholder = ehAlimento() ? 'Buscar no cardápio…' : (LOJA ? 'Buscar produtos…' : 'Buscar sofá, poltrona…');
+    $('#carrinho-titulo').textContent = ehAlimento() ? 'Seu pedido' : 'Seu orçamento';
+    var rotCar = $('#btn-carrinho .icone-btn__rot'); if (rotCar) rotCar.textContent = ehAlimento() ? 'Pedido' : 'Orçamento';
     $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
     var nota = $('#nota-demo');
     if (nota) nota.hidden = true;          // as explicações agora ficam no "Como usar" (?)
@@ -655,11 +515,11 @@
           ' interaction-prompt="none" disable-zoom disable-tap tabindex="-1"></model-viewer>' +
           '<span class="card__estado" data-estado><span class="carregando"><span class="spinner" aria-hidden="true"></span><span class="barra"><i></i></span></span></span>' +
         '</button>' +
-        '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' na mesa, em tamanho real">' + ICONES.ar + '<span>Na mesa</span></button>'
+        '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' no tamanho real, pela câmera">' + ICONES.ar + '<span>' + (ehAlimento() ? 'Na mesa' : 'Ver em casa') + '</span></button>'
       : '<span class="card__palco card__palco--vazio" aria-hidden="true"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></span>';
     return '<article class="card' + (temModelo ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
       '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>'
-        : (p.montar || (p.adicionais && p.adicionais.length)) ? '<span class="selo-monte">Monte o seu</span>' : '') +
+        : '') +
         (temModelo ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
           ? num(Math.min.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' a ' + num(Math.max.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' cm'
           : reguaTexto(p.dim)) + '</span></span>' : '') +
@@ -802,8 +662,7 @@
   }
 
   var tamAtual = null;
-  var adicSel = []; // ids dos adicionais marcados no visualizador (por cima)
-  var pilhaSel = []; // camadas montadas pelo cliente, de baixo para cima (pode repetir)
+  var adicSel = []; // opcionais marcados no visualizador
 
   function abrirViewer(id, modo) {
     var p = produtoPorId(id);
@@ -811,8 +670,6 @@
     registrar('produto', p.id);
     tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
     adicSel = [];
-    pilhaSel = [];
-    menosBolas = 0;
     abrirViewerProduto(p, modo);
   }
 
@@ -836,29 +693,19 @@
     $('#viewer-info').hidden = !info;
     var adic = $('#viewer-adicionais');
     var lista = p.combo ? [] : (p.adicionais || []);
-    adic.hidden = !lista.length && !p.montar;
-    if (p.montar && !p.combo) {
-      adic.innerHTML = htmlMontador(p);
-    } else if (lista.length) {
-      adic.innerHTML = '<legend>Monte o seu <small>' + (lista.some(function (a) { return a.tipo3d; }) ? 'cada adicional aparece no 3D' : 'escolha os adicionais') + '</small></legend>' +
-        '<div class="adicionais__lista">' + lista.map(htmlAdicional).join('') + '</div>';
-    }
+    adic.hidden = !lista.length;
+    if (lista.length) adic.innerHTML = '<legend>Opcionais</legend><div class="adicionais__lista">' + lista.map(htmlAdicional).join('') + '</div>';
     atualizarPrecoViewer(p);
   }
 
   function atualizarPrecoViewer(p) {
-    var preco = p.combo ? p.preco : precoMontado(p, tamAtual, p.montar ? pilhaSel : [], adicSel);
+    var preco = p.combo ? p.preco : precoMontado(p, tamAtual, adicSel);
     $('#viewer-preco').textContent = brl(preco);
     var add = $('#viewer-add');
     add.hidden = !!p.combo;
     add.classList.remove('feito');
-    var falta = p.montar && !p.combo && !copoCheio(p, pilhaSel);
-    add.disabled = falta || !!p.esgotado;
-    add.textContent = p.esgotado ? 'Esgotado no momento' : falta && ehSorvete(p)
-      ? (pilhaSel.length ? 'Escolha mais ' + (bolasMax(p) - pilhaSel.length) + (p.modo === 'milkshake' ? ' sabor ou toque em Pronto' : ' bola ou toque em Pronto') : (p.modo === 'milkshake' ? 'Escolha o sabor para adicionar' : 'Escolha os sabores para adicionar'))
-      : falta
-      ? (pilhaSel.length ? 'Complete o copo (faltam ' + Math.round((1 - enchimento(p, pilhaSel)) * 100) + '%)' : 'Monte seu copo para adicionar')
-      : 'Adicionar ao pedido · ' + brl(preco);
+    add.disabled = !!p.esgotado;
+    add.textContent = p.esgotado ? 'Esgotado no momento' : (ehAlimento() ? 'Adicionar ao pedido · ' : 'Adicionar ao orçamento · ') + brl(preco);
   }
 
   function htmlAdicional(a) {
@@ -868,52 +715,6 @@
       '<span class="adic__marca" aria-hidden="true">' + ICONES.ok + '</span>' +
       '<span class="adic__txt">' + esc(a.nome) + '<small>' + (fora ? 'esgotado' : '+ ' + brl(a.preco)) + '</small></span></label>';
   }
-  function htmlMontadorSorvete(p) {
-    var max = bolasMax(p), n = pilhaSel.length, cheio = n >= max, milk = p.modo === 'milkshake';
-    var sabores = (p.adicionais || []).filter(ehSabor), resto = (p.adicionais || []).filter(function (a) { return !ehSabor(a); });
-    var chips = pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? '<span>' + esc(c.nome) + '</span>' : ''; }).join('');
-    var botao = function (c) {
-      return '<button type="button" class="adic adic--camada' + (c.esgotado ? ' adic--esgotado' : '') + '" data-camada="' + esc(c.id) + '"' + (c.esgotado || cheio ? ' disabled' : '') + '>' +
-        '<span class="adic__marca adic__marca--mais" aria-hidden="true">' + ICONES.mais + '</span>' +
-        '<span class="adic__txt">' + esc(c.nome) + '<small>' + (c.esgotado ? 'esgotado' : c.preco ? '+ ' + brl(c.preco) : 'incluso') + '</small></span></button>';
-    };
-    var titulo = milk ? 'Monte seu milkshake' : 'Monte seu sorvete';
-    var estado = milk ? (n ? n + ' de ' + max + ' sabores' : 'até ' + max + ' sabores') : n + ' de ' + max + (max === 1 ? ' bola' : ' bolas');
-    return '<legend>' + titulo + ' <small>' + estado + '</small></legend>' +
-      '<div class="medidor" role="progressbar" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + n + '"><i style="width:' + Math.round(n / max * 100) + '%"></i></div>' +
-      '<p class="pilha">' + (chips ? '<span class="pilha__rot">' + (milk ? 'Sabores:' : 'De baixo para cima:') + '</span>' + chips
-        : (milk ? 'Escolha o sabor do milkshake.' : 'Toque nos sabores: cada toque coloca uma bola.')) + '</p>' +
-      (!cheio ? '<div class="adicionais__lista">' + sabores.map(botao).join('') + '</div>' : '') +
-      (milk && n && !cheio ? '<p class="montador__dica">Quer só um sabor? Toque em <strong>Pronto</strong>.</p>' : '') +
-      (cheio && resto.length ? '<p class="montador__dica">Agora escolha o que vai <strong>por cima</strong>:</p><div class="adicionais__lista">' + resto.map(htmlAdicional).join('') + '</div>' : '') +
-      '<div class="linha-acoes montador__acoes">' +
-        (n ? '<button type="button" class="btn btn--fantasma btn--p" data-desfazer>' + (milk ? 'Tirar último sabor' : 'Tirar última bola') + '</button>' : '') +
-        (n && !cheio ? '<button type="button" class="btn btn--sec btn--p" data-pronto-sv>' + (milk ? 'Pronto' : 'Só ' + n + (n === 1 ? ' bola' : ' bolas') + ', pronto') + '</button>' : '') +
-      '</div>';
-  }
-  function htmlMontador(p) {
-    if (ehSorvete(p)) return htmlMontadorSorvete(p);
-    var cheio = copoCheio(p, pilhaSel), pct = Math.round(enchimento(p, pilhaSel) * 100);
-    var camadas = [{ id: ACAI, nome: 'Açaí', preco: 0 }].concat((p.adicionais || []).filter(podeSerCamada));
-    var chips = pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? '<span>' + esc(c.nome) + '</span>' : ''; }).join('');
-    var botao = function (c) {
-      return '<button type="button" class="adic adic--camada' + (c.esgotado ? ' adic--esgotado' : '') + '" data-camada="' + esc(c.id) + '"' + (c.esgotado ? ' disabled' : '') + '>' +
-        '<span class="adic__marca adic__marca--mais" aria-hidden="true">' + ICONES.mais + '</span>' +
-        '<span class="adic__txt">' + esc(c.nome) + '<small>' + (c.esgotado ? 'esgotado' : c.id === ACAI ? 'incluso' : '+ ' + brl(c.preco)) + '</small></span></button>';
-    };
-    return '<legend>Monte seu copo <small>' + (cheio ? 'copo cheio' : pct + '% cheio') + '</small></legend>' +
-      '<div class="medidor" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '"><i style="width:' + pct + '%"></i></div>' +
-      '<p class="pilha">' + (chips ? '<span class="pilha__rot">De baixo para cima:</span>' + chips : 'Comece pelo açaí e vá adicionando camadas até encher o copo.') + '</p>' +
-      (cheio
-        ? '<p class="montador__dica">Copo cheio! Agora escolha o que vai <strong>por cima</strong>:</p>' +
-          '<div class="adicionais__lista">' + (p.adicionais || []).map(htmlAdicional).join('') + '</div>'
-        : '<div class="adicionais__lista">' + camadas.map(botao).join('') + '</div>') +
-      '<div class="linha-acoes montador__acoes">' +
-        (pilhaSel.length ? '<button type="button" class="btn btn--fantasma btn--p" data-desfazer>Desfazer última camada</button>' : '') +
-        (!cheio && pilhaSel.length ? '<button type="button" class="btn btn--sec btn--p" data-completar>Completar com açaí</button>' : '') +
-      '</div>';
-  }
-
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
     preencherTextosViewer(p);
@@ -953,8 +754,7 @@
       'ar-placement': 'floor',
       'camera-controls': '',
       'touch-action': 'pan-y',
-      // produto com adicionais: câmera mais de cima, para ver a cobertura
-      'camera-orbit': p.adicionais && p.adicionais.length && !p.combo ? '28deg 50deg auto' : '28deg 68deg auto',
+      'camera-orbit': '28deg 72deg auto',
       'interaction-prompt': 'auto',
       'shadow-intensity': '1.25',
       'shadow-softness': '0.55',
@@ -966,7 +766,7 @@
     if (!reduzMovimento) { attrs['auto-rotate'] = ''; attrs['auto-rotate-delay'] = '2500'; attrs['rotation-per-second'] = '18deg'; }
     Object.keys(attrs).forEach(function (k) { mv.setAttribute(k, attrs[k]); });
     mv.innerHTML =
-      '<button slot="ar-button" class="botao-ar" type="button" aria-label="Abrir câmera e ver no tamanho real">' + ICONES.ar + 'Ver na mesa</button>' +
+      '<button slot="ar-button" class="botao-ar" type="button" aria-label="Abrir câmera e ver no tamanho real">' + ICONES.ar + (ehAlimento() ? 'Ver na mesa' : 'Ver na sua casa') + '</button>' +
       '<div slot="progress-bar" class="progresso"><i></i></div>' +
       HTML_MEDIDAS;
     mv.classList.toggle('sem-medidas', !medidasLigadas);
@@ -982,35 +782,10 @@
     mv.addEventListener('load', function () {
       estadoPalco('');
       posicionarMedidas(mv);
-      if (p.combo || mv.dataset.montagem === '1') {
+      if (p.combo) {
         try { var dc = mv.getDimensions(); $('#viewer-dim-modelo').textContent = dimTexto({ largura: dc.x * 100, altura: dc.y * 100, profundidade: dc.z * 100 }); } catch (e2) { /* ignora */ }
       } else {
         conferirEscala(mv, { dim: efetivo(p, tamAtual).dim });
-      }
-      if (mv.dataset.animar) {
-        delete mv.dataset.animar;
-        try {
-          mv.animationName = 'entrada'; mv.currentTime = 0; mv.play({ repetitions: 1 });
-          // afasta a câmera para mostrar a mão/o frasco chegando e depois volta, com zoom suave no açaí
-          var o = mv.getCameraOrbit(), alvo = mv.getCameraTarget();
-          mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (o.radius * 1.75) + 'm';
-          mv.cameraTarget = alvo.x + 'm ' + (alvo.y + 0.045) + 'm ' + alvo.z + 'm';
-          clearTimeout(mv._voltaCamera);
-          mv._voltaCamera = setTimeout(function () {
-            if (!mv.isConnected) return;
-            // volta enquadrando o produto inteiro (o tamanho muda a cada bola/camada)
-            mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad auto';
-            mv.cameraTarget = 'auto auto auto';
-          }, Math.max(800, (mv.duration || 1.6) * 1000 - 200));
-        } catch (e3) { /* sem animação */ }
-      }
-      if (mv.dataset.abrirAR) {
-        delete mv.dataset.abrirAR;
-        // só dá para abrir a câmera logo depois do toque; se passou muito tempo, pede outro toque
-        if (Date.now() - (mv._cliqueAR || 0) < 4000) { try { mv.activateAR(); } catch (e4) { toast('Pronto! Toque em “Ver na mesa” de novo.'); } }
-        else toast('Pronto! Toque em “Ver na mesa” de novo para abrir a câmera.');
-      } else {
-        agendarAR(mv);
       }
       atualizarAvisoAR();
     });
@@ -1029,12 +804,6 @@
       clearTimeout(toastTimer);
       t.classList.remove('ver');
       try { if (t.hidePopover && t.matches(':popover-open')) t.hidePopover(); } catch (err) { /* ok */ }
-      // Açaí montado: a câmera precisa de um arquivo publicado (o da tela é só deste navegador)
-      if (mv.dataset.montagem !== '1' || mv.dataset.arPronto === '1') return;
-      ev.preventDefault();
-      ev.stopImmediatePropagation();
-      if (!servidor) { toast('Ver o produto montado na câmera funciona no site publicado.'); return; }
-      prepararMontagemAR(mv, this);
     }, true);
     var tentouSemMedidas = false;
     mv.addEventListener('ar-status', function (e) {
@@ -1053,210 +822,40 @@
     if (mvStatus === 'carregando') {
       estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando visualizador 3D…</span></div>');
     }
-    if (!p.combo && (p.montar || tiposMontagem(p).length)) atualizarMontagem(null);
+    // cores do tecido/acabamento que vêm no próprio arquivo (KHR_materials_variants)
+    mv.addEventListener('load', function () { mostrarVariantes(mv); }, { once: true });
   }
 
   // ---------------------------------------------------------------------
-  // Monte o seu: adicionais caem em cima do produto (montado neste navegador)
+  // Opcionais e cores do produto
   // ---------------------------------------------------------------------
-  var moduloGlb = null, cacheArquivos = {}, seqMontagem = 0, blobAtual = null;
-  function carregarModuloGlb() {
-    if (!moduloGlb) moduloGlb = import(new URL('glb.mjs', document.baseURI).href);
-    return moduloGlb;
-  }
-  function baixarArquivo(url) {
-    if (!cacheArquivos[url]) {
-      cacheArquivos[url] = fetch(url).then(function (r) { if (!r.ok) throw new Error('Arquivo 3D indisponível'); return r.arrayBuffer(); });
-      cacheArquivos[url].catch(function () { delete cacheArquivos[url]; });
-    }
-    return cacheArquivos[url];
-  }
-  function tiposMontagem(p) {
-    var tipos = [];
-    if (ehSorvete(p)) {
-      if (!copoCheio(p, pilhaSel)) return tipos;
-      adicionaisDe(p, adicSel).forEach(function (a) { if (/^cob_/.test(a.tipo3d)) tipos.push(a.tipo3d.slice(4)); });
-      return tipos;
-    }
-    if (p.montar && !copoCheio(p, pilhaSel)) return tipos;
-    adicionaisDe(p, adicSel).forEach(function (a) {
-      // no montador, "camada de…" escolhida por cima não tem 3D próprio de cobertura
-      if (p.montar && /^camada_/.test(a.tipo3d)) return;
-      if (a.tipo3d && tipos.indexOf(a.tipo3d) < 0) tipos.push(a.tipo3d);
-    });
-    return tipos;
-  }
-  function pilhaTipos(p) { return pilhaSel.map(function (t) { var c = camadaDe(p, t); return c ? c.tipo3d : null; }).filter(Boolean); }
-  var moduloSorvete = null;
-  function carregarSorvete() {
-    if (!moduloSorvete) moduloSorvete = import(new URL('sorvete.mjs', document.baseURI).href);
-    return moduloSorvete;
-  }
-  function specSorvete(p) {
-    return { recipiente: recipienteDe(p), sabores: pilhaTipos(p).map(function (t) { return t.slice(6); }), coberturas: tiposMontagem(p) };
-  }
-  function atualizarSorvete(p, mv, animarTipo, animarCamada) {
-    var seq = ++seqMontagem;
-    delete mv.dataset.arPronto;
-    var spec = specSorvete(p);
-    var anim = reduzMovimento ? null : Number.isInteger(animarCamada) ? { bola: animarCamada } : animarTipo && /^cob_/.test(animarTipo) ? { cobertura: animarTipo.slice(4) } : null;
-    // mãozinha para granulado, confete, amendoim, cereja e wafer (o pegador e o frasco são gerados no código)
-    var precisaMao = anim && anim.cobertura && ['granulado', 'confete', 'amendoim', 'cereja', 'wafer'].indexOf(anim.cobertura) > -1;
-    Promise.all([carregarSorvete(), precisaMao ? baixarArquivo('assets/adicionais/_mao.glb').catch(function () { return null; }) : null]).then(function (r) {
-      var m = r[0];
-      if (seq !== seqMontagem || !mv.isConnected) return;
-      var glb = m.montarSorvete(Object.assign({ animar: anim, mao: r[1] ? new Uint8Array(r[1]) : null }, spec));
-      var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
-      var antigo = blobAtual;
-      blobAtual = url;
-      if (antigo) setTimeout(function () { URL.revokeObjectURL(antigo); }, 5000);
-      mv.dataset.montagem = '1';
-      if (anim) mv.dataset.animar = '1';
-      mv.src = url;
-    }).catch(function (e) { console.warn('[MenuReal] sorvete', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });
-  }
-  function atualizarMontagem(animarTipo, animarCamada) {
-    var p = produtoAtual, mv = palco.querySelector('model-viewer');
-    if (!p || !mv || p.combo) return;
-    if (ehSorvete(p)) { if (!MODELOS_EMBUTIDOS) atualizarSorvete(p, mv, animarTipo, animarCamada); return; }
-    var ef = efetivo(p, tamAtual);
-    if (!ef.modelo) return;
-    var tipos = tiposMontagem(p);
-    var pilha = p.montar ? pilhaTipos(p) : null;
-    var seq = ++seqMontagem;
-    delete mv.dataset.arPronto;
-    if (!tipos.length && !pilha) {
-      if (mv.dataset.montagem === '1') { mv.dataset.montagem = ''; mv.src = urlModelo(ef.modelo); }
-      return;
-    }
-    if (MODELOS_EMBUTIDOS) return; // versão de arquivo único: sem montagem
-    var animar = animarTipo && tipos.indexOf(animarTipo) > -1 && !reduzMovimento ? animarTipo : null;
-    carregarModuloGlb().then(function (m) {
-      // ajudante da animação: mão que coloca os pedaços ou frasco de vidro que despeja a calda
-      // (camadas dentro do copo não usam ajudante: o copo enche sozinho)
-      var ajuda = animar && !(m.ADICIONAIS_3D[animar] || {}).camada ? baixarArquivo('assets/adicionais/' + m.ajudanteDe(animar) + '.glb').catch(function () { return null; }) : null;
-      var libs = pilha ? m.bibliotecasDe(pilha) : [];
-      return Promise.all([m, baixarArquivo(urlModelo(ef.modelo)), ajuda,
-        Promise.all(libs.map(function (n) { return baixarArquivo('assets/adicionais/' + n + '.glb'); })).then(function (bufs) {
-          var o = {}; libs.forEach(function (n, i) { o[n] = new Uint8Array(bufs[i]); }); return o;
-        })].concat(tipos.map(function (t) {
-        var arq = m.arquivoDe(t);   // camadas de creme/Nutella dentro do copo não têm arquivo próprio
-        return arq ? baixarArquivo('assets/adicionais/' + arq + '.glb') : null;
-      })));
-    })
-      .then(function (r) {
-        if (seq !== seqMontagem || !mv.isConnected) return;
-        var camadas = tipos.map(function (t, i) { return { tipo: t, buf: r[i + 4] ? new Uint8Array(r[i + 4]) : null }; });
-        var glb = r[0].montarAcai(new Uint8Array(r[1]), camadas, { animar: animar, ajudante: r[2] ? new Uint8Array(r[2]) : null,
-          pilha: pilha, libs: r[3], animarCamada: !reduzMovimento && Number.isInteger(animarCamada) ? animarCamada : undefined });
-        var url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
-        var antigo = blobAtual;
-        blobAtual = url;
-        if (antigo) setTimeout(function () { URL.revokeObjectURL(antigo); }, 5000);
-        mv.dataset.montagem = '1';
-        if (animar || (!reduzMovimento && Number.isInteger(animarCamada))) mv.dataset.animar = '1';
-        mv.src = url;
-      })
-      .catch(function (e) { console.warn('[MenuReal] montagem', e); if (seq === seqMontagem) toast('Não foi possível montar o 3D agora.'); });
-  }
-  /**
-   * Arquivo publicado para a câmera (o 3D da tela é um blob só deste navegador).
-   * botao = null: preparo silencioso em segundo plano, depois da animação.
-   * O celular só abre a câmera logo após um toque; se demorar, pede para tocar de novo.
-   */
-  function prepararMontagemAR(mv, botao) {
-    var p = produtoAtual;
-    if (!p) return;
-    if (mv._preparandoAR) {   // já está preparando em segundo plano: abre quando ficar pronto
-      if (botao) { mv._querAR = true; mv._cliqueAR = Date.now(); toast('Preparando para a câmera…'); }
-      return;
-    }
-    var ef = efetivo(p, tamAtual), seq = seqMontagem;
-    var html = botao ? botao.innerHTML : '';
-    mv._preparandoAR = true;
-    if (botao) { botao.disabled = true; botao.textContent = 'Preparando para a câmera…'; mv._cliqueAR = Date.now(); }
-    var pedido;
-    if (ehSorvete(p)) {
-      // o celular monta a versão leve e envia (o servidor só guarda)
-      var spec = specSorvete(p);
-      pedido = carregarSorvete().then(function (m) {
-        var glb = m.montarSorvete(Object.assign({ leve: true }, spec));
-        return fetch('api/sorvete-ar?recipiente=' + encodeURIComponent(spec.recipiente) + '&sabores=' + encodeURIComponent(spec.sabores.join('.')) +
-          '&coberturas=' + encodeURIComponent(spec.coberturas.join('.')), { method: 'POST', headers: { 'content-type': 'model/gltf-binary' }, body: glb });
-      });
-    } else {
-      pedido = fetch('api/montagem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ base: ef.modelo, camadas: tiposMontagem(p), pilha: p.montar ? pilhaTipos(p) : undefined }) });
-    }
-    pedido
-      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
-      .then(function (j) {
-        if (!mv.isConnected || seq !== seqMontagem) return;   // o cliente mudou a montagem enquanto preparava
-        mv.dataset.arPronto = '1';
-        if (botao || mv._querAR) mv.dataset.abrirAR = '1';
-        mv._querAR = false;
-        mv.src = j.url;
-      })
-      .catch(function (e) { if (botao) toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); })
-      .then(function () { mv._preparandoAR = false; if (botao) { botao.disabled = false; botao.innerHTML = html; } });
-  }
-  // Depois que a montagem aparece (e a animação termina), já deixa o arquivo da câmera pronto
-  function agendarAR(mv) {
-    clearTimeout(mv._timerAR);
-    if (!servidor || mv.dataset.montagem !== '1' || mv.dataset.arPronto === '1') return;
-    var seq = seqMontagem;
-    mv._timerAR = setTimeout(function () {
-      if (seq === seqMontagem && mv.isConnected && dlgViewer.open && mv.dataset.arPronto !== '1') prepararMontagemAR(mv, null);
-    }, ((mv.duration || 0) * 1000) + 1800);
-  }
   $('#viewer-adicionais').addEventListener('change', function (e) {
     var c = e.target.closest('[data-adic]');
     if (!c || !produtoAtual) return;
     var id = c.getAttribute('data-adic');
     adicSel = adicSel.filter(function (x) { return x !== id; });
     if (c.checked) adicSel.push(id);
-    var a = adicionaisDe(produtoAtual, [id])[0];
     atualizarPrecoViewer(produtoAtual);
-    if (a && a.tipo3d) atualizarMontagem(c.checked ? a.tipo3d : null);
   });
-  function redesenharMontador() {
-    var p = produtoAtual, adic = $('#viewer-adicionais');
-    adic.innerHTML = htmlMontador(p);
-    atualizarPrecoViewer(p);
+  // Cores que o próprio arquivo 3D traz (ex.: o sofá em 5 tecidos): o cliente troca e vê na hora
+  var CORES_PT = { champagne: 'Champanhe', navy: 'Azul-marinho', gray: 'Cinza', grey: 'Cinza', black: 'Preto', white: 'Branco', 'pale pink': 'Rosa-claro',
+    pink: 'Rosa', red: 'Vermelho', green: 'Verde', blue: 'Azul', yellow: 'Amarelo', brown: 'Marrom', beige: 'Bege', 'mango velvet': 'Veludo manga', 'peacock velvet': 'Veludo pavão' };
+  function nomeCor(v) { return CORES_PT[String(v).toLowerCase()] || v; }
+  function mostrarVariantes(mv) {
+    var alvo = $('#viewer-cores');
+    var lista = (mv.availableVariants || []).slice(0, 12);
+    alvo.hidden = lista.length < 2;
+    if (lista.length < 2) { alvo.innerHTML = ''; return; }
+    alvo.innerHTML = '<legend>Cor <small>' + lista.length + ' opções</small></legend><div class="cores">' + lista.map(function (v, i) {
+      return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (i === 0) + '">' + esc(nomeCor(v)) + '</button>';
+    }).join('') + '</div>';
   }
-  $('#viewer-adicionais').addEventListener('click', function (e) {
-    var p = produtoAtual;
-    if (!p || !p.montar) return;
-    var b = e.target.closest('[data-camada]');
-    if (b) {
-      if (copoCheio(p, pilhaSel)) return;
-      pilhaSel.push(b.getAttribute('data-camada'));
-      if (copoCheio(p, pilhaSel)) toast(ehSorvete(p) ? 'Pronto! Agora escolha o que vai por cima.' : 'Copo cheio! Agora escolha o que vai por cima.');
-      redesenharMontador();
-      atualizarMontagem(null, pilhaSel.length - 1);
-      return;
-    }
-    if (e.target.closest('[data-desfazer]')) {
-      var estavaCheio = copoCheio(p, pilhaSel);
-      pilhaSel.pop();
-      menosBolas = 0;
-      if (estavaCheio) adicSel = [];   // coberturas só existem com o copo cheio
-      redesenharMontador();
-      atualizarMontagem(null);
-      return;
-    }
-    if (e.target.closest('[data-pronto-sv]') && ehSorvete(p) && pilhaSel.length) {
-      menosBolas = pilhaSel.length;
-      toast('Pronto! Agora escolha o que vai por cima.');
-      redesenharMontador();
-      atualizarMontagem(null);
-      return;
-    }
-    if (e.target.closest('[data-completar]')) {
-      while (!copoCheio(p, pilhaSel) && pilhaSel.length < 30) pilhaSel.push(ACAI);
-      toast('Copo cheio! Agora escolha o que vai por cima.');
-      redesenharMontador();
-      atualizarMontagem(null, pilhaSel.length - 1);
-    }
+  $('#viewer-cores').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-variante]');
+    var mv = palco.querySelector('model-viewer');
+    if (!b || !mv) return;
+    mv.variantName = b.getAttribute('data-variante');
+    $$('#viewer-cores [data-variante]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
   });
 
   // ---------------------------------------------------------------------
@@ -1378,29 +977,24 @@
     if (!b || !produtoAtual) return;
     var antes = efetivo(produtoAtual, tamAtual).modelo;
     tamAtual = b.getAttribute('data-tam');
-    if (ehSorvete(produtoAtual)) {
-      menosBolas = 0;
-      if (pilhaSel.length > bolasMax(produtoAtual)) pilhaSel = pilhaSel.slice(0, bolasMax(produtoAtual));
-      if (!copoCheio(produtoAtual, pilhaSel)) adicSel = [];
-    }
     var ef = efetivo(produtoAtual, tamAtual);
     preencherTextosViewer(produtoAtual);
     var mv = palco.querySelector('model-viewer');
     if (ef.modelo !== antes || !mv) {
       abrirViewerProduto(produtoAtual, $('#aba-ar').getAttribute('aria-selected') === 'true' ? 'ar' : '3d');
-    } else if (mv.dataset.montagem !== '1') {
+    } else {
       conferirEscala(mv, { dim: ef.dim });
     }
   });
 
   $('#viewer-add').addEventListener('click', function () {
     if (!produtoAtual || produtoAtual.combo || produtoAtual.esgotado) return;
-    if (produtoAtual.montar && !copoCheio(produtoAtual, pilhaSel)) { toast('Complete o copo antes de adicionar.'); return; }
-    adicionar(produtoAtual.id, tamAtual, adicSel, produtoAtual.montar ? pilhaSel.slice() : null);
+    var mvA = palco.querySelector('model-viewer');
+    adicionar(produtoAtual.id, tamAtual, adicSel, mvA && (mvA.availableVariants || []).length > 1 ? mvA.variantName || mvA.availableVariants[0] : '');
     var b = this;
     b.classList.add('feito');
     b.textContent = 'Adicionado ✓';
-    setTimeout(function () { if (produtoAtual) { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(precoMontado(produtoAtual, tamAtual, produtoAtual.montar ? pilhaSel : [], adicSel)); } }, 1400);
+    setTimeout(function () { if (produtoAtual) { b.classList.remove('feito'); b.textContent = 'Adicionar mais um · ' + brl(precoMontado(produtoAtual, tamAtual, adicSel)); } }, 1400);
   });
   dlgViewer.addEventListener('close', function () {
     cancelAnimationFrame(quadroMedidas);
@@ -1413,8 +1007,7 @@
   // ---------------------------------------------------------------------
   // Carrinho
   // ---------------------------------------------------------------------
-  // chave do carrinho: "idProduto", "idProduto|idTamanho", "idProduto|idTamanho|adicional+adicional"
-  // ou, montado em camadas, "idProduto|idTamanho|camada.camada.camada~cobertura.cobertura"
+  // chave do carrinho: "idProduto", "idProduto|idTamanho", "idProduto|idTamanho|opcional+opcional", "...|...|...|cor"
   function itemDaChave(k) {
     var partes = k.split('|');
     var p = produtoPorId(partes[0]);
@@ -1423,18 +1016,13 @@
     if (temTams && !partes[1]) return null;
     var ef = efetivo(p, partes[1]);
     if (partes[1] && !ef.t) return null;
-    if (partes[2] && partes[2].indexOf('~') > -1) {
-      var mt = partes[2].split('~');
-      var pilha = mt[0] ? mt[0].split('.') : [], tops = mt[1] ? mt[1].split('.') : [];
-      if (pilha.some(function (t) { return !camadaDe(p, t); }) || adicionaisDe(p, tops).length !== tops.length) return null;
-      var fora = p.esgotado || adicionaisDe(p, tops).some(function (a) { return a.esgotado; }) || pilha.some(function (t) { return camadaDe(p, t).esgotado; });
-      return { chave: k, p: { id: k, nome: ef.nome + nomeMontado(p, pilha, tops), preco: precoMontado(p, partes[1], pilha, tops), modelo: ef.modelo, esgotado: !!fora } };
-    }
+    if (partes[2] && partes[2].indexOf('~') > -1) return null;   // montagem antiga (açaí): não existe mais
     var sel = partes[2] ? partes[2].split('+') : [];
     var adic = adicionaisDe(p, sel);
     if (adic.length !== sel.length) return null;
-    return { chave: k, p: { id: k, nome: ef.nome + (adic.length ? ' + ' + adic.map(function (a) { return a.nome; }).join(', ') : ''),
-      preco: ef.preco + somaAdicionais(p, sel), modelo: ef.modelo, esgotado: !!(p.esgotado || adic.some(function (a) { return a.esgotado; })) } };
+    var cor = partes[3] ? ' — cor ' + nomeCor(partes[3]) : '';
+    return { chave: k, p: { id: k, nome: ef.nome + cor + (adic.length ? ' + ' + adic.map(function (a) { return a.nome; }).join(', ') : ''),
+      preco: ef.preco + somaAdicionais(p, sel), modelo: ef.modelo, dim: ef.dim, esgotado: !!(p.esgotado || adic.some(function (a) { return a.esgotado; })) } };
   }
   function itensCarrinho() {
     return Object.keys(carrinho).map(function (k) {
@@ -1459,17 +1047,16 @@
     if (pular) { c.classList.remove('pulo'); void c.offsetWidth; c.classList.add('pulo'); }
   }
 
-  function adicionar(id, tamId, adics, pilha) {
+  function adicionar(id, tamId, adics, cor) {
     var p = produtoPorId(id);
     if (!p || p.esgotado) return;
     var sel = (adics || []).slice().sort();
-    var k = pilha
-      ? id + '|' + (tamId || '') + '|' + pilha.join('.') + '~' + sel.join('.')
-      : id + (tamId || sel.length ? '|' + (tamId || '') : '') + (sel.length ? '|' + sel.join('+') : '');
+    cor = String(cor || '').replace(/\|/g, '');
+    var k = id + (tamId || sel.length || cor ? '|' + (tamId || '') : '') + (sel.length || cor ? '|' + sel.join('+') : '') + (cor ? '|' + cor : '');
     carrinho[k] = (carrinho[k] || 0) + 1;
     salvarCarrinho();
     atualizarContador(true);
-    toast((itemDaChave(k) || { p: { nome: p.nome } }).p.nome + ' adicionado ao pedido');
+    toast((itemDaChave(k) || { p: { nome: p.nome } }).p.nome + ' adicionado ao ' + orc());
     if ($('#dlg-carrinho').open) renderCarrinho();
   }
 
@@ -1478,7 +1065,7 @@
     var rodape = $('#carrinho-rodape');
     var itens = itensCarrinho();
     if (!itens.length) {
-      corpo.innerHTML = '<div class="carrinho-vazio">' + ICONES.sacola + '<strong>Seu pedido está vazio</strong>Escolha um item no ' + termo() + ' para começar.</div>';
+      corpo.innerHTML = '<div class="carrinho-vazio">' + ICONES.sacola + '<strong>Seu ' + orc() + ' está vazio</strong>Escolha um item no ' + termo() + ' para começar.</div>';
       rodape.innerHTML = '<button class="btn btn--contorno btn--bloco" type="button" data-fechar>Voltar ao ' + termo() + '</button>';
       return;
     }
@@ -1494,7 +1081,7 @@
         '</div></div>';
     }).join('') +
       (itensCom3d().length >= 2
-        ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + 'Ver o pedido na mesa (3D)</button>' +
+        ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + (ehAlimento() ? 'Ver o pedido na mesa (3D)' : 'Ver os itens juntos (3D)') + '</button>' +
           '<p class="mini">Mostra os itens do pedido juntos, lado a lado, no tamanho real.</p>'
         : '');
     var total = totalCarrinho(), cfg = dados.padaria.pedido, sit = situacaoPedidos();
@@ -1536,7 +1123,7 @@
             descricao: nomes + (urls.length < qtdCarrinho() ? ' (itens sem 3D ficam de fora)' : ''), dim: null, modelo: j.url, ilustrativo: false }, '3d');
         }, 150);
       })
-      .catch(function (e) { botao.disabled = false; botao.innerHTML = ICONES.ar + 'Ver o pedido na mesa (3D)'; toast(e.message); });
+      .catch(function (e) { botao.disabled = false; botao.innerHTML = ICONES.ar + (ehAlimento() ? 'Ver o pedido na mesa (3D)' : 'Ver os itens juntos (3D)'); toast(e.message); });
   }
 
   // ---- Finalizar: entrega/retirada, endereço, pagamento → WhatsApp da loja
@@ -1605,7 +1192,7 @@
       '<div class="totais"><div><span>Subtotal</span><span>' + brl(totalCarrinho()) + '</span></div>' +
       (modoAtual() === 'entrega' ? '<div><span>Entrega</span><span>' + (taxa === null ? 'escolha o bairro' : taxa ? brl(taxa) : 'grátis') + '</span></div>' : '') +
       '<div class="total"><span>Total</span><span>' + brl(totalFinal()) + '</span></div></div>' +
-      '<div class="pilha"><button class="btn btn--primario btn--bloco" type="button" id="enviar-pedido">' + (zap ? 'Enviar pedido pelo WhatsApp' : 'Ver resumo do pedido') + '</button>' +
+      '<div class="pilha"><button class="btn btn--primario btn--bloco" type="button" id="enviar-pedido">' + (zap ? (ehAlimento() ? 'Enviar pedido pelo WhatsApp' : 'Pedir orçamento pelo WhatsApp') : 'Ver resumo do ' + orc()) + '</button>' +
       '<button class="btn btn--fantasma btn--bloco" type="button" id="voltar-pedido">Voltar aos itens</button></div>';
   }
   function validarCheckout() {
@@ -1637,7 +1224,7 @@
   function resumoPedido(paraZap) {
     var b = paraZap ? '*' : '';
     var cfg = dados.padaria.pedido, modo = modoAtual(), sit = situacaoPedidos(), taxa = taxaEntrega();
-    var L = [b + 'Novo pedido — ' + dados.padaria.nome + b, ''];
+    var L = [b + (ehAlimento() ? 'Novo pedido — ' : 'Pedido de orçamento — ') + dados.padaria.nome + b, ''];
     if (cliente.nome.trim()) L.push('Cliente: ' + cliente.nome.trim());
     if (modo === 'entrega') {
       L.push(b + 'Entrega' + b + ': ' + cliente.rua.trim() + ', ' + cliente.numero.trim() + ' — ' + cliente.bairro.trim());
@@ -1646,17 +1233,17 @@
     else L.push(b + 'Consumir no local' + b + (cliente.mesa.trim() ? ' — mesa ' + cliente.mesa.trim() : ''));
     if (sit.agendado) L.push('(Pedido feito com a loja fechada: para quando abrir)');
     L.push('');
-    itensCarrinho().forEach(function (i) { L.push(i.qtd + 'x ' + i.p.nome + ' — ' + brl(i.p.preco * i.qtd)); });
+    itensCarrinho().forEach(function (i) { L.push(i.qtd + 'x ' + i.p.nome + (i.p.dim && !ehAlimento() ? ' (' + dimTexto(i.p.dim) + ')' : '') + ' — ' + brl(i.p.preco * i.qtd)); });
     L.push('');
     if (modo === 'entrega') { L.push('Subtotal: ' + brl(totalCarrinho())); L.push('Entrega: ' + (taxa ? brl(taxa) : 'grátis')); }
     L.push(b + 'Total: ' + brl(totalFinal()) + b);
     var pag = pagAtual();
     if (pag) {
       var tr = pag === 'dinheiro' && cliente.troco.trim() ? lerPreco(cliente.troco) : 0;
-      L.push('Pagamento: ' + (pag === 'pix' ? 'Pix' + (cfg.pix.chave ? ' (envio o comprovante aqui)' : '') : pag === 'cartao' ? 'Cartão' : 'Dinheiro' + (tr ? ' — troco para ' + brl(tr) + ' (' + brl(tr - totalFinal()) + ' de troco)' : ', sem troco')));
+      L.push((ehAlimento() ? 'Pagamento: ' : 'Prefiro pagar com: ') + (pag === 'pix' ? 'Pix' + (cfg.pix.chave && ehAlimento() ? ' (envio o comprovante aqui)' : '') : pag === 'cartao' ? 'Cartão' : 'Dinheiro' + (tr ? ' — troco para ' + brl(tr) + ' (' + brl(tr - totalFinal()) + ' de troco)' : ', sem troco')));
     }
     if (sessionObs.trim()) L.push('Obs.: ' + sessionObs.trim());
-    L.push('', '(Pedido feito pelo ' + termo() + ' MenuReal)');
+    L.push('', '(' + (ehAlimento() ? 'Pedido feito' : 'Enviado') + ' pelo ' + termo() + ' MenuReal)');
     return L.join('\n');
   }
 
@@ -1722,12 +1309,13 @@
   }
   function renderEnviado(texto) {
     var zap = dados.padaria.whatsapp, total = totalFinal();
-    var pix = pagAtual() === 'pix' ? codigoPix(total) : '';
+    // Pix com o valor só no cardápio; no orçamento a loja ainda confirma preço e frete
+    var pix = ehAlimento() && pagAtual() === 'pix' ? codigoPix(total) : '';
     $('#carrinho-corpo').innerHTML =
       '<div class="confirmacao">' +
         '<div class="confirmacao__selo">' + ICONES.ok + '</div>' +
-        '<h3>' + (zap ? 'Falta só tocar em enviar' : 'Resumo do pedido') + '</h3>' +
-        '<p>' + (zap ? 'Abrimos o WhatsApp da loja com o pedido escrito. <strong>Toque em enviar lá</strong> para a loja receber.'
+        '<h3>' + (zap ? 'Falta só tocar em enviar' : 'Resumo do ' + orc()) + '</h3>' +
+        '<p>' + (zap ? 'Abrimos o WhatsApp da loja com o ' + orc() + ' escrito. <strong>Toque em enviar lá</strong> para a loja receber.'
           : 'Esta loja ainda não cadastrou o WhatsApp para pedidos. Mostre este resumo no balcão.') + '</p>' +
         (pix ? '<div class="pix"><h4>Pague com Pix: ' + brl(total) + '</h4>' +
           '<div class="pix__qr" id="pix-qr"></div>' +
@@ -1739,7 +1327,7 @@
     if (pix) qrSvg(pix).then(function (svg) { var el = $('#pix-qr'); if (el) el.innerHTML = svg; }).catch(function () { var el = $('#pix-qr'); if (el) el.remove(); });
     $('#carrinho-rodape').innerHTML = '<div class="pilha">' +
       (zap ? '<a class="btn btn--contorno btn--bloco" target="_blank" rel="noopener" href="https://wa.me/' + esc(zap) + '?text=' + encodeURIComponent(texto) + '">Abrir o WhatsApp de novo</a>' : '') +
-      '<button class="btn btn--primario btn--bloco" type="button" id="novo-pedido">Concluir e limpar pedido</button>' +
+      '<button class="btn btn--primario btn--bloco" type="button" id="novo-pedido">Concluir e limpar ' + orc() + '</button>' +
       '<button class="btn btn--fantasma btn--bloco" type="button" id="voltar-checkout">Voltar e editar</button></div>';
   }
 
@@ -1791,7 +1379,7 @@
       sessionObs = '';
       salvarCarrinho();
       fecharDialogo($('#dlg-carrinho'));
-      toast(LOJA ? 'Pedido concluído. Obrigado!' : 'Pedido demonstrativo concluído');
+      toast(LOJA ? 'Pronto. Obrigado!' : 'Demonstração concluída');
     }
   });
 
@@ -1843,11 +1431,13 @@
   };
   function abasDoPainel() {
     if (!servidor) return ['produtos', 'loja', 'pedidos', 'visual'];
-    return LOJA ? ['inicio', 'produtos', 'loja', 'pedidos', 'visual', 'divulgar', 'conta'] : ['lojas', 'produtos', 'loja', 'pedidos', 'visual', 'divulgar'];
+    // na página inicial, o painel é só do dono do MenuReal (lojas e planos); a demonstração é fixa
+    return LOJA ? ['inicio', 'produtos', 'loja', 'pedidos', 'visual', 'divulgar', 'conta'] : ['lojas'];
   }
   function renderAdmin() {
     $('#admin-restaurar').hidden = !!LOJA;
     $('.painel__rodape--admin').classList.toggle('um', !!LOJA);
+    $('.painel__rodape--admin').hidden = !LOJA && servidor;
     if (servidor && LOJA && !lerTokenLoja()) { renderLogin(); return; }
     $('#form-admin').classList.remove('so-login');
     var p = rascunho.padaria, abas = abasDoPainel();
@@ -1875,7 +1465,7 @@
           rascunho.produtos.map(function (x, i) { return htmlProdutoAdmin(x, i); }).join('') +
           '<div class="linha-acoes" style="margin-top:12px">' +
             '<button class="btn btn--sec" type="button" id="admin-novo">' + ICONES.mais + 'Adicionar produto</button>' +
-            '<button class="btn btn--contorno" type="button" id="admin-foto">' + ICONES.camera + 'Ler cardápio por foto</button>' +
+            '<button class="btn btn--contorno" type="button" id="admin-foto">' + ICONES.camera + 'Ler catálogo por foto</button>' +
           '</div>' +
           '<details class="conta-det" style="margin-top:14px"><summary>Cópia de segurança</summary><div class="linha-acoes" style="margin-top:10px">' +
             '<button class="btn btn--fantasma btn--p" type="button" id="admin-exportar">Baixar cópia (JSON)</button>' +
@@ -1958,10 +1548,10 @@
     var dataBr = function (d) { return d.slice(8, 10) + '/' + d.slice(5, 7); };
     var tile = function (v, rot) { return '<div class="numero"><strong>' + v + '</strong><span>' + rot + '</span></div>'; };
     if (!tot.visita && !tot.pedido) {
-      return '<div class="numeros">' + tile(0, 'visitas') + tile(0, 'pedidos enviados') + tile(0, 'viram na mesa') + tile('0%', 'visitas que pediram') + '</div>' +
+      return '<div class="numeros">' + tile(0, 'visitas') + tile(0, orc() + 's enviados') + tile(0, 'abriram a câmera') + tile('0%', 'visitas que pediram') + '</div>' +
         '<p class="mini">Ainda não há visitas. Mande o link no WhatsApp e cole o cartaz com QR nas mesas: os números aparecem aqui. (Suas próprias visitas logado não contam.)</p>';
     }
-    return '<div class="numeros">' + tile(tot.visita, 'visitas') + tile(tot.pedido, 'pedidos enviados') + tile(tot.ar, 'viram na mesa') + tile(conv + '%', 'visitas que pediram') + '</div>' +
+    return '<div class="numeros">' + tile(tot.visita, 'visitas') + tile(tot.pedido, orc() + 's enviados') + tile(tot.ar, 'abriram a câmera') + tile(conv + '%', 'visitas que pediram') + '</div>' +
       '<p class="mini" style="margin:0">Visitas por dia (14 dias)</p>' +
       '<div class="grafico" role="img" aria-label="Visitas por dia nos últimos 14 dias: ' + dias.map(function (d) { return dataBr(d) + ' ' + porDia[d].visita; }).join(', ') + '">' +
         dias.map(function (d, k) {
@@ -1991,7 +1581,7 @@
     var chk = function (k, rot, marcado) { return '<label class="checar"><input type="checkbox" data-ped="' + k + '"' + (marcado ? ' checked' : '') + '> ' + rot + '</label>'; };
     var din = function (v) { return v ? v.toFixed(2).replace('.', ',') : ''; };
     return '<section class="secao-admin" id="secao-pedidos"><h3>Pedidos, entrega e pagamento</h3><div class="campos">' +
-      '<label class="checar checar--alerta"><input type="checkbox" data-ped="pausado"' + (c.pausado ? ' checked' : '') + '> <span><strong>Pausar pedidos agora</strong><br><small>Para dias de muito movimento ou imprevisto. O cardápio continua aberto para olhar.</small></span></label>' +
+      '<label class="checar checar--alerta"><input type="checkbox" data-ped="pausado"' + (c.pausado ? ' checked' : '') + '> <span><strong>Pausar pedidos agora</strong><br><small>Para dias de muito movimento ou imprevisto. O catálogo continua aberto para olhar.</small></span></label>' +
       '<fieldset class="campo"><legend>Como o cliente recebe</legend><div class="linha-acoes">' +
         chk('entrega', 'Entrega', c.entrega) + chk('retirada', 'Retirar na loja', c.retirada) + chk('local', 'Consumir no local', c.local) +
       '</div></fieldset>' +
@@ -2059,7 +1649,7 @@
   function enderecoLoja() { return location.origin + '/' + (LOJA || ''); }
   function htmlCartazAdmin() {
     return '<section class="secao-admin"><h3>Cartaz com QR Code</h3>' +
-      '<p class="mini">Para colar na mesa, no balcão ou na vitrine. O cliente aponta a câmera e abre o seu ' + termo(rascunho) + ': <strong>' + esc(enderecoLoja().replace(/^https?:\/\//, '')) + '</strong></p>' +
+      '<p class="mini">Para colar na loja, na vitrine ou no balcão. O cliente aponta a câmera e abre o seu ' + termo(rascunho) + ': <strong>' + esc(enderecoLoja().replace(/^https?:\/\//, '')) + '</strong></p>' +
       '<button class="btn btn--sec btn--bloco" type="button" id="cartaz-gerar">Criar cartaz com QR Code</button>' +
       '<div id="cartaz-area"></div></section>';
   }
@@ -2120,7 +1710,7 @@
       ctx.fillText(url.replace(/^https?:\/\//, ''), W / 2, 1544);
       ctx.fillStyle = dest; ctx.fillRect(W / 2 - 60, 1612, 120, 8);
       ctx.fillStyle = sobre; ctx.font = '500 30px system-ui, sans-serif';
-      if (v.marca) ctx.fillText('Cardápio em 3D por MenuReal', W / 2, 1690);
+      if (v.marca) ctx.fillText((ehAlimento(rascunho) ? 'Cardápio' : 'Catálogo') + ' em 3D por MenuReal', W / 2, 1690);
       return cv;
     });
   }
@@ -2292,16 +1882,6 @@
     }
   });
   $('#admin-corpo').addEventListener('input', function (e) {
-    // copo sob medida: os ml preenchem as medidas (mesma conta de medidasPorMl em glb.mjs)
-    if (e.target.matches('[data-cm="ml"]')) {
-      var ml = Number(e.target.value);
-      if (ml >= 50 && ml <= 3000) {
-        var rt = Math.cbrt((1.1 * ml) / 5.195), l = e.target.closest('.copo-linha');
-        l.querySelector('[data-cm="boca"]').value = (2 * rt).toFixed(1);
-        l.querySelector('[data-cm="fundo"]').value = (2 * rt * 0.69).toFixed(1);
-        l.querySelector('[data-cm="altura"]').value = (2.29 * rt).toFixed(1);
-      }
-    }
     var t = e.target;
     if (t.matches('input[type="color"][data-v]')) {
       visualRascunho(function (v) {
@@ -2315,20 +1895,84 @@
   $('#admin-corpo').addEventListener('change', function (e) {
     var t = e.target;
     if (t.name === 'v-fonte') { visualRascunho(function (v) { v.fonte = t.value; }); return; }
-    if (t.matches('[data-f="modo"]')) {
-      coletarAdmin();
-      var pm = rascunho.produtos[Number(t.closest('details').getAttribute('data-i'))];
-      if (pm.modo !== 'acai') pm.montar = true;
-      abertoNoAdmin = pm.id; renderAdmin();
-      toast(pm.modo === 'acai' ? 'Montagem de açaí em camadas.' : 'Toque em “Lista pronta de ' + (pm.modo === 'milkshake' ? 'milkshake' : 'sorvete') + '” para preencher tudo.');
-      return;
-    }
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
     if (t.name === 'v-cenario') { visualRascunho(function (v) { v.cenario = t.value; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
+    if (t.matches('[data-up3d]') && t.files && t.files[0]) {
+      coletarAdmin();
+      enviar3d(t.files[0], rascunho.produtos[Number(t.closest('details').getAttribute('data-i'))]);
+      t.value = '';
+    }
   });
   // Fechou o painel sem salvar: volta à aparência publicada
   $('#dlg-admin').addEventListener('close', function () { aplicarVisual(dados.padaria); });
+
+  // Envio do arquivo 3D da fábrica (.glb): confere o formato e as medidas no próprio navegador
+  var moduloGlb = null;
+  function carregarModuloGlb() {
+    if (!moduloGlb) moduloGlb = import(new URL('glb.mjs', document.baseURI).href);
+    return moduloGlb;
+  }
+  function enviar3d(arquivo, x) {
+    if (!credenciais()) { toast(LOJA ? 'Entre na conta da loja' : 'Preencha o código de acesso'); return; }
+    if (!/\.glb$/i.test(arquivo.name)) { toast('Envie o arquivo em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).'); return; }
+    if (arquivo.size > 25 * 1024 * 1024) { toast('Arquivo grande demais (máximo 25 MB). Peça uma versão mais leve à fábrica ou reduza as texturas.'); return; }
+    toast('Conferindo o arquivo 3D…');
+    Promise.all([carregarModuloGlb(), arquivo.arrayBuffer()]).then(function (r) {
+      var m = r[0], bytes = new Uint8Array(r[1]), med;
+      try {
+        var g = m.lerGlb(bytes), cx = m.caixaGlb(g.json);
+        med = { largura: +((cx.mx[0] - cx.mn[0]) * 100).toFixed(1), profundidade: +((cx.mx[2] - cx.mn[2]) * 100).toFixed(1), altura: +((cx.mx[1] - cx.mn[1]) * 100).toFixed(1) };
+      } catch (e) { throw new Error('Este arquivo não é um .glb válido.'); }
+      if (!(med.largura > 0)) throw new Error('O arquivo não tem nenhum objeto 3D.');
+      toast('Enviando o 3D…');
+      return fetch(comLoja('api/modelo-arquivo') + (LOJA ? '&' : '?') + 'nome=' + encodeURIComponent(slug(x.nome || arquivo.name)), {
+        method: 'POST', headers: Object.assign({ 'content-type': 'model/gltf-binary' }, credenciais()), body: bytes
+      }).then(function (resp) {
+        return resp.json().catch(function () { return {}; }).then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; });
+      }).then(function (j) { return { url: j.url, med: med }; });
+    }).then(function (res) {
+      x.modelo = res.url;
+      x.ilustrativo = false;
+      var med = res.med, dim = x.dim;
+      var estranho = Math.max(med.largura, med.altura, med.profundidade) > 1500 || Math.max(med.largura, med.altura, med.profundidade) < 2;
+      var difere = ['largura', 'profundidade', 'altura'].some(function (k) { return Math.abs(med[k] - dim[k]) / Math.max(dim[k], 0.1) > 0.05; });
+      var semMedidas = dim.largura <= 5 && dim.profundidade <= 5 && dim.altura <= 5;
+      abertoNoAdmin = x.id;
+      if (estranho) {
+        renderAdmin();
+        toast('3D enviado, mas ele mede ' + dimTexto(med) + ': deve estar em outra unidade. Preencha as medidas reais e toque em “Ajustar o 3D às medidas acima”.');
+      } else if (semMedidas || !difere) {
+        x.dim = med; renderAdmin();
+        toast('3D enviado: ' + dimTexto(med) + '. Toque em “Salvar alterações” para publicar.');
+      } else {
+        confirmar('O arquivo 3D mede ' + dimTexto(med) + ', mas o cadastro diz ' + dimTexto(dim) + '. Usar as medidas do arquivo?', 'Usar as do arquivo').then(function (sim) {
+          if (sim) x.dim = med;
+          renderAdmin();
+          toast(sim ? 'Medidas do arquivo aplicadas. Toque em “Salvar alterações”.' : 'Mantive as medidas do cadastro. Use “Ajustar o 3D às medidas acima” se o arquivo estiver errado.');
+        });
+      }
+    }).catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
+  }
+
+  // 3D do produto: o arquivo real (da fábrica) ou gerado a partir de fotos
+  function htmlProduto3dAdmin(x) {
+    var arq = x.modelo ? x.modelo.split('/').pop().replace(/-[a-z0-9]{6,}(\.glb)$/, '$1') : '';
+    return '<fieldset class="campo tams-admin modelo-admin"><legend>3D do produto</legend>' +
+      '<p class="modelo-admin__estado' + (x.modelo ? ' ok' : '') + '">' + (x.modelo ? '✓ 3D pronto' + (arq ? ' <small>(' + esc(arq) + ')</small>' : '') : 'Sem 3D: o cliente ainda não consegue ver na casa dele.') + '</p>' +
+      (servidor
+        ? '<div class="linha-acoes">' +
+            '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-up3d hidden></label>' +
+            '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
+            (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
+          '</div>' +
+          '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
+        : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
+      '<details class="conta-det"><summary>Endereço do arquivo (avançado)</summary>' +
+        campo('Arquivo 3D', '<input data-f="modelo" maxlength="300" placeholder="https://… .glb" value="' + esc(x.modelo) + '">', 'Caminho ou link https de um arquivo .glb em metros.') +
+        '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Mostrar selo “Modelo ilustrativo” (use se o 3D não for fiel ao produto)</label>' +
+      '</details></fieldset>';
+  }
 
   function htmlProdutoAdmin(x, i) {
     var aberto = abertoNoAdmin === x.id;
@@ -2357,15 +2001,9 @@
           campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
           campo('Altura (cm)', '<input data-f="altura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
         '</div>' +
-        campo('Arquivo 3D (.glb)', '<input data-f="modelo" maxlength="300" placeholder="assets/models/produto.glb" value="' + esc(x.modelo) + '">',
-          'Caminho relativo ao index.html ou URL HTTPS com CORS liberado. O modelo deve estar em metros, com as medidas acima.') +
-        '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Exibir selo “Modelo ilustrativo”</label>' +
-        '<label class="checar"><input type="checkbox" data-f="montar"' + (x.montar ? ' checked' : '') + '> O cliente monta o produto</label>' +
-        campo('Tipo de montagem', '<select data-f="modo">' + [['acai', 'Açaí em camadas (copo)'], ['sorvete', 'Sorvete em bolas (casquinha, taça, copinho)'], ['milkshake', 'Milkshake (copo alto)']].map(function (o) {
-          return '<option value="' + o[0] + '"' + (o[0] === (x.modo || 'acai') ? ' selected' : '') + '>' + o[1] + '</option>';
-        }).join('') + '</select>') +
+        htmlProduto3dAdmin(x) +
         '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
-          '<small>Ex.: bolo P, M e G. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
+          '<small>Ex.: sofá 2 e 3 lugares. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
           x.tamanhos.map(function (t, ti) {
             return '<div class="tam-linha" data-ti="' + ti + '">' +
               '<div class="campos campos--2">' +
@@ -2377,13 +2015,6 @@
                 campo('Prof. (cm)', '<input data-t="profundidade" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.profundidade + '">') +
                 campo('Alt. (cm)', '<input data-t="altura" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.altura + '">') +
               '</div>' +
-              (x.modo === 'sorvete' || x.modo === 'milkshake'
-                ? '<div class="campos campos--2">' +
-                    campo('Recipiente', '<select data-t="recipiente">' + Object.keys(RECIPIENTES_SV).filter(function (k) { return (x.modo === 'milkshake') === /^milkshake/.test(k); }).map(function (k) {
-                      return '<option value="' + k + '"' + (k === t.recipiente ? ' selected' : '') + '>' + RECIPIENTES_SV[k][0] + '</option>';
-                    }).join('') + '</select>') +
-                    campo(x.modo === 'milkshake' ? 'Até quantos sabores' : 'Quantas bolas', '<input data-t="bolas" type="number" min="1" max="5" inputmode="numeric" value="' + (t.bolas || 1) + '">') +
-                  '</div>' : '') +
               '<input type="hidden" data-t="modelo" value="' + esc(t.modelo) + '">' +
               '<div class="tam-rodape"><span class="mini">' + (t.modelo ? '3D pronto' : 'Sem 3D próprio') + '</span>' +
                 '<button class="link-remover" type="button" data-tam-remover>Remover tamanho</button></div>' +
@@ -2394,143 +2025,26 @@
             (servidor && x.tamanhos.length && x.modelo ? '<button class="btn btn--sec btn--p" type="button" data-tam-3d>' + ICONES.cubo + 'Gerar 3D de cada tamanho</button>' : '') +
           '</div>' +
         '</fieldset>' +
-        '<fieldset class="campo tams-admin adic-admin"><legend>Adicionais (opcional)</legend>' +
-          '<small>Complementos que o cliente marca, como granola ou leite condensado. Com “Aparece no 3D”, o adicional cai em cima do produto na tela e vai junto para a câmera.</small>' +
+        '<fieldset class="campo tams-admin adic-admin"><legend>Opcionais (opcional)</legend>' +
+          '<small>O que o cliente pode marcar com preço extra. Ex.: montagem, pés em outra cor, almofadas.</small>' +
           x.adicionais.map(function (a, ai) {
             return '<div class="adic-linha" data-ai="' + ai + '">' +
               '<div class="campos campos--2">' +
                 campo('Nome', '<input data-a="nome" maxlength="40" value="' + esc(a.nome) + '">') +
                 campo('Preço (R$)', '<input data-a="preco" inputmode="decimal" value="' + esc(a.preco.toFixed(2).replace('.', ',')) + '">') +
               '</div>' +
-              campo('Aparece no 3D como', '<select data-a="tipo3d">' + (x.modo === 'sorvete' || x.modo === 'milkshake' ? TIPOS_3D_SV : TIPOS_3D).map(function (t) {
-                return '<option value="' + t[0] + '"' + (t[0] === a.tipo3d ? ' selected' : '') + '>' + t[1] + '</option>';
-              }).join('') + '</select>') +
               '<div class="tam-rodape"><label class="checar checar--p"><input type="checkbox" data-a="esgotado"' + (a.esgotado ? ' checked' : '') + '> Esgotado</label><button class="link-remover" type="button" data-adic-remover>Remover adicional</button></div>' +
             '</div>';
           }).join('') +
           '<div class="linha-acoes">' +
-            '<button class="btn btn--fantasma btn--p" type="button" data-adic-novo>' + ICONES.mais + 'Adicionar adicional</button>' +
-            (x.modo === 'sorvete' ? '<button class="btn btn--sec btn--p" type="button" data-pronto="sorvete">Lista pronta de sorvete</button>'
-              : x.modo === 'milkshake' ? '<button class="btn btn--sec btn--p" type="button" data-pronto="milkshake">Lista pronta de milkshake</button>'
-              : '<button class="btn btn--sec btn--p" type="button" data-adic-acai>Lista pronta de açaí</button>') +
+            '<button class="btn btn--fantasma btn--p" type="button" data-adic-novo>' + ICONES.mais + 'Adicionar opcional</button>' +
           '</div>' +
         '</fieldset>' +
-        (ehAlimento(rascunho) && (x.modo || 'acai') === 'acai' ? htmlCopoAdmin(x) : '') +
         '<div class="linha-acoes">' +
-          (servidor ? '<button class="btn btn--sec btn--p" type="button" data-gerar-3d>' + ICONES.cubo + (x.modelo ? 'Refazer 3D com fotos' : 'Gerar 3D realista com fotos') + '</button>' : '') +
-          (servidor && /^(api\/arquivo\/|assets\/models\/)/.test(x.modelo) ? '<button class="btn btn--contorno btn--p" type="button" data-reescalar>Aplicar as medidas acima ao 3D</button>' : '') +
           '<button class="btn btn--perigo btn--p" type="button" data-remover-prod>Remover produto</button></div>' +
       '</div></details>';
   }
 
-  // Copo 3D sob medida: a loja informa os ml (ou as medidas) do copo dela
-  function htmlCopoAdmin(x) {
-    var c = x.copo || lerCopo(null);
-    var linhas = x.tamanhos.length ? x.tamanhos.map(function (t) { return { id: t.id, nome: t.nome }; }) : [{ id: '_', nome: 'Copo' }];
-    var temLogo = !!(rascunho.padaria.visual && rascunho.padaria.visual.logo);
-    return '<fieldset class="campo tams-admin copo-admin"><legend>Copo 3D sob medida (açaí, sorvete, milkshake)</legend>' +
-      '<small>Informe o tamanho do copo da sua loja: o 3D sai nas mesmas medidas, pronto para o cliente montar em camadas' + (temLogo ? ' e com a sua logo estampada' : '') + '.</small>' +
-      '<div class="campos campos--2">' +
-        campo('Material', '<select data-copo="estilo"><option value="pet"' + (c.estilo !== 'vidro' ? ' selected' : '') + '>Plástico transparente</option><option value="vidro"' + (c.estilo === 'vidro' ? ' selected' : '') + '>Vidro</option></select>') +
-        (temLogo ? '<label class="checar" style="align-self:end"><input type="checkbox" data-copo="logo"' + (c.logo ? ' checked' : '') + '> Logo da loja no copo</label>'
-          : '<small style="align-self:end">Envie a logo em “Aparência da página” para estampar no copo.</small>') +
-      '</div>' +
-      linhas.map(function (l) {
-        var m = c.medidas[l.id] || {};
-        return '<div class="copo-linha" data-copo-tam="' + esc(l.id) + '"><strong>' + esc(l.nome) + '</strong>' +
-          '<div class="campos campos--4">' +
-            campo('ml', '<input data-cm="ml" type="number" min="50" max="3000" step="10" inputmode="numeric" value="' + (m.ml || '') + '" placeholder="500">') +
-            campo('Boca (cm)', '<input data-cm="boca" type="number" min="2" max="40" step="0.1" inputmode="decimal" value="' + (m.boca || '') + '">') +
-            campo('Fundo (cm)', '<input data-cm="fundo" type="number" min="2" max="40" step="0.1" inputmode="decimal" value="' + (m.fundo || '') + '">') +
-            campo('Altura (cm)', '<input data-cm="altura" type="number" min="3" max="60" step="0.1" inputmode="decimal" value="' + (m.altura || '') + '">') +
-          '</div></div>';
-      }).join('') +
-      '<small>Só sabe os ml? Preencha e as medidas vêm sozinhas. Tem uma régua? Meça o diâmetro da boca, do fundo e a altura do copo.</small>' +
-      (servidor ? '<button class="btn btn--sec btn--p" type="button" data-copo-gerar>' + ICONES.cubo + 'Gerar copo 3D e ligar o montador</button>' : '<small>Disponível no site publicado.</small>') +
-    '</fieldset>';
-  }
-  function coletarCopo(d, x) {
-    var est = d.querySelector('[data-copo="estilo"]');
-    if (!est) return;
-    var logo = d.querySelector('[data-copo="logo"]');
-    var med = {};
-    $$('.copo-linha', d).forEach(function (l) {
-      var q = function (k) { return Number(l.querySelector('[data-cm="' + k + '"]').value) || 0; };
-      med[l.getAttribute('data-copo-tam')] = { ml: q('ml'), boca: q('boca'), fundo: q('fundo'), altura: q('altura') };
-    });
-    x.copo = lerCopo({ estilo: est.value, logo: logo ? logo.checked : (x.copo || {}).logo, medidas: med });
-  }
-
-  // logo da loja em PNG (para estampar no copo 3D)
-  function logoPng() {
-    var url = rascunho.padaria.visual && rascunho.padaria.visual.logo;
-    if (!url) return Promise.resolve(null);
-    return new Promise(function (ok) {
-      var img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = function () {
-        var k = Math.min(1, 640 / Math.max(img.naturalWidth, img.naturalHeight));
-        var cv = document.createElement('canvas');
-        cv.width = Math.max(1, Math.round(img.naturalWidth * k)); cv.height = Math.max(1, Math.round(img.naturalHeight * k));
-        cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-        cv.toBlob(function (b) {
-          if (!b) { ok(null); return; }
-          b.arrayBuffer().then(function (ab) { ok({ bytes: new Uint8Array(ab), tipo: 'image/png', largura: cv.width, altura: cv.height }); });
-        }, 'image/png');
-      };
-      img.onerror = function () { ok(null); };
-      img.src = url;
-    });
-  }
-
-  function gerarCopos(botao, x) {
-    if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
-    var c = x.copo || lerCopo(null);
-    var linhas = x.tamanhos.length ? x.tamanhos : [null];
-    var faltando = linhas.filter(function (t) { var m = c.medidas[t ? t.id : '_'] || {}; return !(m.boca && m.fundo && m.altura); });
-    if (faltando.length) { toast('Preencha os ml ou as medidas de cada copo'); return; }
-    botao.disabled = true;
-    var txt = botao.innerHTML;
-    botao.textContent = 'Gerando copos…';
-    var modelo = 'assets/models/' + (c.estilo === 'vidro' ? 'acai-500.glb' : 'acai-pet-500.glb');
-    Promise.all([carregarModuloGlb(), baixarArquivo(modelo), c.logo ? logoPng() : null]).then(function (r) {
-      var m = r[0], base = new Uint8Array(r[1]), logo = r[2];
-      var i = 0;
-      function proximo() {
-        if (i >= linhas.length) return Promise.resolve();
-        var t = linhas[i++];
-        var med = c.medidas[t ? t.id : '_'];
-        botao.textContent = 'Gerando copo ' + (t ? t.nome : '') + '… (' + i + '/' + linhas.length + ')';
-        var res = m.gerarCopo(base, med, logo);
-        var nome = slug(x.nome + (t ? '-' + t.nome : '') + '-copo');
-        return fetch(comLoja('api/copo') + (LOJA ? '&' : '?') + 'nome=' + encodeURIComponent(nome), {
-          method: 'POST', headers: Object.assign({ 'content-type': 'model/gltf-binary' }, credenciais()), body: res.glb
-        }).then(function (resp) {
-          return resp.json().then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; });
-        }).then(function (j) {
-          var dim = { largura: res.medidasCm.largura, profundidade: res.medidasCm.profundidade, altura: res.medidasCm.altura };
-          if (t) { t.modelo = j.url; t.dim = dim; } else { x.modelo = j.url; x.dim = dim; }
-          return proximo();
-        });
-      }
-      return proximo();
-    }).then(function () {
-      if (x.tamanhos.length) {   // o produto mostra o copo do meio
-        var meio = x.tamanhos[Math.min(1, x.tamanhos.length - 1)];
-        x.modelo = meio.modelo; x.dim = { largura: meio.dim.largura, profundidade: meio.dim.profundidade, altura: meio.dim.altura };
-      }
-      x.ilustrativo = true;
-      x.montar = true;
-      if (!x.adicionais.length) ADICIONAIS_ACAI.forEach(function (a) { x.adicionais.push(clonar(a)); });
-      abertoNoAdmin = x.id; renderAdmin();
-      toast('Copos 3D prontos e montador ligado. Toque em “Salvar alterações” para publicar.');
-    }).catch(function (e) {
-      botao.disabled = false; botao.innerHTML = txt;
-      toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message);
-    });
-  }
-
-  // lê o formulário para o rascunho (sem validar)
   function coletarAdmin() {
     var f = $('#form-admin');
     var p = rascunho.padaria;
@@ -2556,29 +2070,19 @@
       x.dim = { largura: Number(g('largura').value), profundidade: Number(g('profundidade').value), altura: Number(g('altura').value) };
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
-      x.montar = g('montar').checked;
-      x.modo = g('modo').value;
       x.esgotado = g('esgotado').checked;
-      coletarCopo(d, x);
       x.ingredientes = g('ingredientes').value.trim();
       if (ehAlimento(rascunho)) x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
       x.tamanhos = $$('.tam-linha', d).map(function (l) {
         var t = function (k) { return l.querySelector('[data-t="' + k + '"]'); };
         var antigo = x.tamanhos[Number(l.getAttribute('data-ti'))] || {};
-        var tam = { id: antigo.id || slug(t('nome').value) || 't' + Date.now().toString(36), nome: t('nome').value.trim(), preco: lerPreco(t('preco').value),
+        return { id: antigo.id || slug(t('nome').value) || 't' + Date.now().toString(36), nome: t('nome').value.trim(), preco: lerPreco(t('preco').value),
           dim: { largura: Number(t('largura').value), profundidade: Number(t('profundidade').value), altura: Number(t('altura').value) }, modelo: t('modelo').value };
-        if (t('recipiente') && (x.modo === 'sorvete' || x.modo === 'milkshake')) {
-          var rec = t('recipiente').value, r = RECIPIENTES_SV[rec];
-          tam.recipiente = rec; tam.bolas = Math.min(5, Math.max(1, Math.round(Number(t('bolas').value) || 1)));
-          // recipiente trocado: medidas e vitrine 3D do novo
-          if (r && antigo.recipiente !== rec) { tam.dim = clonar(r[2]); tam.modelo = r[3]; }
-        }
-        return tam;
       });
       x.adicionais = $$('.adic-linha', d).map(function (l) {
         var q = function (k) { return l.querySelector('[data-a="' + k + '"]'); };
         var antigo = x.adicionais[Number(l.getAttribute('data-ai'))] || {};
-        return { id: antigo.id || slug(q('nome').value) || 'a' + Date.now().toString(36), nome: q('nome').value.trim(), preco: lerPreco(q('preco').value), tipo3d: q('tipo3d').value,
+        return { id: antigo.id || slug(q('nome').value) || 'a' + Date.now().toString(36), nome: q('nome').value.trim(), preco: lerPreco(q('preco').value),
           esgotado: q('esgotado').checked };
       });
       if (rascunho.categorias.indexOf(x.categoria) < 0) rascunho.categorias.push(x.categoria);
@@ -2653,16 +2157,16 @@
   // Cardápio fora do ar (teste vencido): a loja logada busca a versão completa antes de editar
   function abrirAdminCompleto() {
     if (!indisponivel) { rascunho = clonar(dados); renderAdmin(); return; }
-    $('#admin-corpo').innerHTML = '<p class="mini">Carregando o seu cardápio…</p>';
+    $('#admin-corpo').innerHTML = '<p class="mini">Carregando o seu ' + termo() + '…</p>';
     carregarNuvem().then(function () {
-      if (indisponivel) { toast('Não foi possível carregar o cardápio. Entre de novo.'); renderLogin(); return; }
+      if (indisponivel) { toast('Não foi possível carregar o ' + termo() + '. Entre de novo.'); renderLogin(); return; }
       rascunho = clonar(dados); renderAdmin();
     });
   }
 
   $('#form-admin').addEventListener('submit', function (e) {
     e.preventDefault();
-    if (indisponivel) { toast('Carregando o seu cardápio… tente de novo em instantes.'); abrirAdminCompleto(); return; }
+    if (indisponivel) { toast('Carregando o seu ' + termo() + '… tente de novo em instantes.'); abrirAdminCompleto(); return; }
     coletarAdmin();
     if (!validarAdmin()) return;
     rascunho.produtos.forEach(function (x) { delete x._preco; });
@@ -2687,7 +2191,7 @@
   });
 
   $('#admin-restaurar').addEventListener('click', function () {
-    confirmar('Restaurar o cardápio de demonstração? Todas as alterações feitas neste navegador serão perdidas.', 'Restaurar').then(function (sim) {
+    confirmar('Restaurar a demonstração? Todas as alterações feitas neste navegador serão perdidas.', 'Restaurar').then(function (sim) {
     if (!sim) return;
     apagar(CHAVE_DADOS);
     dados = validarDados(clonar(PADRAO));
@@ -2746,34 +2250,11 @@
       abertoNoAdmin = pr.id; renderAdmin();
       return;
     }
-    var pronto = e.target.closest('[data-pronto]');
-    if (pronto) {
-      coletarAdmin();
-      var px2 = rascunho.produtos[Number(pronto.closest('details').getAttribute('data-i'))];
-      var lista = pronto.getAttribute('data-pronto') === 'milkshake' ? MILK_PRONTO : SORVETE_PRONTO;
-      if (!px2.tamanhos.length || !px2.tamanhos.some(function (t) { return t.recipiente; })) px2.tamanhos = clonar(lista.tamanhos);
-      lista.adicionais.forEach(function (a) {
-        if (!px2.adicionais.some(function (b) { return b.id === a.id || (a.tipo3d && b.tipo3d === a.tipo3d); })) px2.adicionais.push(clonar(a));
-      });
-      px2.montar = true;
-      var t0 = px2.tamanhos[Math.min(1, px2.tamanhos.length - 1)];
-      if (t0) { px2.modelo = t0.modelo; px2.dim = clonar(t0.dim); px2.preco = t0.preco; }
-      px2.ilustrativo = true;
-      abertoNoAdmin = px2.id; renderAdmin();
-      toast('Tamanhos, sabores e coberturas prontos. Ajuste os preços e toque em Salvar.');
-      return;
-    }
-    var adicNovo = e.target.closest('[data-adic-novo]') || e.target.closest('[data-adic-acai]');
+    var adicNovo = e.target.closest('[data-adic-novo]');
     if (adicNovo) {
       coletarAdmin();
       var pa = rascunho.produtos[Number(adicNovo.closest('details').getAttribute('data-i'))];
-      if (adicNovo.hasAttribute('data-adic-acai')) {
-        ADICIONAIS_ACAI.forEach(function (a) {
-          if (!pa.adicionais.some(function (b) { return b.id === a.id || (a.tipo3d && b.tipo3d === a.tipo3d); })) pa.adicionais.push(clonar(a));
-        });
-      } else {
-        pa.adicionais.push({ id: 'a' + Date.now().toString(36), nome: '', preco: 0, tipo3d: '' });
-      }
+      pa.adicionais.push({ id: 'a' + Date.now().toString(36), nome: '', preco: 0 });
       abertoNoAdmin = pa.id; renderAdmin();
       return;
     }
@@ -2787,8 +2268,6 @@
     }
     var tam3d = e.target.closest('[data-tam-3d]');
     if (tam3d) { coletarAdmin(); gerarTamanhos3d(tam3d, rascunho.produtos[Number(tam3d.closest('details').getAttribute('data-i'))]); return; }
-    var copoGerar = e.target.closest('[data-copo-gerar]');
-    if (copoGerar) { coletarAdmin(); gerarCopos(copoGerar, rascunho.produtos[Number(copoGerar.closest('details').getAttribute('data-i'))]); return; }
     if (e.target.closest('#admin-foto')) {
       coletarAdmin();
       abrirLeitorFoto();
@@ -2865,7 +2344,7 @@
         renderAdmin();
         toast('Arquivo importado. Revise e toque em “Salvar alterações”.');
       } catch (err) {
-        toast('Arquivo inválido: não é um cardápio exportado pelo MenuReal AR.');
+        toast('Arquivo inválido: não é um catálogo exportado pelo MenuReal.');
       }
     };
     leitor.readAsText(e.target.files[0]);
@@ -2891,11 +2370,11 @@
   function renderFotoInicio(erro) {
     $('#foto-corpo').innerHTML =
       '<div class="foto-intro">' +
-        '<p>Fotografe o cardápio, catálogo ou tabela de preços, ou escolha uma foto da galeria. A leitura é feita por inteligência artificial e pode errar: você revisa cada item antes de ele entrar no cardápio.</p>' +
+        '<p>Fotografe o catálogo ou a tabela de preços, ou escolha uma foto da galeria. A leitura é feita por inteligência artificial e pode errar: você revisa cada item antes de ele entrar no ' + termo() + '.</p>' +
         '<ul class="dicas-foto"><li>Página inteira no quadro, sem cortes</li><li>Boa luz, sem reflexo</li><li>Celular reto, de frente para o papel</li><li>Cardápio grande: uma foto por página</li></ul>' +
       '</div>' +
       '<label class="seletor-foto' + (foto.previa ? ' tem' : '') + '">' +
-        (foto.previa ? '<img src="' + foto.previa + '" alt="Foto do cardápio selecionada">' : ICONES.camera + '<strong>Tirar foto ou escolher da galeria</strong><small>JPG, PNG ou WebP</small>') +
+        (foto.previa ? '<img src="' + foto.previa + '" alt="Foto selecionada">' : ICONES.camera + '<strong>Tirar foto ou escolher da galeria</strong><small>JPG, PNG ou WebP</small>') +
         '<input type="file" accept="image/jpeg,image/png,image/webp,image/*" id="foto-arquivo" hidden>' +
       '</label>' +
       (foto.previa ? '<button class="btn btn--fantasma btn--p" type="button" id="foto-trocar">Trocar foto</button>' : '') +
@@ -3300,7 +2779,7 @@
           '<div class="nova-loja"><h4>Nova loja (ou nova senha)</h4>' +
             campo('Nome', '<input id="nl-nome" maxlength="60" placeholder="Confeitaria Doce Lar, Móveis Silva…">') +
             campo('Endereço da página', '<input id="nl-slug" maxlength="40" placeholder="doce-lar" autocapitalize="off">', location.host + '/<endereço>') +
-            campo('Tipo de negócio', '<select id="nl-tipo"><option value="alimentos">Comida e bebida (cardápio)</option><option value="sorveteria">Sorveteria e açaí (cardápio pronto para montar)</option><option value="produtos">Produtos e objetos (catálogo)</option></select>') +
+            campo('Ramo', '<select id="nl-tipo"><option value="moveis">Loja de móveis</option><option value="planejados">Móveis planejados</option><option value="decoracao">Decoração</option><option value="outros">Outros produtos</option></select>') +
             campo('E-mail do dono', '<input id="nl-email" type="email" maxlength="120">') +
             campo('Senha inicial (8+ caracteres)', '<input id="nl-senha" type="text" maxlength="120" autocomplete="off">') +
             '<div class="linha-acoes"><button class="btn btn--primario" type="button" id="loja-criar">Criar conta</button>' +
@@ -3313,7 +2792,7 @@
       .catch(function (e) { alvo.innerHTML = '<div class="ar-indisp" role="alert">' + esc(e.message) + '</div><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Tentar de novo</button>'; });
   }
   function criarLoja() {
-    var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value, tipo: $('#nl-tipo').value };
+    var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value, ramo: $('#nl-tipo').value };
     var b = $('#loja-criar');
     b.disabled = true; b.textContent = 'Criando…';
     fetch('api/contas', { method: 'POST', headers: cabecalhos(), body: JSON.stringify(corpo) })
@@ -3365,9 +2844,10 @@
       if (r.status === 404 && LOJA) { lojaNaoEncontrada(); return null; }
       return r.ok ? r.json() : null;
     }).then(function (d) {
+      if (!LOJA) return;   // página inicial: demonstração fixa (móveis), só confirma que o servidor existe
       if (d && d.indisponivel) { lojaIndisponivel(d); return; }
       if (d) { indisponivel = false; registrar('visita'); }
-      var v = d && comAcaiDemo(validarDados(d));
+      var v = d && validarDados(d);
       if (!v || JSON.stringify(v) === JSON.stringify(dados)) return;
       dados = v;
       CATEGORIAS = dados.categorias;
@@ -3398,12 +2878,12 @@
   function htmlAvisoPlano(pl) {
     if (!pl || pl.situacao === 'ativo') return '';
     var loja = dados.padaria.nome + ' (' + location.host + '/' + LOJA + ')';
-    var zap = linkSuporte(pl.situacao === 'teste' ? 'Olá! Quero continuar com o MenuReal na loja ' + loja + '.' : 'Olá! Quero reativar o cardápio da loja ' + loja + '.');
+    var zap = linkSuporte(pl.situacao === 'teste' ? 'Olá! Quero continuar com o MenuReal na loja ' + loja + '.' : 'Olá! Quero reativar o catálogo da loja ' + loja + '.');
     var btn = zap ? '<a class="btn btn--primario btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Falar com o MenuReal</a>' : '';
     if (pl.situacao === 'teste') {
       var d = diasRestantes(pl.ate);
       return '<div class="aviso-plano"><strong>Teste grátis: ' + (d <= 1 ? 'último dia' : 'faltam ' + d + ' dias') + '</strong>' +
-        '<span>Seu cardápio já está no ar. Para continuar depois do teste, fale com a gente.</span>' + btn + '</div>';
+        '<span>Seu ' + termo() + ' já está no ar. Para continuar depois do teste, fale com a gente.</span>' + btn + '</div>';
     }
     return '<div class="aviso-plano aviso-plano--fora"><strong>' + (pl.situacao === 'vencido' ? 'Seu teste grátis acabou' : 'Cardápio pausado pelo MenuReal') + '</strong>' +
       '<span>Os clientes veem “fora do ar”. Seus produtos e configurações continuam salvos.</span>' + btn + '</div>';
@@ -3535,7 +3015,7 @@
   // ---------------------------------------------------------------------
   // Cadastro da loja pelo próprio lojista (7 dias grátis)
   // ---------------------------------------------------------------------
-  var cad = { nome: '', slug: '', tipo: 'sorveteria', whatsapp: '', email: '', senha: '', mexido: false };
+  var cad = { nome: '', slug: '', tipo: 'moveis', whatsapp: '', email: '', senha: '', mexido: false };
   var cadSeq = 0;
   function abrirCadastro() {
     if (!servidor && location.protocol === 'file:') { toast('O cadastro funciona no site publicado.'); return; }
@@ -3544,13 +3024,13 @@
     fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { suporteMenuReal = j.suporte || ''; }).catch(function () { /* ok */ });
   }
   function renderCadastro(erro, campoErro) {
-    var tipos = [['sorveteria', 'Açaí e sorveteria', 'já vem com o açaí montável em 3D'], ['alimentos', 'Outra comida ou bebida', 'lanchonete, doceria, padaria…'], ['produtos', 'Produtos e objetos', 'móveis, decoração, presentes…']];
+    var tipos = [['moveis', 'Loja de móveis', 'sofás, mesas, cadeiras, camas…'], ['planejados', 'Móveis planejados', 'cozinhas, dormitórios, armários…'], ['decoracao', 'Decoração', 'luminárias, tapetes, vasos, quadros…'], ['outros', 'Outros produtos', 'eletros, presentes, o que for…']];
     var c = function (rot, id, attrs, ajuda) { return campo(rot, '<input id="cad-' + id + '" ' + attrs + ' value="' + esc(cad[id]) + '"' + (campoErro === id ? ' aria-invalid="true"' : '') + '>', ajuda); };
     $('#cadastro-corpo').innerHTML =
       '<div class="cadastro">' +
-        '<p class="cadastro__intro"><strong>7 dias grátis, sem cartão.</strong> Sua loja ganha um endereço próprio com cardápio em 3D, pedidos pelo WhatsApp e Pix.</p>' +
-        c('Nome da loja', 'nome', 'maxlength="60" autocomplete="organization" placeholder="Ex.: Açaí do Zé"') +
-        '<label class="campo">Endereço do seu cardápio<span class="cad-slug"><span>' + esc(location.host) + '/</span><input id="cad-slug" maxlength="40" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(cad.slug) + '"' + (campoErro === 'slug' ? ' aria-invalid="true"' : '') + '></span>' +
+        '<p class="cadastro__intro"><strong>7 dias grátis, sem cartão.</strong> Sua loja ganha um endereço próprio com os móveis em 3D, no tamanho real, na casa do cliente, e orçamentos pelo WhatsApp.</p>' +
+        c('Nome da loja', 'nome', 'maxlength="60" autocomplete="organization" placeholder="Ex.: Casa & Sala Móveis"') +
+        '<label class="campo">Endereço do seu catálogo<span class="cad-slug"><span>' + esc(location.host) + '/</span><input id="cad-slug" maxlength="40" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(cad.slug) + '"' + (campoErro === 'slug' ? ' aria-invalid="true"' : '') + '></span>' +
           '<small id="cad-slug-st" aria-live="polite">Letras minúsculas, números e hífen.</small></label>' +
         '<fieldset class="campo"><legend>Tipo de loja</legend><div class="opcoes">' + tipos.map(function (t) {
           return '<label class="opcao"><input type="radio" name="cad-tipo" value="' + t[0] + '"' + (cad.tipo === t[0] ? ' checked' : '') + '><span>' + t[1] + '<small>' + t[2] + '</small></span></label>';
@@ -3562,7 +3042,7 @@
         (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
         '<p class="mini">Ao criar, você concorda com os <a href="/termos" target="_blank" rel="noopener">termos de uso e privacidade</a>.</p>' +
       '</div>';
-    $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">Criar meu cardápio grátis</button>';
+    $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">Criar meu catálogo grátis</button>';
     if (cad.slug) conferirSlug();
     if (campoErro) { var el = $('#cad-' + campoErro); if (el) el.focus(); }
   }
@@ -3594,12 +3074,12 @@
     if (!e.target.closest('#cad-criar')) return;
     var b = e.target.closest('#cad-criar');
     b.disabled = true; b.textContent = 'Criando a sua loja…';
-    postarJson('api/cadastro', { nome: cad.nome.trim(), slug: cad.slug, tipo: cad.tipo, whatsapp: cad.whatsapp, email: cad.email.trim(), senha: cad.senha, site: ($('#cad-site') || {}).value || '' })
+    postarJson('api/cadastro', { nome: cad.nome.trim(), slug: cad.slug, ramo: cad.tipo, whatsapp: cad.whatsapp, email: cad.email.trim(), senha: cad.senha, site: ($('#cad-site') || {}).value || '' })
       .then(function (j) {
         try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (er) { /* ignora */ }
         $('#cadastro-titulo').textContent = 'Sua loja está pronta!';
         $('#cadastro-corpo').innerHTML = '<div class="cadastro">' +
-          '<p class="cadastro__intro">Seu cardápio: <strong>' + esc(location.host + '/' + j.slug) + '</strong><br>Teste grátis até <strong>' + esc(new Date(j.testeAte).toLocaleDateString('pt-BR')) + '</strong>.</p>' +
+          '<p class="cadastro__intro">Seu catálogo: <strong>' + esc(location.host + '/' + j.slug) + '</strong><br>Teste grátis até <strong>' + esc(new Date(j.testeAte).toLocaleDateString('pt-BR')) + '</strong>.</p>' +
           htmlCodigo(j.codigo) + '</div>';
         $('#cadastro-rodape').innerHTML = '<a class="btn btn--primario btn--bloco" href="/' + esc(j.slug) + '?bemvindo=1">Já guardei o código, abrir minha loja</a>';
       })
@@ -3619,7 +3099,7 @@
     if (v.og && v.ogAss === ass) return Promise.resolve();
     var cor = v.cor || COR_PADRAO, dest = v.destaque || DESTAQUE_PADRAO;
     var fonte = (FONTES_LOJA[v.fonte] || FONTES_LOJA.moderno).css.replace('var(--fonte)', 'system-ui, sans-serif');
-    var enfeite = !v.capa && ehAlimento(d) ? 'assets/og-acai.png' : '';
+    var enfeite = '';   // (o desenho de açaí saiu; a prévia usa a capa ou a cor da loja)
     return Promise.all([carregarImagem(v.capa), carregarImagem(v.logo), document.fonts ? document.fonts.load('700 60px ' + fonte).catch(function () {}) : null, carregarImagem(enfeite)]).then(function (r) {
       var capa = r[0], logo = r[1], acai = r[3], W = 1200, H = 630;
       var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
@@ -3682,21 +3162,22 @@
   };
   var TUTORIAIS = {
     cliente: [
-      ['#7B2CBF', IC.toque, 'Escolha o produto', 'Toque na foto ou no + . Dá para girar o produto com o dedo e ver de todos os lados.'],
-      ['#FF3D8B', IC.copo, 'Monte o seu', 'No açaí, cada toque coloca uma camada no copo: açaí, creme, fruta… até encher. "Desfazer" tira a última.'],
-      ['#0096C7', IC.camera, 'Veja na mesa', 'Toque no botão da câmera e aponte o celular para a mesa: o copo aparece no tamanho real.'],
-      ['#FF8A00', IC.sacola, 'Feche o pedido', 'Toque em Pedido → Continuar. Escolha entrega ou retirada e a forma de pagamento.'],
-      ['#2E9E4F', IC.zap, 'Envie no WhatsApp', 'O pedido vai prontinho para a loja. No Pix, o código já vem com o valor certo.']
+      ['#7B2CBF', IC.toque, 'Escolha o móvel', 'Toque na foto ou no + . Dá para girar o móvel com o dedo e ver de todos os lados.'],
+      ['#FF3D8B', IC.pincel, 'Escolha a cor', 'Se o móvel tiver outras cores de tecido ou acabamento, toque na cor: o 3D muda na hora.'],
+      ['#0096C7', IC.camera, 'Veja na sua casa', 'Toque em “Ver na sua casa” e aponte o celular para o chão: o móvel aparece no tamanho real, com as medidas.'],
+      ['#FF8A00', IC.sacola, 'Monte a lista', 'Adicione o que gostou ao orçamento. “Ver os itens juntos” mostra tudo lado a lado.'],
+      ['#2E9E4F', IC.zap, 'Peça o orçamento', 'Toque em Orçamento → Continuar: a lista vai para o WhatsApp da loja, com as medidas de cada item.']
     ],
     loja: [
-      ['#7B2CBF', IC.chave, 'Crie e entre', 'Toque em "Criar meu cardápio grátis". Depois, para editar, use o botão de ajustes no topo da sua página.'],
-      ['#FF3D8B', IC.lista, 'Produtos', 'Na aba Produtos, coloque nome, preço e tamanhos. "Lista pronta de açaí" já preenche os adicionais.'],
-      ['#9D4EDD', IC.copo, 'Copo da sua loja', 'Em cada açaí, informe os ml do copo e toque em "Gerar copo 3D": ele sai no tamanho certo e com a sua logo.'],
-      ['#0096C7', IC.moto, 'Pedidos e Pix', 'Na aba Pedidos: entrega ou retirada, taxa por bairro, pedido mínimo e a sua chave Pix.'],
-      ['#FF8A00', IC.pincel, 'A cara da loja', 'Na aba Visual: cores, logo e foto de capa. Toque sempre em "Salvar alterações" para publicar.'],
-      ['#2E9E4F', IC.qr, 'Divulgue', 'Na aba Divulgar, baixe o cartaz com QR Code para as mesas e mande o link no WhatsApp. Os números aparecem no Início.']
+      ['#7B2CBF', IC.chave, 'Crie e entre', 'Toque em “Criar meu catálogo grátis”. Depois, para editar, use o botão de ajustes no topo da sua página.'],
+      ['#FF3D8B', IC.lista, 'Seus produtos', 'Na aba Produtos: nome, preço e as medidas reais do móvel (largura, profundidade e altura).'],
+      ['#9D4EDD', IC.copo, 'O 3D de verdade', 'Em cada produto, envie o arquivo 3D da fábrica (.glb) ou crie a partir de fotos. Sem 3D, o cliente não vê na casa dele.'],
+      ['#0096C7', IC.moto, 'Entrega e orçamento', 'Na aba Pedidos: entrega ou retirada, taxa por bairro e o seu WhatsApp, que recebe os orçamentos.'],
+      ['#FF8A00', IC.pincel, 'A cara da loja', 'Na aba Visual: cores, logo e foto de capa. Toque sempre em “Salvar alterações” para publicar.'],
+      ['#2E9E4F', IC.qr, 'Divulgue', 'Mande o link de cada produto no WhatsApp e no Instagram. Na aba Divulgar, o cartaz com QR Code para a loja.']
     ]
   };
+
   var ajuda = { tipo: 'cliente', i: 0 };
   function abrirAjuda(tipo) {
     ajuda = { tipo: TUTORIAIS[tipo] ? tipo : 'cliente', i: 0 };

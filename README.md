@@ -1,18 +1,24 @@
-# MenuReal AR — Cardápio digital com 3D e realidade aumentada
+# MenuReal — catálogo de móveis em 3D, na casa do cliente
 
-Plataforma para qualquer loja que queira mostrar produtos em 3D e em tamanho
-real: comida (padarias, confeitarias, restaurantes) e também objetos (móveis,
-decoração, eletrônicos, presentes). Cada loja tem conta e endereço próprios e
-escolhe o **tipo de negócio**: *Comida e bebida* (cardápio, ingredientes e
-alérgicos) ou *Produtos e objetos* (catálogo, composição/materiais, medidas até
-10 m).
+**Foco: lojas de móveis, móveis planejados e decoração.** A dúvida de quem compra
+móvel é "cabe? fica bom no meu espaço?". No catálogo da loja, o cliente gira o
+móvel em 3D, troca a cor do tecido (quando o arquivo traz as cores) e abre a câmera
+para posicioná-lo **no chão da casa dele, no tamanho real**, com as medidas na tela.
+Depois manda a lista para o WhatsApp da loja como **pedido de orçamento** (com as
+medidas de cada item).
 
-Demonstração funcional de um cardápio para padarias, lanchonetes e cafeterias:
-o cliente gira o alimento em 3D e, em aparelhos compatíveis, abre a câmera para
-vê-lo **em escala fixa** sobre a mesa. Padaria de exemplo: **Padaria Sabor da Vila**.
+O 3D é o do **produto de verdade**: a loja envia o arquivo 3D que a fábrica fornece
+(.glb) ou cria a partir de fotos (Meshy). Cada loja tem conta e endereço próprios,
+7 dias grátis, painel com abas, números de visitas e orçamentos.
 
-> Preços, medidas e modelos são **demonstrativos**. Os modelos 3D são
-> ilustrações originais deste projeto, não digitalizações de alimentos reais.
+Página inicial: apresentação para lojistas + demonstração **Casa & Sala Móveis** com
+móveis reais da Wayfair (Khronos glTF Sample Assets, CC BY 4.0 / CC0 — créditos em
+`public/assets/moveis/CREDITOS.txt`). Preços da demonstração são fictícios.
+
+> Histórico: o projeto passou por cardápio de comida e por um montador de açaí/sorvete
+> com animações. Isso foi **retirado** em out/2026 (mudança de foco para móveis) e
+> continua no histórico do git, caso seja útil no futuro. Contas antigas do tipo
+> "comida" continuam funcionando como cardápio simples.
 
 ---
 
@@ -391,6 +397,12 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 - **Prévia do link**: o Worker coloca título, descrição e imagem da loja no HTML (WhatsApp/Instagram não rodam JavaScript). Ao salvar, o painel gera uma imagem 1200×630 com capa, logo, nome e cores da loja (`uso: og`). Sem capa, usa o açaí 3D. Página inicial: `assets/og.jpg`.
   - Por isso `run_worker_first` passa as páginas pelo Worker, mas arquivos (`/assets`, `/vendor`, `app.js`, `style.css`) saem direto, sem gastar requisições do Worker.
 
+## 7i. Arquivo 3D da fábrica e cores do produto
+
+- No painel, cada produto tem o bloco **3D do produto**: "Enviar arquivo 3D (.glb)" (`/api/modelo-arquivo`, até 25 MB) ou "Criar com fotos" (Meshy). O navegador confere o arquivo e as medidas; se o arquivo e o cadastro não batem, pergunta qual usar. "Ajustar o 3D às medidas acima" reescala o arquivo.
+- Arquivos que trazem cores (`KHR_materials_variants`, ex.: o sofá da demonstração em 5 tecidos) mostram os botões de **Cor** no visualizador; a cor escolhida vai para o orçamento.
+- Câmera: `ar-placement="floor"` (no chão), escala fixa, medidas na tela (WebXR).
+
 ## 7g. Visual, tutorial, números e termos
 
 - **Visual**: cores padrão vibrantes (roxo açaí, rosa e amarelo), topo colorido em cada loja, categorias em pílulas, cartões mais limpos (selo "Monte o seu", só o essencial). Paletas novas: Morango, Tropical, Laranja, Céu, Chiclete.
@@ -399,19 +411,6 @@ O cliente: carrinho → **Continuar** → nome, entrega/retirada, endereço/bair
 - **Como usar**: botão **?** no topo (passo a passo para o cliente nas lojas; para o lojista na página inicial) e no painel. Só abre quando a pessoa toca.
 - **Números da loja** (`/api/evento`): visitas, produtos vistos, "viram na mesa" e pedidos enviados, por dia, anônimos. Cada aparelho conta uma visita por sessão; a loja logada não conta.
 - **Termos e privacidade**: `/termos` (modelo em linguagem simples; revise com um advogado antes de cobrar).
-
-## 7h. Montador de sorvete e milkshake
-
-- `public/sorvete.mjs`: gera em código (sem arquivos de modelo) casquinha de waffle, cascão, taça de vidro, copinho listrado e copo de milkshake (300/500 ml); bolas de sorvete com caroços, marcas da colher e "saia", em 15 sabores (com pedaços: flocos, morango, pistache, cookies, menta…); coberturas: caldas de chocolate/morango/caramelo escorrendo, chantilly em espiral, granulado, confete, amendoim, wafer e cereja. No milkshake, cada sabor é uma faixa de cor, com canudo listrado.
-- No painel, cada produto tem **Tipo de montagem**: Açaí em camadas, Sorvete em bolas ou Milkshake. "Lista pronta de sorvete/milkshake" preenche tamanhos (recipiente + quantas bolas), sabores (`sabor_*`) e coberturas (`cob_*`).
-- O cliente toca nos sabores (o **pegador de sorvete** traz cada bola e solta no recipiente), pode parar antes ("Só 1 bola, pronto") e escolhe o que vai por cima: **frasco de vidro** despeja as caldas, **saco de confeitar** faz o chantilly, a **mãozinha** (`_mao.glb`) salpica granulado/confete/amendoim e coloca cereja e wafer; no milkshake, uma **jarra** despeja o sabor no copo.
-- Câmera: o celular gera a versão leve e envia para `/api/sorvete-ar` (o servidor só guarda; gerar lá passaria do limite de CPU do plano grátis). Um arquivo por combinação, formato conferido, limite por IP.
-- Modelos de vitrine dos cartões: `node tools/gerar_sorvetes.mjs` → `assets/models/sorvete-*.glb` e `milkshake-*.glb`.
-- Lojas novas do tipo "Açaí e sorveteria" já nascem com açaí, sorvete e milkshake prontos.
-
-- **Cenário do 3D** (aba Visual): "Cor + logo" (padrão: fundo na cor da loja com a logo, ou o nome, em marca d'água), "Só a cor" ou "Claro". Realça o vidro e os recheios no modo claro.
-- **Câmera**: o arquivo publicado para a câmera é preparado sozinho, em segundo plano, quando a animação termina; assim o toque em "Ver na mesa" abre direto (o celular só abre a câmera logo após um toque). Se a pessoa tocar antes de ficar pronto e demorar, aparece "Pronto! Toque de novo".
-- **Demonstração** da página inicial: só sorveteria (açaí, sorvete, milkshake, casquinha, sundae, cascão e copinho).
 
 ## 7d. Banco de dados
 

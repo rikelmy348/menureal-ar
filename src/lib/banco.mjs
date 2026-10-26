@@ -46,7 +46,7 @@ const ESQUEMA = [
      alergenos       TEXT NOT NULL DEFAULT '[]',              -- JSON
      tamanhos        TEXT NOT NULL DEFAULT '[]',              -- JSON
      adicionais      TEXT NOT NULL DEFAULT '[]',              -- JSON: complementos com preço
-     opcoes          TEXT NOT NULL DEFAULT '{}',              -- JSON: { montar: cliente monta em camadas }
+     opcoes          TEXT NOT NULL DEFAULT '{}',              -- JSON: { esgotado }
      PRIMARY KEY (loja, id)
    )`,
   'CREATE INDEX IF NOT EXISTS produtos_por_loja ON produtos (loja, posicao)',
@@ -111,21 +111,7 @@ const texto = (v, max) => String(v == null ? '' : v).slice(0, max);
 const dimOk = (d, k) => { const v = Number(d && d[k]); return v > 0 && v < 100000 ? Math.round(v * 100) / 100 : 5; };
 const slugBanco = (slug) => slug || DEMO;
 
-import { SABORES, COBERTURAS, RECIPIENTES } from '../../public/sorvete.mjs';
-const TIPOS_3D = ['granola', 'pacoca', 'confete', 'banana', 'morango', 'morango_picado', 'leite_po', 'leite_condensado', 'calda_chocolate', 'nutella',
-  'camada_creme', 'camada_morango', 'camada_nutella',
-  ...Object.keys(SABORES).map((k) => 'sabor_' + k), ...Object.keys(COBERTURAS).map((k) => 'cob_' + k)];
-const MODOS = ['acai', 'sorvete', 'milkshake'];
-function limparCopo(c) {
-  if (!c || typeof c !== 'object') return null;
-  const n = (v, a, b) => { v = Number(v); return v >= a && v <= b ? Math.round(v * 10) / 10 : 0; };
-  const medidas = {};
-  Object.keys(c.medidas || {}).slice(0, 10).forEach((k) => {
-    const m = c.medidas[k] || {};
-    medidas[texto(k, 60)] = { ml: n(m.ml, 50, 3000), boca: n(m.boca, 2, 40), fundo: n(m.fundo, 2, 40), altura: n(m.altura, 3, 60) };
-  });
-  return { estilo: c.estilo === 'vidro' ? 'vidro' : 'pet', logo: c.logo !== false, medidas };
-}
+
 function limparAdicionais(lista) {
   const vistos = new Set();
   return (Array.isArray(lista) ? lista : []).filter((a) => a && a.nome).slice(0, 30).map((a, i) => {
@@ -133,7 +119,7 @@ function limparAdicionais(lista) {
     while (vistos.has(id)) id += '2';
     vistos.add(id);
     return { id, nome: texto(a.nome, 40), preco: Math.min(9999, Math.max(0, Math.round((Number(a.preco) || 0) * 100) / 100)),
-      tipo3d: TIPOS_3D.includes(a.tipo3d) ? a.tipo3d : '', esgotado: a.esgotado === true };
+      esgotado: a.esgotado === true };
   });
 }
 
@@ -205,8 +191,7 @@ export async function lerCardapio(env, slug) {
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
-      montar: Boolean(lerJson(p.opcoes, {}).montar), copo: lerJson(p.opcoes, {}).copo || null, esgotado: Boolean(lerJson(p.opcoes, {}).esgotado),
-      modo: lerJson(p.opcoes, {}).modo || 'acai'
+      esgotado: Boolean(lerJson(p.opcoes, {}).esgotado)
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -248,13 +233,12 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
     const tamanhos = (Array.isArray(x.tamanhos) ? x.tamanhos : []).slice(0, 8).map((t) => ({
       id: texto(t.id, 60), nome: texto(t.nome, 30), preco: Math.max(0, Number(t.preco) || 0),
       dim: { largura: dimOk(t.dim, 'largura'), profundidade: dimOk(t.dim, 'profundidade'), altura: dimOk(t.dim, 'altura') }, modelo: texto(t.modelo, 300),
-      ...(RECIPIENTES[t.recipiente] ? { recipiente: t.recipiente, bolas: Math.min(5, Math.max(1, Math.round(Number(t.bolas) || 1))) } : {})
     }));
     comandos.push(inserir.bind(s, id, pos++, texto(x.nome, 60), texto(x.categoria, 40) || categorias[0] || 'Geral',
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ montar: x.montar === true, copo: limparCopo(x.copo), esgotado: x.esgotado === true, modo: MODOS.includes(x.modo) ? x.modo : 'acai' })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;
@@ -324,24 +308,25 @@ export async function dentroDoLimite(env, chave, max, janelaMs) {
   await env.DB.prepare('UPDATE limites SET n = n + 1 WHERE chave = ?').bind(chave).run();
   return true;
 }
+// Categorias iniciais conforme o ramo escolhido no cadastro
+export const RAMOS = {
+  moveis: { slogan: 'Veja na sua casa antes de comprar', categorias: ['Sofás', 'Poltronas', 'Mesas', 'Cadeiras', 'Camas', 'Estantes'] },
+  planejados: { slogan: 'Veja o móvel no seu espaço, no tamanho real', categorias: ['Cozinhas', 'Dormitórios', 'Salas', 'Banheiros', 'Escritório'] },
+  decoracao: { slogan: 'Veja na sua casa antes de comprar', categorias: ['Luminárias', 'Tapetes', 'Vasos', 'Quadros', 'Espelhos'] },
+  outros: { slogan: 'Veja em tamanho real antes de comprar', categorias: ['Destaques', 'Novidades', 'Promoções'] }
+};
 /** Cria a loja ou atualiza nome, e-mail e senha de uma existente. */
-export async function salvarConta(env, { slug, nome, email, senhaHash, tipo, sorveteria = false, teste = 0, whatsapp = '', codigoHash = '' }) {
+export async function salvarConta(env, { slug, nome, email, senhaHash, ramo = 'moveis', teste = 0, whatsapp = '', codigoHash = '' }) {
   const existia = await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first();
   if (existia) {
     await env.DB.prepare('UPDATE lojas SET nome = ?, email = ?, senha_hash = ?, atualizada_em = ? WHERE slug = ?')
       .bind(nome, email, senhaHash, agora(), slug).run();
   } else {
-    await env.DB.prepare(`INSERT INTO lojas (slug, nome, email, senha_hash, tipo, slogan, abre, fecha, categorias)
-      VALUES (?, ?, ?, ?, ?, ?, '08:00', '18:00', ?)`).bind(slug, nome, email, senhaHash, tipo,
-      tipo === 'produtos' ? 'Veja em tamanho real antes de comprar' : sorveteria ? 'Monte o seu e veja na mesa' : 'Veja antes de pedir',
-      JSON.stringify(tipo === 'produtos' ? ['Destaques', 'Novidades', 'Promoções']
-        : sorveteria ? ['Açaí', 'Sorvetes', 'Picolés', 'Milkshakes', 'Bebidas'] : ['Salgados', 'Doces', 'Bebidas'])).run();
-    if (teste > 0 || whatsapp || codigoHash || sorveteria) {
-      await env.DB.prepare(`UPDATE lojas SET plano = ?, teste_ate = ?, whatsapp = ?, codigo_hash = ?, abre = ?, fecha = ?, dias = ? WHERE slug = ?`).bind(
-        teste > 0 ? 'teste' : 'ativo', teste > 0 ? new Date(Date.now() + teste * 864e5).toISOString() : '',
-        String(whatsapp).replace(/\D/g, '').slice(0, 15), codigoHash,
-        sorveteria ? '13:00' : '08:00', sorveteria ? '22:00' : '18:00', sorveteria ? '[0,1,2,3,4,5,6]' : '[1,2,3,4,5,6]', slug).run();
-    }
+    const r = RAMOS[ramo] || RAMOS.moveis;
+    await env.DB.prepare(`INSERT INTO lojas (slug, nome, email, senha_hash, tipo, slogan, abre, fecha, dias, categorias, plano, teste_ate, whatsapp, codigo_hash)
+      VALUES (?, ?, ?, ?, 'produtos', ?, '09:00', '18:00', '[1,2,3,4,5,6]', ?, ?, ?, ?, ?)`).bind(slug, nome, email, senhaHash, r.slogan, JSON.stringify(r.categorias),
+      teste > 0 ? 'teste' : 'ativo', teste > 0 ? new Date(Date.now() + teste * 864e5).toISOString() : '',
+      String(whatsapp).replace(/\D/g, '').slice(0, 15), codigoHash).run();
   }
   return { atualizado: Boolean(existia) };
 }

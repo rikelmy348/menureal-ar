@@ -1,4 +1,4 @@
-/* POST /api/combo  { itens: ['api/arquivo/modelos/...glb' | 'assets/models/...glb', ...] }
+/* POST /api/combo  { itens: ['api/arquivo/modelos/...glb' | 'assets/moveis/...glb', ...] }
    → { url }   (público; até 8 itens; resultado guardado em cache) */
 import { json, juntarGlbs, hashCurto, lerModelo, guardarModelo, PREFIXO_ARQUIVO } from '../lib/comum.mjs';
 

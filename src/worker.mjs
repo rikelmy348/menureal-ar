@@ -13,13 +13,11 @@ import modelo3d from './api/modelo-3d.mjs';
 import arquivo from './api/arquivo.mjs';
 import combo from './api/combo.mjs';
 import imagem from './api/imagem.mjs';
-import montagem from './api/montagem.mjs';
-import copo from './api/copo.mjs';
 import cadastro from './api/cadastro.mjs';
 import recuperar from './api/recuperar.mjs';
 import conta from './api/conta.mjs';
 import evento from './api/evento.mjs';
-import sorveteAr from './api/sorvete-ar.mjs';
+import modeloArquivo from './api/modelo-arquivo.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -29,13 +27,11 @@ const ROTAS = {
   '/api/modelo-3d': modelo3d,
   '/api/combo': combo,
   '/api/imagem': imagem,
-  '/api/montagem': montagem,
-  '/api/copo': copo,
   '/api/cadastro': cadastro,
   '/api/recuperar': recuperar,
   '/api/conta': conta,
   '/api/evento': evento,
-  '/api/sorvete-ar': sorveteAr
+  '/api/modelo-arquivo': modeloArquivo
 };
 
 // ---------------------------------------------------------------------------
@@ -43,8 +39,8 @@ const ROTAS = {
 // da loja já no HTML, porque esses apps não executam JavaScript.
 // ---------------------------------------------------------------------------
 const PAGINAS_FIXAS = {
-  '': { titulo: 'MenuReal — cardápio em 3D para açaí e sorveteria', desc: 'O cliente monta o açaí camada por camada, vê na mesa no tamanho real e pede pelo WhatsApp. Teste grátis por 7 dias.' },
-  criar: { titulo: 'Crie o cardápio 3D da sua loja — MenuReal', desc: 'Cadastro em 2 minutos, 7 dias grátis. Açaí montável em 3D, pedidos pelo WhatsApp e Pix com o valor.' }
+  '': { titulo: 'MenuReal — seus móveis em 3D, na casa do cliente', desc: 'O cliente vê o sofá, a mesa ou a estante no tamanho real, na sala dele, pela câmera do celular. E pede o orçamento no WhatsApp. 7 dias grátis.' },
+  criar: { titulo: 'Crie o catálogo 3D da sua loja de móveis — MenuReal', desc: 'Cadastro em 2 minutos, 7 dias grátis. Seus móveis em 3D e no tamanho real, na casa do cliente.' }
 };
 function escAttr(s) { return String(s || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
@@ -60,7 +56,7 @@ async function paginaComPrevia(req, env, caminho) {
     if (!loja) return base;
     const v = loja.visual;
     info = { titulo: loja.nome + (loja.tipo === 'produtos' ? ' — catálogo' : ' — cardápio'),
-      desc: loja.slogan || (loja.tipo === 'produtos' ? 'Veja os produtos em 3D, no tamanho real, e peça pelo WhatsApp.' : 'Veja o cardápio em 3D, monte o seu e peça pelo WhatsApp.') };
+      desc: loja.slogan || (loja.tipo === 'produtos' ? 'Veja os móveis em 3D, no tamanho real, na sua casa. Peça o orçamento pelo WhatsApp.' : 'Veja o cardápio em 3D e peça pelo WhatsApp.') };
     if (v.og || v.capa || v.logo) imagem = url.origin + '/' + (v.og || v.capa || v.logo);
   }
   const metas = [

@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>MenuReal AR</title>
-  <meta name="description" content="Cardápio e catálogo com visualização 3D e realidade aumentada. Veja em tamanho real antes de comprar.">
+  <title>MenuReal — móveis em 3D na casa do cliente</title>
+  <meta name="description" content="Catálogo de móveis em 3D e realidade aumentada: o cliente vê o móvel no tamanho real, na casa dele, antes de comprar.">
   <meta name="theme-color" content="#F3F5F1" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0A130F" media="(prefers-color-scheme: dark)">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231F4D3A'/%3E%3Cpath d='M32 13 50 23v18L32 51 14 41V23z' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3Cpath d='M14 23l18 10 18-10M32 33v18' fill='none' stroke='%23C9E26B' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -46,22 +46,22 @@
     <!-- Página inicial: apresentação para lojistas (escondida nas páginas das lojas) -->
     <section class="landing" id="landing" hidden aria-labelledby="land-titulo">
       <div class="land-hero">
-        <span class="land-selo">Para açaí e sorveteria</span>
-        <h1 class="land-titulo" id="land-titulo">O cliente <em>monta o açaí em 3D</em> e pede no WhatsApp</h1>
-        <p class="land-sub">Cardápio digital com o copo no tamanho real, Pix com o valor certo e pedido completo. Pronto em 2 minutos.</p>
+        <span class="land-selo">Para lojas de móveis e decoração</span>
+        <h1 class="land-titulo" id="land-titulo">O cliente vê o <em>móvel na casa dele</em> antes de comprar</h1>
+        <p class="land-sub">Seu catálogo em 3D: o sofá, a mesa, a estante aparecem no tamanho real, na sala do cliente, pela câmera do celular. Sem baixar aplicativo.</p>
         <div class="land-acoes">
-          <button class="btn btn--sol" type="button" id="land-criar">Criar meu cardápio grátis</button>
+          <button class="btn btn--sol" type="button" id="land-criar">Criar meu catálogo grátis</button>
           <button class="btn btn--vidro" type="button" id="land-como">Como funciona</button>
         </div>
         <p class="land-mini">7 dias grátis · sem cartão</p>
-        <img class="land-copo" src="assets/og-acai.png" alt="Copo de açaí em 3D com camadas de creme e morango" width="371" height="540">
+        <img class="land-copo land-sofa" src="assets/sofa-vitrine.png" alt="Sofá de veludo rosa em 3D" width="720" height="387">
       </div>
       <div class="land-passos">
-        <div class="land-passo"><b aria-hidden="true">1</b><div><strong>Monta camada por camada</strong><span>Açaí, creme, fruta… cada toque aparece no copo, com animação.</span></div></div>
-        <div class="land-passo"><b aria-hidden="true">2</b><div><strong>Vê na mesa, no tamanho real</strong><span>Pela câmera do celular, antes de pedir.</span></div></div>
-        <div class="land-passo"><b aria-hidden="true">3</b><div><strong>Pedido pronto no WhatsApp</strong><span>Com endereço, taxa e Pix já com o valor.</span></div></div>
+        <div class="land-passo"><b aria-hidden="true">1</b><div><strong>Cabe? Fica bonito?</strong><span>O cliente posiciona o móvel na sala, com as medidas na tela, e tira a dúvida na hora.</span></div></div>
+        <div class="land-passo"><b aria-hidden="true">2</b><div><strong>O seu produto de verdade</strong><span>Envie o arquivo 3D da fábrica ou crie a partir de fotos. Troca de cor do tecido também.</span></div></div>
+        <div class="land-passo"><b aria-hidden="true">3</b><div><strong>Orçamento no WhatsApp</strong><span>O cliente manda a lista com os itens, as medidas e o endereço.</span></div></div>
       </div>
-      <div class="land-demo"><h2>Experimente agora</h2><span>monte um açaí aqui embaixo ↓</span></div>
+      <div class="land-demo"><h2>Experimente agora</h2><span>toque num móvel e depois em “Ver na sua casa” ↓</span></div>
     </section>
 
     <section class="hero" aria-labelledby="nome-padaria">
@@ -98,7 +98,7 @@
   </main>
 
   <footer class="rodape" id="rodape">
-    <p>Feito com <strong>MenuReal</strong> · <a href="/termos">Termos e privacidade</a> · 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a></p>
+    <p>Feito com <strong>MenuReal</strong> · <a href="/termos">Termos e privacidade</a> · 3D com <a href="https://modelviewer.dev/" target="_blank" rel="noopener">model-viewer</a> · Móveis da demonstração: Wayfair, <a href="assets/moveis/CREDITOS.txt" target="_blank" rel="noopener">CC BY 4.0</a></p>
   </footer>
 
   <!-- ================= Visualizador 3D / AR ================= -->
@@ -123,6 +123,7 @@
 
       <div class="viewer__painel">
         <div class="tamanhos" id="viewer-tamanhos" role="group" aria-label="Tamanho" hidden></div>
+        <fieldset class="adicionais" id="viewer-cores" hidden></fieldset>
         <fieldset class="adicionais" id="viewer-adicionais" hidden></fieldset>
         <div class="abas" role="tablist" aria-label="Modo de visualização">
           <button class="aba" role="tab" id="aba-3d" aria-selected="true" aria-controls="painel-3d" type="button">Ver em 3D</button>
@@ -223,7 +224,7 @@
   <dialog class="folha folha--admin" id="dlg-cadastro" aria-labelledby="cadastro-titulo">
     <div class="painel">
       <div class="painel__topo">
-        <h2 id="cadastro-titulo">Criar meu cardápio</h2>
+        <h2 id="cadastro-titulo">Criar meu catálogo</h2>
         <button class="fechar" type="button" data-fechar aria-label="Fechar">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
@@ -266,7 +267,7 @@
     if (location.protocol === 'file:') {
       var a = document.getElementById('aviso-protocolo');
       a.hidden = false;
-      a.textContent = 'Você abriu o arquivo direto do computador. O cardápio funciona, mas os modelos 3D só carregam por um servidor (ex.: npx serve) ou hospedagem HTTPS. Para testar sem servidor, use o arquivo menureal-ar-arquivo-unico.html.';
+      a.textContent = 'Você abriu o arquivo direto do computador. O catálogo funciona, mas os modelos 3D só carregam por um servidor (ex.: npx serve) ou hospedagem HTTPS. Para testar sem servidor, use o arquivo menureal-ar-arquivo-unico.html.';
     }
   </script>
   <script src="app.js" defer></script>

@@ -2,8 +2,8 @@
    MenuReal AR — utilidades do servidor (Cloudflare Workers)
    Respostas JSON, login (WebCrypto), escala e combo de modelos GLB.
    ========================================================================= */
-import { lerGlb, escreverGlb, caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe, VISUAL_CAMADA, bibliotecasDe } from '../../public/glb.mjs';
-export { caixaGlb, juntarGlbs, montarAcai, ADICIONAIS_3D, arquivoDe, VISUAL_CAMADA, bibliotecasDe };
+import { lerGlb, escreverGlb, caixaGlb, juntarGlbs } from '../../public/glb.mjs';
+export { caixaGlb, juntarGlbs };
 
 export function json(dados, status = 200) {
   return new Response(JSON.stringify(dados), {
@@ -128,13 +128,13 @@ export async function guardarModelo(env, chave, bytes, meta = {}) {
   await env.MODELOS.put(chave, bytes, { metadata: meta });
   return PREFIXO_ARQUIVO + chave;
 }
-/** Lê um modelo: da nuvem (api/arquivo/...) ou dos arquivos do site (assets/models/...). */
+/** Lê um modelo: da nuvem (api/arquivo/...) ou dos arquivos do site (assets/moveis/...). */
 export async function lerModelo(env, url) {
   url = String(url || '').replace(/^\//, '');
   if (url.includes('..')) return null;
   const nuvem = /^api\/arquivo\/((?:modelos|combos)\/(?:[a-z0-9-]+\/)?[\w.-]+\.glb)$/.exec(url);
   if (nuvem) { const ab = await env.MODELOS.get(nuvem[1], 'arrayBuffer'); return ab ? new Uint8Array(ab) : null; }
-  if (/^assets\/models\/[\w.-]+\.glb$/.test(url)) {
+  if (/^assets\/(models|moveis)\/[\w.-]+\.glb$/.test(url)) {
     const r = await env.ASSETS.fetch(new Request('https://site/' + url));
     return r.ok ? new Uint8Array(await r.arrayBuffer()) : null;
   }
