@@ -140,6 +140,12 @@ Não precisa de cartão de crédito.
    (tabela na seção 7). Salve com **Deploy**.
 5. Endereço: `https://menureal-ar.SEU-SUBDOMINIO.workers.dev`. Cada `git push`
    na branch `main` publica de novo sozinho.
+6. Domínio próprio (o oficial é **https://menureal.com.br**): registre o `.com.br`
+   no Registro.br, adicione o domínio na Cloudflare (plano Free), troque os
+   servidores DNS no Registro.br pelos dois da Cloudflare e, quando ficar *Active*,
+   ligue no Worker em *Settings → Domains & Routes → Add → Custom Domain*
+   (`menureal.com.br` e `www.menureal.com.br`). O site usa o endereço de onde foi
+   aberto, então links, prévias e QR codes funcionam nos dois endereços.
 
 > Se a criação automática do banco falhar: *Storage & Databases → D1 → Create*
 > com o nome `menureal`; copie o *Database ID* e coloque
