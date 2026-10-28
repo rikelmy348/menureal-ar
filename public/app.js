@@ -905,7 +905,7 @@
     alvo.hidden = lista.length < 2;
     if (lista.length < 2) { alvo.innerHTML = ''; return; }
     alvo.innerHTML = '<legend>Cor <small>' + lista.length + ' opções</small></legend><div class="cores">' + lista.map(function (v, i) {
-      return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (i === 0) + '">' + esc(nomeCor(v)) + '</button>';
+      return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '">' + esc(nomeCor(v)) + '</button>';
     }).join('') + '</div>';
   }
   $('#viewer-cores').addEventListener('click', function (e) {
@@ -1048,7 +1048,7 @@
   $('#viewer-add').addEventListener('click', function () {
     if (!produtoAtual || produtoAtual.combo || produtoAtual.esgotado) return;
     var mvA = palco.querySelector('model-viewer');
-    adicionar(produtoAtual.id, tamAtual, adicSel, mvA && (mvA.availableVariants || []).length > 1 ? mvA.variantName || mvA.availableVariants[0] : '');
+    adicionar(produtoAtual.id, tamAtual, adicSel, mvA && (mvA.availableVariants || []).length > 1 ? mvA.variantName || '' : '');
     var b = this;
     b.classList.add('feito');
     b.textContent = 'Adicionado ✓';
