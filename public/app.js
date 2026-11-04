@@ -805,9 +805,9 @@
       src: urlModelo(ef.modelo),
       alt: 'Modelo 3D de ' + p.nome + (p.combo ? '' : ', ' + dimTexto(ef.dim)),
       ar: '',
-      // Scene Viewer primeiro: no Android ele fixa o objeto na mesa com mais estabilidade
-      // Com medidas ligadas, a RA abre dentro do Chrome (WebXR), único modo que mostra as etiquetas
-      'ar-modes': medidasLigadas ? 'webxr scene-viewer quick-look' : 'scene-viewer webxr quick-look',
+      // Sempre o app de RA do Google primeiro: é mais leve (não trava), fixa melhor no chão e usa a
+      // luz real do ambiente, então o móvel parece de verdade. As etiquetas de medida ficam no 3D.
+      'ar-modes': 'scene-viewer webxr quick-look',
       'ar-scale': 'fixed',
       'ar-placement': 'floor',
       'camera-controls': '',
@@ -992,9 +992,8 @@
     var mv = palco.querySelector('model-viewer');
     if (!mv) return;
     mv.classList.toggle('sem-medidas', !medidasLigadas);
-    mv.setAttribute('ar-modes', medidasLigadas ? 'webxr scene-viewer quick-look' : 'scene-viewer webxr quick-look');
     b.setAttribute('aria-pressed', String(medidasLigadas));
-    toast(medidasLigadas ? 'Medidas visíveis no 3D e na câmera' : 'Medidas ocultas');
+    toast(medidasLigadas ? 'Medidas visíveis no 3D' : 'Medidas ocultas');
   });
 
   function conferirEscala(mv, p) {
