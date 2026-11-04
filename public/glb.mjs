@@ -199,3 +199,155 @@ export function juntarGlbs(lista, folgaM = 0.02) {
   });
   return finalizar(combinar(itens, 'MenuReal AR combo'));
 }
+
+/* -------------------------------------------------------------------------
+   Formas simples com foto (lata, balde, caixa, colchão…): geometria exata
+   nas medidas cadastradas e a foto do produto aplicada como rótulo.
+   op = { forma: 'cilindro' | 'caixa', medidasM: [largura, altura, profundidade],
+          imagem: Uint8Array (JPEG), cor: [r,g,b] 0..1, bordasMetal: bool, repetir: 1 | 2 }
+   ------------------------------------------------------------------------- */
+export function gerarForma(op) {
+  const [L, A, P] = op.medidasM;
+  const partes = []; // { pos, nor, uv, idx, mat }
+  const MAT_ROTULO = 0, MAT_COR = 1, MAT_METAL = 2;
+
+  function cilindro(r, y0, y1, mat, u0, u1, seg) {
+    const pos = [], nor = [], uv = [], idx = [];
+    for (let i = 0; i <= seg; i++) {
+      const t = i / seg, ang = t * Math.PI * 2;
+      // t = 0 fica na frente (+Z); o centro da foto fica de frente para o cliente
+      const x = Math.sin(ang), z = Math.cos(ang);
+      const u = u0 + (u1 - u0) * ((t + 0.5 / (op.repetir || 1)) % 1 || 0);
+      pos.push(x * r, y0, z * r, x * r, y1, z * r);
+      nor.push(x, 0, z, x, 0, z);
+      uv.push(u, 1, u, 0);
+    }
+    for (let i = 0; i < seg; i++) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    partes.push({ pos, nor, uv, idx, mat });
+  }
+  function rotuloCilindro(r, y0, y1, seg) {
+    // costura sem "salto": cada repetição tem seus próprios vértices
+    const rep = op.repetir || 1, pos = [], nor = [], uv = [], idx = [];
+    for (let k = 0; k < rep; k++) {
+      const base = pos.length / 3;
+      const n = Math.ceil(seg / rep);
+      for (let i = 0; i <= n; i++) {
+        const t = (k + i / n) / rep, ang = t * Math.PI * 2 - Math.PI / rep; // centro da 1ª cópia na frente
+        const x = Math.sin(ang), z = Math.cos(ang), u = i / n;
+        pos.push(x * r, y0, z * r, x * r, y1, z * r);
+        nor.push(x, 0, z, x, 0, z);
+        uv.push(u, 1, u, 0);
+      }
+      for (let i = 0; i < n; i++) { const a = base + i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    }
+    partes.push({ pos, nor, uv, idx, mat: MAT_ROTULO });
+  }
+  function disco(r, y, cima, mat, seg) {
+    const pos = [0, y, 0], nor = [0, cima ? 1 : -1, 0], uv = [0.5, 0.5], idx = [];
+    for (let i = 0; i <= seg; i++) {
+      const ang = (i / seg) * Math.PI * 2, x = Math.sin(ang), z = Math.cos(ang);
+      pos.push(x * r, y, z * r); nor.push(0, cima ? 1 : -1, 0); uv.push(0.5 + x / 2, 0.5 - z / 2);
+    }
+    for (let i = 1; i <= seg; i++) cima ? idx.push(0, i, i + 1) : idx.push(0, i + 1, i);
+    partes.push({ pos, nor, uv, idx, mat });
+  }
+  function anel(r0, r1, y, mat, seg) { // coroa plana virada para cima
+    const pos = [], nor = [], uv = [], idx = [];
+    for (let i = 0; i <= seg; i++) {
+      const ang = (i / seg) * Math.PI * 2, x = Math.sin(ang), z = Math.cos(ang);
+      pos.push(x * r0, y, z * r0, x * r1, y, z * r1); nor.push(0, 1, 0, 0, 1, 0); uv.push(0, 0, 1, 1);
+    }
+    for (let i = 0; i < seg; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    partes.push({ pos, nor, uv, idx, mat });
+  }
+  function face(c, ux, uy, n, mat, comFoto) { // retângulo: centro c, meias-arestas ux, uy, normal n
+    const pos = [], nor = [], uv = [];
+    const cantos = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    cantos.forEach(([a, b]) => {
+      pos.push(c[0] + ux[0] * a + uy[0] * b, c[1] + ux[1] * a + uy[1] * b, c[2] + ux[2] * a + uy[2] * b);
+      nor.push(...n);
+      uv.push(comFoto ? (a + 1) / 2 : 0, comFoto ? (1 - b) / 2 : 0);
+    });
+    partes.push({ pos, nor, uv, idx: [0, 1, 2, 0, 2, 3], mat });
+  }
+
+  if (op.forma === 'cilindro') {
+    const r = L / 2, seg = 72;
+    if (op.bordasMetal) {
+      const b = Math.min(A * 0.05, 0.02), aba = Math.min(r * 0.06, 0.008);
+      cilindro(r, 0, b, MAT_METAL, 0, 0, seg);
+      rotuloCilindro(r * 0.995, b, A - b, seg);
+      cilindro(r, A - b, A, MAT_METAL, 0, 0, seg);
+      anel(r - aba, r, A, MAT_METAL, seg);
+      cilindro(r - aba, A - aba * 0.8, A, MAT_METAL, 0, 0, seg); // borda interna da tampa (metal é dupla face)
+      disco(r - aba, A - aba * 0.8, true, MAT_METAL, seg);
+      disco(r, 0, false, MAT_METAL, seg);
+    } else {
+      rotuloCilindro(r, 0, A, seg);
+      disco(r, A, true, MAT_COR, seg);
+      disco(r, 0, false, MAT_COR, seg);
+    }
+  } else {
+    const x = L / 2, y = A / 2, z = P / 2;
+    face([0, y, z], [x, 0, 0], [0, y, 0], [0, 0, 1], MAT_ROTULO, true);     // frente: foto
+    face([0, y, -z], [-x, 0, 0], [0, y, 0], [0, 0, -1], MAT_COR, false);     // trás
+    face([x, y, 0], [0, 0, -z], [0, y, 0], [1, 0, 0], MAT_COR, false);       // direita
+    face([-x, y, 0], [0, 0, z], [0, y, 0], [-1, 0, 0], MAT_COR, false);      // esquerda
+    face([0, A, 0], [x, 0, 0], [0, 0, -z], [0, 1, 0], MAT_COR, false);       // topo
+    face([0, 0, 0], [x, 0, 0], [0, 0, z], [0, -1, 0], MAT_COR, false);       // base
+  }
+
+  // junta por material
+  const porMat = new Map();
+  partes.forEach((p) => {
+    const g = porMat.get(p.mat) || { pos: [], nor: [], uv: [], idx: [] };
+    const base = g.pos.length / 3;
+    g.pos.push(...p.pos); g.nor.push(...p.nor); g.uv.push(...p.uv); g.idx.push(...p.idx.map((i) => i + base));
+    porMat.set(p.mat, g);
+  });
+
+  const blocos = []; let tam = 0;
+  const json = { asset: { version: '2.0', generator: 'MenuReal forma' }, scene: 0, scenes: [{ nodes: [0] }],
+    nodes: [{ name: 'produto', mesh: 0 }], meshes: [{ primitives: [] }], materials: [], accessors: [], bufferViews: [], buffers: [{ byteLength: 0 }] };
+  function vista(bytes, alvo) {
+    const pad = (4 - (tam % 4)) % 4; if (pad) { blocos.push(new Uint8Array(pad)); tam += pad; }
+    const v = { buffer: 0, byteOffset: tam, byteLength: bytes.byteLength }; if (alvo) v.target = alvo;
+    json.bufferViews.push(v); blocos.push(new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength)); tam += bytes.byteLength;
+    return json.bufferViews.length - 1;
+  }
+  function acessor(arr, tipo, comMinMax) {
+    const f = new Float32Array(arr), n = tipo === 'VEC3' ? 3 : 2;
+    const a = { bufferView: vista(f, 34962), componentType: 5126, count: f.length / n, type: tipo };
+    if (comMinMax) {
+      const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
+      for (let i = 0; i < f.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], f[i + k]); mx[k] = Math.max(mx[k], f[i + k]); }
+      a.min = mn; a.max = mx;
+    }
+    json.accessors.push(a); return json.accessors.length - 1;
+  }
+  const temFoto = !!op.imagem && porMat.has(MAT_ROTULO);
+  if (temFoto) {
+    json.images = [{ bufferView: vista(op.imagem), mimeType: 'image/jpeg' }];
+    json.samplers = [{ magFilter: 9729, minFilter: 9987, wrapS: 33071, wrapT: 33071 }];
+    json.textures = [{ source: 0, sampler: 0 }];
+  }
+  const cor = op.cor || [0.8, 0.8, 0.8];
+  const defMat = {
+    [MAT_ROTULO]: { name: 'rotulo', pbrMetallicRoughness: Object.assign({ metallicFactor: 0, roughnessFactor: 0.5 }, temFoto ? { baseColorTexture: { index: 0 } } : { baseColorFactor: [...cor, 1] }) },
+    [MAT_COR]: { name: 'cor', pbrMetallicRoughness: { baseColorFactor: [...cor, 1], metallicFactor: 0, roughnessFactor: 0.6 } },
+    [MAT_METAL]: { name: 'metal', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [0.8, 0.81, 0.83, 1], metallicFactor: 1, roughnessFactor: 0.32 } }
+  };
+  for (const [mat, g] of porMat) {
+    json.materials.push(defMat[mat]);
+    const idx = new Uint32Array(g.idx);
+    json.accessors.push({ bufferView: vista(idx, 34963), componentType: 5125, count: idx.length, type: 'SCALAR' });
+    const iIdx = json.accessors.length - 1;
+    json.meshes[0].primitives.push({
+      attributes: { POSITION: acessor(g.pos, 'VEC3', true), NORMAL: acessor(g.nor, 'VEC3'), TEXCOORD_0: acessor(g.uv, 'VEC2') },
+      indices: iIdx, material: json.materials.length - 1
+    });
+  }
+  const bin = new Uint8Array(tam); let p = 0; for (const b of blocos) { bin.set(b, p); p += b.length; }
+  json.buffers[0].byteLength = tam;
+  return escreverGlb(json, bin);
+}

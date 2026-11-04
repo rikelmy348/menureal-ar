@@ -1956,9 +1956,32 @@
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
     if (t.name === 'v-cenario') { visualRascunho(function (v) { v.cenario = t.value; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
+    if (t.matches('[data-forma-foto]') && t.files && t.files[0]) {
+      var xf = produtoDoAlvo(t), arqF = t.files[0]; t.value = '';
+      var im = new Image();
+      im.onload = function () {
+        var st = formaEstado[xf.id] = formaEstado[xf.id] || {};
+        st.img = im; st.recorte = { x: 0, y: 0, w: 1, h: 1 }; st.glb = null; st.aberto = true; st.cor = corMedia(st); st.corManual = false;
+        coletarAdmin(); abertoNoAdmin = xf.id; renderAdmin(); atualizarRecortes();
+      };
+      im.onerror = function () { toast('Não consegui abrir essa foto. Tente outra (JPG ou PNG).'); };
+      im.src = URL.createObjectURL(arqF);
+      return;
+    }
+    if (t.matches('[data-forma-tipo], [data-forma-metal], [data-forma-dupla], [data-forma-cor]')) {
+      var xs = produtoDoAlvo(t), s2 = formaEstado[xs.id] = formaEstado[xs.id] || {};
+      if (t.matches('[data-forma-tipo]')) s2.forma = t.value;
+      if (t.matches('[data-forma-metal]')) s2.metal = t.checked;
+      if (t.matches('[data-forma-dupla]')) s2.dupla = t.checked;
+      if (t.matches('[data-forma-cor]')) { s2.cor = t.value; s2.corManual = true; }
+      s2.glb = null; s2.aberto = true;
+      if (t.matches('[data-forma-tipo]')) { coletarAdmin(); abertoNoAdmin = xs.id; renderAdmin(); atualizarRecortes(); }
+      else { var bu = t.closest('[data-forma-det]').querySelector('[data-forma-usar]'); if (bu) bu.disabled = true; }
+      return;
+    }
     if (t.matches('[data-up3d]') && t.files && t.files[0]) {
       coletarAdmin();
-      enviar3d(t.files[0], rascunho.produtos[Number(t.closest('details').getAttribute('data-i'))]);
+      enviar3d(t.files[0], produtoDoAlvo(t));
       t.value = '';
     }
   });
@@ -2026,11 +2049,117 @@
           '</div>' +
           '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
         : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
+      (servidor ? htmlFormaAdmin(x) : '') +
       '<details class="conta-det"><summary>Endereço do arquivo (avançado)</summary>' +
         campo('Arquivo 3D', '<input data-f="modelo" maxlength="300" placeholder="https://… .glb" value="' + esc(x.modelo) + '">', 'Caminho ou link https de um arquivo .glb em metros.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Mostrar selo “Modelo ilustrativo” (use se o 3D não for fiel ao produto)</label>' +
       '</details></fieldset>';
   }
+
+  // ----- 3D por forma simples + foto (lata, balde, caixa, colchão…) -----
+  var formaEstado = {}; // por produto: { img, recorte: {x,y,w,h} de 0 a 1, glb }
+  function htmlFormaAdmin(x) {
+    var st = formaEstado[x.id] || {};
+    var forma = st.forma || 'cilindro';
+    return '<details class="conta-det forma-det"' + (st.aberto ? ' open' : '') + ' data-forma-det><summary>Produto de formato simples? Montar com forma + foto</summary>' +
+      '<p class="mini">Para latas, baldes, vasos, caixas e colchões: o 3D sai com a forma exata, nas medidas acima, e a foto vira o rótulo. Fica muito mais nítido que o “Criar com fotos”.</p>' +
+      '<div class="campos campos--2">' +
+        campo('Formato', '<select data-forma-tipo><option value="cilindro"' + (forma === 'cilindro' ? ' selected' : '') + '>Redondo (lata, balde, vaso)</option><option value="caixa"' + (forma === 'caixa' ? ' selected' : '') + '>Retangular (caixa, colchão)</option></select>') +
+        campo('Cor do resto', '<input type="color" data-forma-cor value="' + (st.cor || '#d9d9d9') + '">') +
+      '</div>' +
+      '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.camera + (st.img ? 'Trocar a foto' : 'Escolher a foto do rótulo / frente') + '<input type="file" accept="image/*" data-forma-foto hidden></label>' +
+      (st.img ? '<p class="mini">Arraste o dedo sobre a foto para marcar só o rótulo (sem o fundo).</p><canvas class="forma-recorte" data-forma-canvas></canvas>' : '') +
+      (forma === 'cilindro'
+        ? '<label class="checar"><input type="checkbox" data-forma-metal' + (st.metal === false ? '' : ' checked') + '> Bordas e tampa de metal (lata de tinta)</label>' +
+          '<label class="checar"><input type="checkbox" data-forma-dupla' + (st.dupla === false ? '' : ' checked') + '> Rótulo dos dois lados (frente e verso iguais)</label>'
+        : '') +
+      '<div class="linha-acoes"><button class="btn btn--contorno btn--p" type="button" data-forma-previa' + (st.img ? '' : ' disabled') + '>Ver prévia</button>' +
+        '<button class="btn btn--primario btn--p" type="button" data-forma-usar' + (st.glb ? '' : ' disabled') + '>Usar este 3D</button></div>' +
+      '<div class="forma-previa" data-forma-previa-alvo></div>' +
+    '</details>';
+  }
+  function produtoDoAlvo(el) {
+    var d = el.closest('details.prod');
+    return d ? rascunho.produtos[Number(d.getAttribute('data-i'))] : null;
+  }
+  function desenharRecorte(canvas, st) {
+    var img = st.img, larg = canvas.parentNode.clientWidth || 300;
+    var esc = Math.min(larg / img.width, 320 / img.height);
+    canvas.width = Math.round(img.width * esc); canvas.height = Math.round(img.height * esc);
+    var c = canvas.getContext('2d'), r = st.recorte;
+    c.drawImage(img, 0, 0, canvas.width, canvas.height);
+    c.fillStyle = 'rgba(0,0,0,.55)';
+    var X = r.x * canvas.width, Y = r.y * canvas.height, W = r.w * canvas.width, H = r.h * canvas.height;
+    c.fillRect(0, 0, canvas.width, Y); c.fillRect(0, Y + H, canvas.width, canvas.height - Y - H);
+    c.fillRect(0, Y, X, H); c.fillRect(X + W, Y, canvas.width - X - W, H);
+    c.strokeStyle = '#FFD23F'; c.lineWidth = 2; c.strokeRect(X + 1, Y + 1, W - 2, H - 2);
+  }
+  function atualizarRecortes() {
+    $$('#admin-corpo [data-forma-canvas]').forEach(function (cv) {
+      var x = produtoDoAlvo(cv), st = x && formaEstado[x.id];
+      if (st && st.img) desenharRecorte(cv, st);
+    });
+  }
+  function corMedia(st) {
+    var c = document.createElement('canvas'); c.width = c.height = 8;
+    var g = c.getContext('2d'), r = st.recorte, im = st.img;
+    g.drawImage(im, r.x * im.width, r.y * im.height, r.w * im.width, r.h * im.height, 0, 0, 8, 8);
+    var d = g.getImageData(0, 0, 8, 8).data, s = [0, 0, 0];
+    for (var i = 0; i < d.length; i += 4) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; }
+    return '#' + s.map(function (v) { return ('0' + Math.round(v / 64).toString(16)).slice(-2); }).join('');
+  }
+  function fotoRecortada(st) {
+    var r = st.recorte, im = st.img, sw = r.w * im.width, sh = r.h * im.height;
+    var k = Math.min(1, 1024 / Math.max(sw, sh));
+    var c = document.createElement('canvas'); c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+    c.getContext('2d').drawImage(im, r.x * im.width, r.y * im.height, sw, sh, 0, 0, c.width, c.height);
+    return new Promise(function (ok) { c.toBlob(function (b) { b.arrayBuffer().then(function (a) { ok(new Uint8Array(a)); }); }, 'image/jpeg', 0.88); });
+  }
+  function hexParaRgb(h) { var n = parseInt(h.slice(1), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255].map(function (v) { return Math.pow(v, 2.2); }); }
+  function gerarPreviaForma(btn) {
+    var x = produtoDoAlvo(btn), st = x && formaEstado[x.id];
+    if (!st || !st.img) return;
+    coletarAdmin(); x = produtoDoAlvo(btn);
+    var d = x.dim;
+    if (d.largura <= 5 && d.profundidade <= 5 && d.altura <= 5) { toast('Preencha as medidas reais do produto (em cm) antes de montar o 3D.'); return; }
+    if (st.forma !== 'caixa' && Math.abs(d.profundidade - d.largura) > 0.05) { d.profundidade = d.largura; toast('Produto redondo: usei a largura como diâmetro (' + num(d.largura) + ' cm).'); }
+    btn.disabled = true; btn.textContent = 'Montando…';
+    Promise.all([carregarModuloGlb(), fotoRecortada(st)]).then(function (r) {
+      var glb = r[0].gerarForma({ forma: st.forma || 'cilindro', medidasM: [d.largura / 100, d.altura / 100, d.profundidade / 100],
+        imagem: r[1], cor: hexParaRgb(st.cor || '#d9d9d9'), bordasMetal: st.forma !== 'caixa' && st.metal !== false, repetir: st.forma !== 'caixa' && st.dupla !== false ? 2 : 1 });
+      if (st.url) URL.revokeObjectURL(st.url);
+      st.glb = glb; st.url = URL.createObjectURL(new Blob([glb], { type: 'model/gltf-binary' }));
+      var det = btn.closest('[data-forma-det]');
+      var alvoP = det.querySelector('[data-forma-previa-alvo]');
+      alvoP.innerHTML = '<model-viewer loading="eager" interaction-prompt="none" src="' + st.url + '" camera-controls auto-rotate shadow-intensity="1" environment-image="' + ESTUDIO() + '" tone-mapping="neutral" camera-orbit="25deg 75deg auto" style="width:100%;height:280px;background:#f3eefa;border-radius:14px"></model-viewer>';
+      alvoP.scrollIntoView({ block: 'center', behavior: reduzMovimento ? 'auto' : 'smooth' });
+      det.querySelector('[data-forma-usar]').disabled = false;
+      btn.disabled = false; btn.textContent = 'Ver prévia de novo';
+    }).catch(function (e) { btn.disabled = false; btn.textContent = 'Ver prévia'; toast('Não consegui montar o 3D: ' + e.message); });
+  }
+  $('#admin-corpo').addEventListener('pointerdown', function (e) {
+    var cv = e.target.closest('[data-forma-canvas]'); if (!cv) return;
+    var x = produtoDoAlvo(cv), st = x && formaEstado[x.id]; if (!st) return;
+    e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    var b = cv.getBoundingClientRect(), x0 = (e.clientX - b.left) / b.width, y0 = (e.clientY - b.top) / b.height;
+    function mover(ev) {
+      var x1 = Math.max(0, Math.min(1, (ev.clientX - b.left) / b.width)), y1 = Math.max(0, Math.min(1, (ev.clientY - b.top) / b.height));
+      var w = Math.abs(x1 - x0), h = Math.abs(y1 - y0);
+      if (w > 0.03 && h > 0.03) { st.recorte = { x: Math.min(x0, x1), y: Math.min(y0, y1), w: w, h: h }; desenharRecorte(cv, st); }
+    }
+    function soltar() {
+      cv.removeEventListener('pointermove', mover); cv.removeEventListener('pointerup', soltar);
+      st.cor = corMedia(st); var ci = cv.closest('[data-forma-det]').querySelector('[data-forma-cor]'); if (ci && !st.corManual) ci.value = st.cor;
+      st.glb = null; var u = cv.closest('[data-forma-det]').querySelector('[data-forma-usar]'); if (u) u.disabled = true;
+    }
+    cv.addEventListener('pointermove', mover); cv.addEventListener('pointerup', soltar);
+  });
+  $('#admin-corpo').addEventListener('toggle', function (e) {
+    if (!e.target.matches || !e.target.matches('[data-forma-det]')) return;
+    var x = produtoDoAlvo(e.target); if (!x) return;
+    (formaEstado[x.id] = formaEstado[x.id] || {}).aberto = e.target.open;
+    if (e.target.open) atualizarRecortes();
+  }, true);
 
   function htmlProdutoAdmin(x, i) {
     var aberto = abertoNoAdmin === x.id;
@@ -2292,7 +2421,7 @@
     var tamNovo = e.target.closest('[data-tam-novo]');
     if (tamNovo) {
       coletarAdmin();
-      var pn = rascunho.produtos[Number(tamNovo.closest('details').getAttribute('data-i'))];
+      var pn = rascunho.produtos[Number(tamNovo.closest('details.prod').getAttribute('data-i'))];
       var nomes = ['P', 'M', 'G', 'GG', 'Família', 'Extra'];
       var base = pn.tamanhos.length ? pn.tamanhos[pn.tamanhos.length - 1] : { preco: pn.preco, dim: pn.dim };
       pn.tamanhos.push({ id: 't' + Date.now().toString(36), nome: nomes[pn.tamanhos.length] || 'Tamanho ' + (pn.tamanhos.length + 1),
@@ -2303,7 +2432,7 @@
     var tamRem = e.target.closest('[data-tam-remover]');
     if (tamRem) {
       coletarAdmin();
-      var pr = rascunho.produtos[Number(tamRem.closest('details').getAttribute('data-i'))];
+      var pr = rascunho.produtos[Number(tamRem.closest('details.prod').getAttribute('data-i'))];
       pr.tamanhos.splice(Number(tamRem.closest('.tam-linha').getAttribute('data-ti')), 1);
       abertoNoAdmin = pr.id; renderAdmin();
       return;
@@ -2311,7 +2440,7 @@
     var adicNovo = e.target.closest('[data-adic-novo]');
     if (adicNovo) {
       coletarAdmin();
-      var pa = rascunho.produtos[Number(adicNovo.closest('details').getAttribute('data-i'))];
+      var pa = rascunho.produtos[Number(adicNovo.closest('details.prod').getAttribute('data-i'))];
       pa.adicionais.push({ id: 'a' + Date.now().toString(36), nome: '', preco: 0 });
       abertoNoAdmin = pa.id; renderAdmin();
       return;
@@ -2319,13 +2448,13 @@
     var adicRem = e.target.closest('[data-adic-remover]');
     if (adicRem) {
       coletarAdmin();
-      var pq = rascunho.produtos[Number(adicRem.closest('details').getAttribute('data-i'))];
+      var pq = rascunho.produtos[Number(adicRem.closest('details.prod').getAttribute('data-i'))];
       pq.adicionais.splice(Number(adicRem.closest('.adic-linha').getAttribute('data-ai')), 1);
       abertoNoAdmin = pq.id; renderAdmin();
       return;
     }
     var tam3d = e.target.closest('[data-tam-3d]');
-    if (tam3d) { coletarAdmin(); gerarTamanhos3d(tam3d, rascunho.produtos[Number(tam3d.closest('details').getAttribute('data-i'))]); return; }
+    if (tam3d) { coletarAdmin(); gerarTamanhos3d(tam3d, rascunho.produtos[Number(tam3d.closest('details.prod').getAttribute('data-i'))]); return; }
     if (e.target.closest('#admin-foto')) {
       coletarAdmin();
       abrirLeitorFoto();
@@ -2343,16 +2472,26 @@
       if (d) { d.scrollIntoView({ block: 'center', behavior: reduzMovimento ? 'auto' : 'smooth' }); d.querySelector('[data-f="nome"]').select(); }
       return;
     }
+    var fprev = e.target.closest('[data-forma-previa]');
+    if (fprev) { gerarPreviaForma(fprev); return; }
+    var fusar = e.target.closest('[data-forma-usar]');
+    if (fusar) {
+      var xu = produtoDoAlvo(fusar), su = xu && formaEstado[xu.id];
+      if (!su || !su.glb) return;
+      coletarAdmin(); xu = produtoDoAlvo(fusar);
+      enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
+      return;
+    }
     var g3d = e.target.closest('[data-gerar-3d]');
     if (g3d) {
       coletarAdmin();
-      abrirGerador3D(Number(g3d.closest('details').getAttribute('data-i')));
+      abrirGerador3D(Number(g3d.closest('details.prod').getAttribute('data-i')));
       return;
     }
     var resc = e.target.closest('[data-reescalar]');
     if (resc) {
       coletarAdmin();
-      var px = rascunho.produtos[Number(resc.closest('details').getAttribute('data-i'))];
+      var px = produtoDoAlvo(resc);
       if (!credenciais()) { toast(LOJA ? 'Entre na conta do estabelecimento' : 'Preencha o código de acesso no topo do painel'); return; }
       if (!(px.dim.largura > 0 && px.dim.profundidade > 0 && px.dim.altura > 0)) { toast('Preencha as três medidas em cm'); return; }
       resc.disabled = true; resc.textContent = 'Ajustando…';
@@ -2369,7 +2508,7 @@
     var rem = e.target.closest('[data-remover-prod]');
     if (rem) {
       coletarAdmin();
-      var i = Number(rem.closest('details').getAttribute('data-i'));
+      var i = Number(rem.closest('details.prod').getAttribute('data-i'));
       confirmar('Remover “' + (rascunho.produtos[i].nome || 'produto') + '”? A remoção só vale depois de salvar.', 'Remover').then(function (sim) {
         if (!sim) return;
         rascunho.produtos.splice(i, 1);

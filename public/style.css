@@ -907,3 +907,9 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .cabe__planta { display: block; width: 100%; max-width: 360px; height: auto; color: var(--tinta); }
 .cabe__legenda { margin: 2px 0 0; }
 @media (max-width: 380px) { .cabe__campos { grid-template-columns: 1fr 1fr; } }
+
+/* ----- 3D por forma + foto ----- */
+.forma-det .btn { margin: 8px 0; }
+.forma-recorte { display: block; max-width: 100%; margin: 6px 0 10px; border-radius: 10px; touch-action: none; cursor: crosshair; }
+.forma-previa:empty { display: none; }
+.forma-previa { margin-top: 10px; }
