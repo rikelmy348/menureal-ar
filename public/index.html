@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>MenuReal — móveis em 3D na casa do cliente</title>
+  <title>MenuReal — catálogo 3D e realidade aumentada para lojas de móveis</title>
   <meta name="description" content="Catálogo de móveis em 3D e realidade aumentada: o cliente vê o móvel no tamanho real, na casa dele, antes de comprar.">
   <meta name="theme-color" content="#F3F5F1" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0A130F" media="(prefers-color-scheme: dark)">
@@ -45,23 +45,62 @@
   <main id="cardapio">
     <!-- Página inicial: apresentação para lojistas (escondida nas páginas das lojas) -->
     <section class="landing" id="landing" hidden aria-labelledby="land-titulo">
-      <div class="land-hero">
-        <span class="land-selo">Para lojas de móveis e decoração</span>
-        <h1 class="land-titulo" id="land-titulo">O cliente vê o <em>móvel na casa dele</em> antes de comprar</h1>
-        <p class="land-sub">Seu catálogo em 3D: o sofá, a mesa, a estante aparecem no tamanho real, na sala do cliente, pela câmera do celular. Sem baixar aplicativo.</p>
-        <div class="land-acoes">
-          <button class="btn btn--sol" type="button" id="land-criar">Criar meu catálogo grátis</button>
-          <button class="btn btn--vidro" type="button" id="land-como">Como funciona</button>
+      <!-- 1. Apresentação: o que é, para quem, e o produto de verdade funcionando -->
+      <div class="lp-hero">
+        <div class="lp-hero__texto">
+          <p class="lp-etiqueta">Catálogo 3D para lojas de móveis</p>
+          <h1 class="lp-titulo" id="land-titulo">Venda mais móveis: o cliente vê o produto <em>na casa dele</em>, no tamanho real</h1>
+          <p class="lp-sub">Seus móveis em 3D e em realidade aumentada, num link para mandar no WhatsApp e no Instagram. O cliente tira a dúvida de tamanho e de estilo, e o pedido de orçamento chega pronto para você.</p>
+          <div class="lp-acoes">
+            <button class="btn btn--sol" type="button" id="land-criar">Testar grátis por 7 dias</button>
+            <a class="btn btn--vidro" href="#land-demo">Ver demonstração</a>
+          </div>
+          <ul class="lp-garantias">
+            <li>Sem aplicativo</li><li>Sem cartão no teste</li><li>Pronto no mesmo dia</li>
+          </ul>
         </div>
-        <p class="land-mini">7 dias grátis · sem cartão</p>
-        <img class="land-copo land-sofa" src="assets/sofa-vitrine.png" alt="Sofá de veludo rosa em 3D" width="720" height="387">
+        <figure class="lp-palco">
+          <model-viewer id="land-modelo" src="assets/moveis/sofa-veludo.glb" alt="Sofá de veludo em 3D, que pode ser girado e visto na sua casa"
+            camera-controls auto-rotate auto-rotate-delay="0" rotation-per-second="18deg" interaction-prompt="none" disable-zoom
+            ar ar-modes="scene-viewer webxr quick-look" ar-scale="fixed" ar-placement="floor"
+            environment-image="assets/estudio.hdr" tone-mapping="neutral" shadow-intensity="1.1" shadow-softness="0.8" camera-orbit="25deg 75deg auto">
+            <button slot="ar-button" class="lp-ar">Ver na minha casa</button>
+          </model-viewer>
+          <figcaption><strong>Sofá 3 lugares Veludo</strong> · 219 × 102 × 79 cm<span>Gire com o dedo. No celular, toque em “Ver na minha casa”.</span></figcaption>
+        </figure>
       </div>
-      <div class="land-passos">
-        <div class="land-passo"><b aria-hidden="true">1</b><div><strong>Cabe? Fica bonito?</strong><span>O cliente posiciona o móvel na sala, com as medidas na tela, e tira a dúvida na hora.</span></div></div>
-        <div class="land-passo"><b aria-hidden="true">2</b><div><strong>O seu produto de verdade</strong><span>Envie o arquivo 3D da fábrica ou crie a partir de fotos. Troca de cor do tecido também.</span></div></div>
-        <div class="land-passo"><b aria-hidden="true">3</b><div><strong>Orçamento no WhatsApp</strong><span>O cliente manda a lista com os itens, as medidas e o endereço.</span></div></div>
+
+      <!-- 2. Para quem é -->
+      <div class="lp-bloco" aria-labelledby="lp-quem">
+        <h2 id="lp-quem">Para quem é o MenuReal</h2>
+        <p class="lp-bloco__sub">Para lojas que vendem produtos em que o cliente pergunta: <strong>“será que cabe? será que combina?”</strong></p>
+        <div class="lp-cartoes">
+          <article class="lp-cartao"><span class="lp-ico" aria-hidden="true">🛋️</span><h3>Lojas de móveis</h3><p>Sofás, mesas, cadeiras, camas e racks. O cliente vê o tamanho real antes de sair de casa.</p></article>
+          <article class="lp-cartao"><span class="lp-ico" aria-hidden="true">📐</span><h3>Móveis planejados</h3><p>Cozinhas, dormitórios e armários. Use o 3D que a sua equipe já desenha no projeto.</p></article>
+          <article class="lp-cartao"><span class="lp-ico" aria-hidden="true">🪴</span><h3>Decoração</h3><p>Tapetes, luminárias, vasos e espelhos. Ele confere se o tamanho fica bom no ambiente.</p></article>
+        </div>
       </div>
-      <div class="land-demo"><h2>Experimente agora</h2><span>toque num móvel e depois em “Ver na sua casa” ↓</span></div>
+
+      <!-- 3. Benefício comercial -->
+      <div class="lp-bloco" aria-labelledby="lp-por-que">
+        <h2 id="lp-por-que">Por que isso ajuda a vender</h2>
+        <div class="lp-beneficios">
+          <div class="lp-beneficio"><h3>Menos venda perdida por dúvida</h3><p>A dúvida de tamanho é um dos maiores motivos para o cliente “pensar mais um pouco” e sumir. Aqui ele resolve na hora, com o produto na sala dele.</p></div>
+          <div class="lp-beneficio"><h3>Orçamento pronto no WhatsApp</h3><p>O pedido chega com produto, cor, medidas e endereço. Sua equipe atende quem já decidiu, sem perder tempo com perguntas repetidas.</p></div>
+          <div class="lp-beneficio"><h3>Menos troca por medida errada</h3><p>Com o “Cabe no meu espaço?”, o cliente digita a medida do lugar e o catálogo responde se cabe e quanto sobra.</p></div>
+          <div class="lp-beneficio"><h3>Tecnologia de grande marca</h3><p>3D e realidade aumentada costumam ser coisa de rede grande. Com o MenuReal, sua loja oferece isso com uma mensalidade de loja de bairro.</p></div>
+        </div>
+        <div class="lp-zap" aria-label="Exemplo de pedido de orçamento recebido no WhatsApp">
+          <p class="lp-zap__rot">Exemplo do que chega no seu WhatsApp</p>
+          <div class="lp-zap__bolha"><strong>Pedido de orçamento — Sua Loja</strong><br><br>1x Sofá 3 lugares Veludo — cor Azul-marinho (218,8 × 102,3 × 78,8 cm) — R$ 3.899,00<br><br><strong>Total: R$ 3.899,00</strong><br>Cliente: Ana · Entrega no bairro Centro</div>
+        </div>
+      </div>
+
+      <!-- 4. Demonstração real -->
+      <div class="land-demo" id="land-demo">
+        <h2>Demonstração: um catálogo de verdade</h2>
+        <span>Toque num móvel e experimente “Ver na sua casa”, a troca de cor e o “Cabe no meu espaço?”. É exatamente o que o seu cliente vai usar.</span>
+      </div>
     </section>
 
     <section class="hero" aria-labelledby="nome-padaria">
@@ -94,6 +133,40 @@
       <h2 id="nota-titulo">Sobre esta demonstração</h2>
       <p>Preços, medidas e modelos 3D são <strong>demonstrativos</strong>. Os modelos são ilustrações originais, criadas no tamanho das medidas cadastradas — não são digitalizações de alimentos reais.</p>
       <p>A realidade aumentada depende do aparelho e do navegador: Android com Chrome e Google Play Services para RA, ou iPhone/iPad com Safari. Em computadores, a visualização 3D continua disponível.</p>
+    </section>
+    <section class="landing landing--fim" id="landing-fim" hidden aria-labelledby="lp-comecar">
+      <div class="lp-bloco">
+        <h2 id="lp-comecar">Como começar</h2>
+        <ol class="lp-passos">
+          <li><strong>Crie sua conta em 2 minutos</strong><span>Nome da loja, WhatsApp, e-mail e senha. Seu catálogo ganha um endereço próprio, como <em>menureal.com.br/sua-loja</em>.</span></li>
+          <li><strong>Coloque seus móveis em 3D</strong><span>Envie o arquivo 3D da fábrica ou do projeto, crie a partir de fotos, ou monte produtos simples (caixas, latas, colchões) com uma foto. Se preferir, a gente monta para você.</span></li>
+          <li><strong>Divulgue e receba orçamentos</strong><span>Mande o link no WhatsApp e no Instagram e imprima o cartaz com QR code para a loja. Os pedidos chegam no seu WhatsApp.</span></li>
+        </ol>
+      </div>
+
+      <div class="lp-bloco" aria-labelledby="lp-precos">
+        <h2 id="lp-precos">Preços simples, sem fidelidade</h2>
+        <p class="lp-bloco__sub">Todos os planos começam com <strong>7 dias grátis</strong>. Você só paga se quiser continuar.</p>
+        <div class="lp-planos" id="lp-planos"></div>
+        <p class="lp-nota">Precisa de ajuda para montar os primeiros produtos? <a href="#" id="lp-falar">Fale com a gente pelo WhatsApp</a>.</p>
+      </div>
+
+      <div class="lp-bloco" aria-labelledby="lp-faq">
+        <h2 id="lp-faq">Perguntas frequentes</h2>
+        <div class="lp-faq">
+          <details><summary>O cliente precisa baixar algum aplicativo?</summary><p>Não. Ele abre o link no navegador do celular. A câmera usa o recurso de realidade aumentada que já vem no Android e no iPhone.</p></details>
+          <details><summary>Funciona em todos os celulares?</summary><p>O 3D e o “Cabe no meu espaço?” funcionam em qualquer celular ou computador. A câmera em tamanho real funciona na maioria dos Android intermediários e topo de linha e nos iPhones. Em celulares mais simples, o cliente continua vendo o móvel em 3D com as medidas.</p></details>
+          <details><summary>Não tenho os móveis em 3D. E agora?</summary><p>Muitas fábricas e lojas de planejados já têm o 3D do projeto: dá para enviar o arquivo. Se não tiver, o MenuReal cria a partir de fotos, ou monta produtos de formato simples com uma foto. E podemos montar os primeiros para você.</p></details>
+          <details><summary>Como o cliente faz o pedido?</summary><p>Ele monta a lista de orçamento no catálogo e envia. A mensagem chega no WhatsApp da loja com os produtos, as cores, as medidas e os dados de entrega. O pagamento e a venda continuam com a sua loja.</p></details>
+          <details><summary>Tem contrato ou multa para cancelar?</summary><p>Não. O plano é mensal ou anual, sem multa. Se parar de pagar, o catálogo sai do ar, mas seus produtos ficam salvos caso queira voltar.</p></details>
+        </div>
+      </div>
+
+      <div class="lp-final">
+        <h2>Coloque sua loja na casa do cliente</h2>
+        <p>7 dias grátis, sem cartão. Seu catálogo fica pronto hoje.</p>
+        <button class="btn btn--sol" type="button" id="land-criar-2">Testar grátis por 7 dias</button>
+      </div>
     </section>
   </main>
 

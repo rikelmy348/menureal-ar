@@ -471,6 +471,7 @@
     var nota = $('#nota-demo');
     if (nota) nota.hidden = true;          // as explicações agora ficam no "Como usar" (?)
     $('#landing').hidden = !!LOJA;
+    $('#landing-fim').hidden = !!LOJA;
     $('.hero').hidden = !LOJA;
     var aberto = estaAberto(p) && !p.pedido.pausado;
     var st = $('#status-horario');
@@ -3070,19 +3071,46 @@
     var n = (dados.padaria.plano && dados.padaria.plano.suporte) || suporteMenuReal;
     return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto) : '';
   }
+  // Planos do MenuReal (usados na página inicial e no aviso do painel da loja)
+  var PLANOS = [
+    { id: 'fundador', nome: 'Fundador', preco: 'R$ 49', per: '/mês', selo: 'Vagas para as primeiras lojas',
+      itens: ['Tudo do plano Loja', 'Preço fixo por 12 meses', 'Ajuda para montar os primeiros produtos'] },
+    { id: 'loja', nome: 'Loja', preco: 'R$ 99', per: '/mês', selo: '',
+      itens: ['Catálogo com endereço próprio', 'Móveis em 3D e na câmera, no tamanho real', '“Cabe no meu espaço?” e troca de cores', 'Orçamentos direto no WhatsApp', 'Cartaz com QR code e números de visitas', 'Até 10 criações de 3D por fotos por mês'] },
+    { id: 'anual', nome: 'Loja anual', preco: 'R$ 990', per: '/ano', selo: '2 meses grátis',
+      itens: ['Tudo do plano Loja', 'Sai por R$ 82,50 por mês'] }
+  ];
+  // loja: null na página inicial (botão abre o cadastro); no painel, monta o link de WhatsApp para contratar
+  function htmlPlanos(loja) {
+    return PLANOS.map(function (pl) {
+      var acao;
+      if (loja) {
+        var zap = linkSuporte('Olá! Quero contratar o plano ' + pl.nome + ' (' + pl.preco + pl.per + ') para a loja ' + loja + '.');
+        acao = zap ? '<a class="btn btn--primario btn--bloco btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Quero este plano</a>' : '';
+      } else acao = '<button class="btn ' + (pl.id === 'fundador' ? 'btn--primario' : 'btn--contorno') + ' btn--bloco" type="button" data-plano="' + pl.id + '">Testar grátis</button>';
+      return '<article class="lp-plano' + (pl.id === 'fundador' ? ' lp-plano--destaque' : '') + '">' +
+        (pl.selo ? '<span class="lp-plano__selo">' + esc(pl.selo) + '</span>' : '') +
+        '<h3>' + esc(pl.nome) + '</h3><p class="lp-plano__preco">' + esc(pl.preco) + '<small>' + esc(pl.per) + '</small></p>' +
+        '<ul>' + pl.itens.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' + acao + '</article>';
+    }).join('');
+  }
   function diasRestantes(iso) { return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 864e5)); }
   function htmlAvisoPlano(pl) {
     if (!pl || pl.situacao === 'ativo') return '';
     var loja = dados.padaria.nome + ' (' + location.host + '/' + LOJA + ')';
     var zap = linkSuporte(pl.situacao === 'teste' ? 'Olá! Quero continuar com o MenuReal na loja ' + loja + '.' : 'Olá! Quero reativar o catálogo da loja ' + loja + '.');
     var btn = zap ? '<a class="btn btn--primario btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Falar com o MenuReal</a>' : '';
+    var planos = pl.situacao === 'bloqueado' ? '' :
+      '<details class="aviso-plano__planos"' + (pl.situacao === 'vencido' ? ' open' : '') + '><summary>Ver planos e contratar</summary>' +
+      '<div class="lp-planos lp-planos--painel">' + htmlPlanos(loja) + '</div>' +
+      '<p class="mini">O pagamento é por Pix. Você escolhe o plano, a gente confirma pelo WhatsApp e libera na hora.</p></details>';
     if (pl.situacao === 'teste') {
       var d = diasRestantes(pl.ate);
       return '<div class="aviso-plano"><strong>Teste grátis: ' + (d <= 1 ? 'último dia' : 'faltam ' + d + ' dias') + '</strong>' +
-        '<span>Seu ' + termo() + ' já está no ar. Para continuar depois do teste, fale com a gente.</span>' + btn + '</div>';
+        '<span>Seu ' + termo() + ' já está no ar. Para continuar depois do teste, escolha um plano.</span>' + planos + '</div>';
     }
     return '<div class="aviso-plano aviso-plano--fora"><strong>' + (pl.situacao === 'vencido' ? 'Seu teste grátis acabou' : 'Cardápio pausado pelo MenuReal') + '</strong>' +
-      '<span>Os clientes veem “fora do ar”. Seus produtos e configurações continuam salvos.</span>' + btn + '</div>';
+      '<span>Os clientes veem “fora do ar”. Seus produtos e configurações continuam salvos.</span>' + (planos || btn) + '</div>';
   }
 
   // ---------------------------------------------------------------------
@@ -3535,7 +3563,18 @@
     window.addEventListener('focus', conferir);
   })();
   $('#land-criar').addEventListener('click', abrirCadastro);
-  $('#land-como').addEventListener('click', function () { abrirAjuda('loja'); });
+  $('#land-criar-2').addEventListener('click', abrirCadastro);
+  $('#lp-planos').innerHTML = htmlPlanos(null);
+  $('#lp-planos').addEventListener('click', function (e) { if (e.target.closest('[data-plano]')) abrirCadastro(); });
+  if (!LOJA) {
+    // número de suporte do MenuReal, para o "fale com a gente"
+    fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      suporteMenuReal = j.suporte || '';
+      var a = $('#lp-falar');
+      if (suporteMenuReal) { a.href = 'https://wa.me/' + suporteMenuReal + '?text=' + encodeURIComponent('Olá! Vi o MenuReal e quero saber mais para a minha loja de móveis.'); a.target = '_blank'; a.rel = 'noopener'; }
+      else a.closest('.lp-nota').hidden = true;
+    }).catch(function () { var n = $('#lp-falar'); if (n) n.closest('.lp-nota').hidden = true; });
+  }
   $('#btn-ajuda').addEventListener('click', function () { abrirAjuda(LOJA ? 'cliente' : 'loja'); });
   $('#admin-ajuda').addEventListener('click', function () { abrirAjuda('loja'); });
   if (ABRIR_CADASTRO) abrirCadastro();
