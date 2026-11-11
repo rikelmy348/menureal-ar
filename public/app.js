@@ -2409,7 +2409,7 @@
     if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
     if (e.target.closest('#suporte-salvar')) { salvarSuporte(); return; }
     var pl = e.target.closest('[data-plano]');
-    if (pl) { mudarPlanoLoja(pl.getAttribute('data-slug'), pl.getAttribute('data-plano'), pl); return; }
+    if (pl) { mudarPlanoLoja(pl.getAttribute('data-slug'), pl.getAttribute('data-plano'), pl, pl.getAttribute('data-tipo')); return; }
     if (e.target.closest('#admin-sair')) {
       try { localStorage.removeItem(CHAVE_TOKEN); } catch (err) { /* ignora */ }
       renderAdmin();
@@ -2813,12 +2813,33 @@
     var x = produtoG3d();
     var pend = tarefas3d()[x.id];
     if (pend) acompanharG3d(pend); else renderG3dInicio();
+    // quanto do limite do plano a loja já usou (o servidor também confere antes de gerar)
+    g3d.uso = null;
+    if (LOJA && credenciais()) {
+      fetch(comLoja('api/modelo-3d?uso=1'), { headers: cabecalhos(), cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (u) { g3d.uso = u; if ($('#dlg-3d').open && $('#g3d-gerar')) renderG3dInicio(); })
+        .catch(function () { /* sem problema: o servidor confere ao gerar */ });
+    }
   }
+  function htmlUso3d() {
+    var u = g3d.uso;
+    if (!u) return '';
+    var resta = Math.max(0, u.limite - u.usados);
+    return '<div class="uso3d' + (resta ? '' : ' uso3d--fim') + '"><strong>' + esc(u.nomePlano) + ': ' + u.usados + ' de ' + u.limite + ' criações usadas' + (u.porMes ? ' este mês' : '') + '</strong>' +
+      '<div class="barra"><i style="width:' + Math.min(100, u.limite ? (u.usados / u.limite) * 100 : 100) + '%"></i></div>' +
+      (resta ? '<small>Restam ' + resta + (u.porMes ? '. O limite renova no dia 1º.' : '.') + '</small>'
+        : '<small>' + (u.limite === 0 ? 'Seu plano não está ativo. Escolha um plano no Início do painel.' : u.porMes ? 'Limite do mês atingido. Renova no dia 1º.' : 'Limite do teste atingido. Escolha um plano no Início do painel para criar mais.') +
+          ' Enquanto isso, você pode enviar o arquivo 3D da fábrica ou usar “Montar com forma + foto”, que não contam no limite.</small>') +
+      '</div>';
+  }
+  function semCota() { return g3d.uso && g3d.uso.usados >= g3d.uso.limite; }
 
   function renderG3dInicio(erro) {
     var x = produtoG3d();
     $('#g3d-corpo').innerHTML =
       '<p class="g3d-prod"><strong>' + esc(x.nome) + '</strong></p>' +
+      (LOJA ? htmlUso3d() : '') +
       '<fieldset class="g3d-medidas"><legend>Medidas reais do produto (cm) — definem o tamanho na câmera</legend>' +
         '<div class="campos campos--3">' +
           campo('Largura', '<input id="g3d-largura" type="number" min="0.5" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
@@ -2843,9 +2864,10 @@
         '<label class="fonte-op"><input type="radio" name="g3d-qualidade" value="alta"' + (g3d.qualidade !== 'padrao' ? ' checked' : '') + '><span class="fonte-op__amostra" style="font-size:17px">Alta</span><small>Mais detalhe e realismo. Arquivo maior.</small></label>' +
         '<label class="fonte-op"><input type="radio" name="g3d-qualidade" value="padrao"' + (g3d.qualidade === 'padrao' ? ' checked' : '') + '><span class="fonte-op__amostra" style="font-size:17px">Padrão</span><small>Mais leve, abre rápido em internet fraca.</small></label>' +
       '</div></fieldset>' +
-      '<p class="mini">Cada geração usa créditos da sua conta na Meshy (a qualidade alta pode custar mais; confira no painel da Meshy) e leva de 2 a 5 minutos.</p>' +
+      (LOJA ? '<p class="mini">Cada criação leva de 2 a 5 minutos e conta uma vez no limite do seu plano, mesmo se você refizer.</p>'
+        : '<p class="mini">Cada geração usa créditos da sua conta na Meshy e leva de 2 a 5 minutos.</p>') +
       (erro ? '<div class="ar-indisp" role="alert"><strong>Não foi possível gerar</strong>' + esc(erro) + '</div>' : '');
-    $('#g3d-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="g3d-gerar"' + (g3d.fotos.length ? '' : ' disabled') + '>Gerar modelo 3D</button>';
+    $('#g3d-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="g3d-gerar"' + (g3d.fotos.length && !semCota() ? '' : ' disabled') + '>' + (semCota() ? 'Limite do plano atingido' : 'Gerar modelo 3D') + '</button>';
   }
 
   function renderG3dProgresso(pct, msg, erro) {
@@ -2874,8 +2896,9 @@
       body: JSON.stringify({ imagens: g3d.fotos.map(function (f) { return f.base64; }), qualidade: g3d.qualidade === 'padrao' ? 'padrao' : 'alta' })
     }).then(function (r) {
       return r.json().catch(function () { return { erro: 'Servidor de modelos 3D não encontrado (' + r.status + ').' }; })
-        .then(function (j) { if (!r.ok || !j.tarefa) throw new Error(j.erro || 'Erro ' + r.status); return j; });
+        .then(function (j) { if (j.uso) g3d.uso = j.uso; if (!r.ok || !j.tarefa) throw new Error(j.erro || 'Erro ' + r.status); return j; });
     }).then(function (j) {
+      if (g3d.uso) g3d.uso.usados++;
       var pend = { tarefa: j.tarefa, dim: x.dim, inicio: Date.now() };
       guardarTarefa(x.id, pend);
       acompanharG3d(pend);
@@ -3076,7 +3099,7 @@
     { id: 'fundador', nome: 'Fundador', preco: 'R$ 49', per: '/mês', selo: 'Vagas para as primeiras lojas',
       itens: ['Tudo do plano Loja', 'Preço fixo por 12 meses', 'Ajuda para montar os primeiros produtos'] },
     { id: 'loja', nome: 'Loja', preco: 'R$ 99', per: '/mês', selo: '',
-      itens: ['Catálogo com endereço próprio', 'Móveis em 3D e na câmera, no tamanho real', '“Cabe no meu espaço?” e troca de cores', 'Orçamentos direto no WhatsApp', 'Cartaz com QR code e números de visitas', 'Até 10 criações de 3D por fotos por mês'] },
+      itens: ['Catálogo com endereço próprio', 'Móveis em 3D e na câmera, no tamanho real', '“Cabe no meu espaço?” e troca de cores (quando o 3D tiver as cores)', 'Orçamentos direto no WhatsApp', 'Cartaz com QR code e números de visitas', 'Até 10 criações de 3D por fotos por mês'] },
     { id: 'anual', nome: 'Loja anual', preco: 'R$ 990', per: '/ano', selo: '2 meses grátis',
       itens: ['Tudo do plano Loja', 'Sai por R$ 82,50 por mês'] }
   ];
@@ -3214,20 +3237,27 @@
     var sit = c.situacao || 'ativo';
     var prazo = sit === 'teste' ? ' · até ' + new Date(c.testeAte).toLocaleDateString('pt-BR') : '';
     var zap = c.whatsapp ? '<a class="btn btn--fantasma btn--p" href="https://wa.me/' + esc(c.whatsapp) + '" target="_blank" rel="noopener">WhatsApp</a>' : '';
-    var b = function (plano, rot) { return '<button class="btn btn--' + (plano === 'ativo' ? 'sec' : 'fantasma') + ' btn--p" type="button" data-plano="' + plano + '" data-slug="' + esc(c.slug) + '">' + rot + '</button>'; };
+    var b = function (plano, rot, tipo) { return '<button class="btn btn--' + (plano === 'ativo' ? 'sec' : 'fantasma') + ' btn--p" type="button" data-plano="' + plano + '"' + (tipo ? ' data-tipo="' + tipo + '"' : '') + ' data-slug="' + esc(c.slug) + '">' + rot + '</button>'; };
+    var nomeTipo = { fundador: 'Fundador', loja: 'Loja', anual: 'Loja anual' };
+    var planoAtual = sit === 'ativo' && nomeTipo[c.planoTipo] ? ' · ' + nomeTipo[c.planoTipo] : '';
+    var uso = c.limite3d != null ? '<small>3D por fotos: ' + c.usados3d + ' de ' + c.limite3d + (sit === 'teste' ? ' no teste' : ' este mês') + '</small>' : '';
     return '<li class="loja-dono"><div><strong>' + esc(c.nome) + '</strong><small>' + esc(c.email) + '</small>' +
-        '<span class="situacao situacao--' + sit + '">' + ROTULO_SITUACAO[sit] + prazo + '</span></div>' +
+        '<span class="situacao situacao--' + sit + '">' + ROTULO_SITUACAO[sit] + planoAtual + prazo + '</span>' + uso + '</div>' +
       '<div class="linha-acoes">' +
         '<a class="btn btn--fantasma btn--p" href="/' + esc(c.slug) + '" target="_blank" rel="noopener">/' + esc(c.slug) + '</a>' + zap +
-        (sit !== 'ativo' ? b('ativo', 'Ativar (pagou)') : '') +
+      '</div>' +
+      '<p class="mini loja-dono__rot">Pagou? Ative no plano contratado:</p>' +
+      '<div class="linha-acoes">' +
+        ['fundador', 'loja', 'anual'].map(function (t) { return sit === 'ativo' && c.planoTipo === t ? '' : b('ativo', 'Ativar ' + nomeTipo[t], t); }).join('') +
+      '</div><div class="linha-acoes">' +
         b('teste', '+7 dias de teste') +
         (sit !== 'bloqueado' ? b('bloqueado', 'Bloquear') : '') +
       '</div></li>';
   }
-  function mudarPlanoLoja(slugLoja, plano, botao) {
+  function mudarPlanoLoja(slugLoja, plano, botao, tipo) {
     botao.disabled = true;
-    postarJson('api/contas', { acao: 'plano', slug: slugLoja, plano: plano, dias: 7 }, credenciais())
-      .then(function (j) { toast('/' + slugLoja + ': ' + ROTULO_SITUACAO[j.situacao]); carregarLojas(); })
+    postarJson('api/contas', { acao: 'plano', slug: slugLoja, plano: plano, dias: 7, tipo: tipo || '' }, credenciais())
+      .then(function (j) { toast('/' + slugLoja + ': ' + ROTULO_SITUACAO[j.situacao] + (j.situacao === 'ativo' && tipo ? ' — plano ' + ({ fundador: 'Fundador', loja: 'Loja', anual: 'Loja anual' })[tipo] : '')); carregarLojas(); })
       .catch(function (e) { botao.disabled = false; toast(e.message); });
   }
   function salvarSuporte() {

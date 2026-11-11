@@ -949,3 +949,11 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .lp-final p { color: #E4D9F2; margin: 8px 0 18px; }
 .aviso-plano__planos { margin-top: 8px; }
 .aviso-plano__planos summary { cursor: pointer; font-weight: 750; }
+
+/* uso do limite de 3D por fotos */
+.uso3d { margin: 12px 0 4px; padding: 12px 14px; border-radius: var(--raio-p); background: var(--limao-suave); color: var(--tinta); }
+.uso3d strong { display: block; font-size: 14.5px; }
+.uso3d small { display: block; margin-top: 6px; color: var(--tinta-2); font-size: 13px; }
+.uso3d .barra { margin-top: 8px; width: 100%; height: 6px; }
+.uso3d--fim { background: var(--alerta-fundo); }
+.loja-dono__rot { margin: 10px 0 4px; }

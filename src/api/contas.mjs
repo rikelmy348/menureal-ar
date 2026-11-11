@@ -1,6 +1,6 @@
 /* GET  /api/contas   lista as lojas + WhatsApp de suporte    (código MENUREAL_CODIGO)
    POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, ramo }
-   POST /api/contas   { acao: 'plano', slug, plano: 'ativo'|'bloqueado'|'teste', dias }
+   POST /api/contas   { acao: 'plano', slug, plano: 'ativo'|'bloqueado'|'teste', dias, tipo: 'fundador'|'loja'|'anual' }
    POST /api/contas   { acao: 'suporte', numero }   WhatsApp que as lojas veem para falar com você */
 import { json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
 import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig } from '../lib/banco.mjs';
@@ -16,7 +16,9 @@ export default async function contas(req, env) {
   if (d.acao === 'plano') {
     const plano = ['ativo', 'bloqueado', 'teste'].includes(d.plano) ? d.plano : null;
     if (!plano || !slugValido(String(d.slug || ''))) return json({ erro: 'Plano ou loja inválidos.' }, 400);
-    return json({ ok: true, ...(await mudarPlano(env, d.slug, plano, Math.min(90, Math.max(1, Number(d.dias) || 7)))) });
+    const tipo = ['fundador', 'loja', 'anual'].includes(d.tipo) ? d.tipo : '';
+    if (plano === 'ativo' && !tipo) return json({ erro: 'Escolha o plano que a loja contratou (Fundador, Loja ou Anual).' }, 400);
+    return json({ ok: true, ...(await mudarPlano(env, d.slug, plano, Math.min(90, Math.max(1, Number(d.dias) || 7)), tipo)) });
   }
   if (d.acao === 'suporte') {
     let n = String(d.numero || '').replace(/\D/g, '');

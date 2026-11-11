@@ -2,9 +2,12 @@
    POST /api/modelo-3d?loja=slug  { acao:'reescalar', url, dim, produto }  → { url, medidasCm }
    GET  /api/modelo-3d?loja=slug&tarefa=ID&produto=nome&largura=&profundidade=&altura=
         acompanha; quando pronto, ajusta a escala, guarda no KV e devolve { url }
-   Autorização: conta da loja (token) ou código mestre. Variável: MESHY_API_KEY. */
-import { json, autorizar, lerSlug, escalarGlb, lerModelo, guardarModelo, erroComStatus } from '../lib/comum.mjs';
-import { lerTarefa, salvarTarefa, tipoLoja } from '../lib/banco.mjs';
+   GET  /api/modelo-3d?loja=slug&uso=1  → quantos 3D por fotos a loja já usou e o limite do plano
+   Autorização: conta da loja (token) ou código mestre. Variável: MESHY_API_KEY.
+   Limite: cada plano tem um número de criações por mês (no teste grátis, um total). O dono do
+   MenuReal (código mestre) cria sem gastar a cota da loja. */
+import { json, autorizar, ehMestre, lerSlug, escalarGlb, lerModelo, guardarModelo, erroComStatus } from '../lib/comum.mjs';
+import { lerTarefa, salvarTarefa, tipoLoja, uso3d, contar3d } from '../lib/banco.mjs';
 
 const API = 'https://api.meshy.ai/openapi/v1/multi-image-to-3d';
 const LIMITE_GLB = 24_000_000; // KV aceita até 25 MiB por arquivo
@@ -59,6 +62,15 @@ export default async function modelo3d(req, env) {
     }
 
     if (!(env.MESHY_API_KEY || '').trim()) return json({ erro: SEM_MESHY }, 500);
+    const mestre = ehMestre(req, env);
+    if (!mestre) {
+      const u3 = await uso3d(env, slug);
+      if (u3.usados >= u3.limite) {
+        return json({ erro: u3.limite === 0 ? 'Seu plano não está ativo. Escolha um plano no Início do painel para criar 3D por fotos.'
+          : u3.porMes ? 'Você já usou as ' + u3.limite + ' criações de 3D por fotos do plano ' + u3.nomePlano + ' neste mês. O limite renova no dia 1º. Você ainda pode enviar o arquivo 3D ou montar com forma + foto.'
+          : 'Você já usou as ' + u3.limite + ' criações de 3D por fotos do teste grátis. Escolha um plano para criar mais. Você ainda pode enviar o arquivo 3D ou montar com forma + foto.', limite: true, uso: u3 }, 403);
+      }
+    }
     const imagens = Array.isArray(corpo && corpo.imagens) ? corpo.imagens.filter((x) => typeof x === 'string' && x) : [];
     if (imagens.length < 1 || imagens.length > 4) return json({ erro: 'Envie de 1 a 4 fotos.' }, 400);
     if (imagens.some((x) => x.length > 4_000_000)) return json({ erro: 'Foto grande demais.' }, 413);
@@ -80,8 +92,11 @@ export default async function modelo3d(req, env) {
         target_formats: ['glb']
       })
     });
+    if (!mestre) await contar3d(env, slug);   // conta só depois que a Meshy aceitou o pedido
     return json({ tarefa: r.result });
   }
+
+  if (req.method === 'GET' && u.searchParams.get('uso')) return json(await uso3d(env, slug));
 
   if (req.method === 'GET') {
     if (!(env.MESHY_API_KEY || '').trim()) return json({ erro: SEM_MESHY }, 500);

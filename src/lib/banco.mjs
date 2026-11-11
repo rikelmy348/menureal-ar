@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 7; // 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
+const VERSAO_ESQUEMA = 8; // 8: tipo do plano e uso do 3D por fotos · 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -24,6 +24,7 @@ const ESQUEMA = [
      visual        TEXT NOT NULL DEFAULT '{}',              -- JSON: aparência da página
      pedido        TEXT NOT NULL DEFAULT '{}',              -- JSON: entrega, retirada, taxas, pagamento
      plano         TEXT NOT NULL DEFAULT 'ativo',           -- ativo | teste | bloqueado
+     plano_tipo    TEXT NOT NULL DEFAULT '',                -- fundador | loja | anual (o que a loja contratou)
      teste_ate     TEXT NOT NULL DEFAULT '',                -- ISO: fim do teste grátis
      codigo_hash   TEXT NOT NULL DEFAULT '',                -- código de recuperação de senha (hash)
      criada_em     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
@@ -69,6 +70,12 @@ const ESQUEMA = [
      n     INTEGER NOT NULL,
      ate   INTEGER NOT NULL
    )`,
+  `CREATE TABLE IF NOT EXISTS uso_3d (
+     loja TEXT NOT NULL,
+     mes  TEXT NOT NULL,          -- AAAA-MM (horário de Brasília)
+     n    INTEGER NOT NULL DEFAULT 0,
+     PRIMARY KEY (loja, mes)
+   )`,
   `CREATE TABLE IF NOT EXISTS configuracao (
      chave TEXT PRIMARY KEY,
      valor TEXT NOT NULL
@@ -88,7 +95,7 @@ export async function garantirEsquema(env) {
   if (!colunas.some((c) => c.name === 'visual')) {
     await env.DB.prepare("ALTER TABLE lojas ADD COLUMN visual TEXT NOT NULL DEFAULT '{}'").run();
   }
-  const novasLojas = [['pedido', "'{}'"], ['plano', "'ativo'"], ['teste_ate', "''"], ['codigo_hash', "''"]];
+  const novasLojas = [['pedido', "'{}'"], ['plano', "'ativo'"], ['teste_ate', "''"], ['codigo_hash', "''"], ['plano_tipo', "''"]];
   for (const [col, padrao] of novasLojas) {
     if (!colunas.some((c) => c.name === col)) await env.DB.prepare(`ALTER TABLE lojas ADD COLUMN ${col} TEXT NOT NULL DEFAULT ${padrao}`).run();
   }
@@ -248,10 +255,51 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
 // Contas das lojas
 // ---------------------------------------------------------------------------
 export async function listarLojas(env) {
-  const { results } = await env.DB.prepare(`SELECT l.slug, l.nome, l.email, l.tipo, l.whatsapp, l.plano, l.teste_ate AS testeAte, l.criada_em AS criadoEm,
-      (SELECT count(*) FROM produtos p WHERE p.loja = l.slug) AS produtos
-    FROM lojas l WHERE l.slug <> ? ORDER BY l.nome`).bind(DEMO).all();
-  return results.map((r) => ({ ...r, situacao: situacaoLoja({ plano: r.plano, teste_ate: r.testeAte }) }));
+  const { results } = await env.DB.prepare(`SELECT l.slug, l.nome, l.email, l.tipo, l.whatsapp, l.plano, l.plano_tipo AS planoTipo, l.teste_ate AS testeAte, l.criada_em AS criadoEm,
+      (SELECT count(*) FROM produtos p WHERE p.loja = l.slug) AS produtos,
+      (SELECT coalesce(sum(u.n), 0) FROM uso_3d u WHERE u.loja = l.slug AND u.mes = ?) AS usados3dMes,
+      (SELECT coalesce(sum(u.n), 0) FROM uso_3d u WHERE u.loja = l.slug) AS usados3dTotal
+    FROM lojas l WHERE l.slug <> ? ORDER BY l.nome`).bind(mesBrasil(), DEMO).all();
+  return results.map((r) => {
+    const situacao = situacaoLoja({ plano: r.plano, teste_ate: r.testeAte });
+    const lim = limite3d(situacao, r.planoTipo);
+    return { ...r, situacao, limite3d: lim.limite, usados3d: lim.porMes ? r.usados3dMes : r.usados3dTotal };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Planos e limite de 3D por fotos (cada criação gasta créditos pagos da Meshy)
+// ---------------------------------------------------------------------------
+export const TIPOS_PLANO = {
+  fundador: { nome: 'Fundador', preco: 'R$ 49/mês', limite3d: 10 },
+  loja: { nome: 'Loja', preco: 'R$ 99/mês', limite3d: 10 },
+  anual: { nome: 'Loja anual', preco: 'R$ 990/ano', limite3d: 10 }
+};
+export const LIMITE_3D_TESTE = 2; // no teste grátis: total, não por mês
+/** Quantos 3D por fotos a loja pode criar. porMes=false: conta o total (teste grátis). */
+export function limite3d(situacao, tipo) {
+  if (situacao === 'teste') return { limite: LIMITE_3D_TESTE, porMes: false };
+  if (situacao === 'vencido' || situacao === 'bloqueado') return { limite: 0, porMes: true };
+  const t = TIPOS_PLANO[tipo];
+  return { limite: t ? t.limite3d : TIPOS_PLANO.loja.limite3d, porMes: true };   // lojas antigas sem tipo: limite do plano Loja
+}
+export function mesBrasil(d = new Date()) {
+  return new Date(d.getTime() - 3 * 3600e3).toISOString().slice(0, 7);
+}
+export async function uso3d(env, slug) {
+  const l = await env.DB.prepare('SELECT plano, plano_tipo, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
+  if (!l) throw erroComStatus('Loja não encontrada.', 404);
+  const situacao = situacaoLoja(l);
+  const lim = limite3d(situacao, l.plano_tipo);
+  const r = lim.porMes
+    ? await env.DB.prepare('SELECT coalesce(sum(n), 0) AS n FROM uso_3d WHERE loja = ? AND mes = ?').bind(slug, mesBrasil()).first()
+    : await env.DB.prepare('SELECT coalesce(sum(n), 0) AS n FROM uso_3d WHERE loja = ?').bind(slug).first();
+  const t = TIPOS_PLANO[l.plano_tipo];
+  return { situacao, tipo: l.plano_tipo || '', nomePlano: situacao === 'teste' ? 'Teste grátis' : t ? t.nome : 'Loja',
+    limite: lim.limite, porMes: lim.porMes, usados: Number(r && r.n) || 0 };
+}
+export async function contar3d(env, slug) {
+  await env.DB.prepare('INSERT INTO uso_3d (loja, mes, n) VALUES (?, ?, 1) ON CONFLICT (loja, mes) DO UPDATE SET n = n + 1').bind(slug, mesBrasil()).run();
 }
 export async function contaPorEmail(env, email) {
   return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE email = ?').bind(email).first();
@@ -276,16 +324,17 @@ export async function gravarCodigoRecuperacao(env, slug, codigoHash) {
   await env.DB.prepare('UPDATE lojas SET codigo_hash = ? WHERE slug = ?').bind(codigoHash, slug).run();
 }
 /** plano: 'ativo' | 'bloqueado' | 'teste' (com dias a partir de hoje ou do fim do teste atual) */
-export async function mudarPlano(env, slug, plano, dias = 7) {
-  const l = await contaPorSlug(env, slug);
+export async function mudarPlano(env, slug, plano, dias = 7, tipo = '') {
+  const l = await env.DB.prepare('SELECT plano, plano_tipo, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
   if (!l) throw erroComStatus('Loja não encontrada.', 404);
   let ate = l.teste_ate;
   if (plano === 'teste') {
     const base = Math.max(Date.now(), Date.parse(l.teste_ate || 0) || 0);
     ate = new Date(base + dias * 864e5).toISOString();
   }
-  await env.DB.prepare('UPDATE lojas SET plano = ?, teste_ate = ?, atualizada_em = ? WHERE slug = ?').bind(plano, ate || '', agora(), slug).run();
-  return { plano, testeAte: ate, situacao: situacaoLoja({ plano, teste_ate: ate }) };
+  const novoTipo = plano === 'ativo' && TIPOS_PLANO[tipo] ? tipo : l.plano_tipo || '';
+  await env.DB.prepare('UPDATE lojas SET plano = ?, plano_tipo = ?, teste_ate = ?, atualizada_em = ? WHERE slug = ?').bind(plano, novoTipo, ate || '', agora(), slug).run();
+  return { plano, planoTipo: novoTipo, testeAte: ate, situacao: situacaoLoja({ plano, teste_ate: ate }) };
 }
 /** Dados curtos para a prévia do link (título, descrição e imagem). */
 export async function resumoLoja(env, slug) {
