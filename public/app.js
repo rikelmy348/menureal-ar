@@ -3139,7 +3139,9 @@
   // ---------------------------------------------------------------------
   // Recuperar senha com o código de recuperação
   // ---------------------------------------------------------------------
-  var suporteMenuReal = '';
+  // WhatsApp da empresa MenuReal (suporte). O número salvo no painel do dono tem prioridade.
+  var SUPORTE_PADRAO = '5528999525125';
+  var suporteMenuReal = SUPORTE_PADRAO;
   function renderRecuperar(erro) {
     $('#form-admin').classList.add('so-login');
     var zap = linkSuporte('Olá! Esqueci a senha da loja ' + (LOJA ? location.host + '/' + LOJA : '') + ' e não tenho o código de recuperação.');
@@ -3275,7 +3277,7 @@
     if (!servidor && location.protocol === 'file:') { toast('O cadastro funciona no site publicado.'); return; }
     renderCadastro();
     abrirDialogo($('#dlg-cadastro'));
-    fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { suporteMenuReal = j.suporte || ''; }).catch(function () { /* ok */ });
+    fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { suporteMenuReal = j.suporte || SUPORTE_PADRAO; }).catch(function () { /* ok */ });
   }
   function renderCadastro(erro, campoErro) {
     var tipos = [['moveis', 'Loja de móveis', 'sofás, mesas, cadeiras, camas…'], ['planejados', 'Móveis planejados', 'cozinhas, dormitórios, armários…'], ['decoracao', 'Decoração', 'luminárias, tapetes, vasos, quadros…'], ['outros', 'Outros produtos', 'eletros, presentes, o que for…']];
@@ -3596,14 +3598,19 @@
   $('#land-criar-2').addEventListener('click', abrirCadastro);
   $('#lp-planos').innerHTML = htmlPlanos(null);
   $('#lp-planos').addEventListener('click', function (e) { if (e.target.closest('[data-plano]')) abrirCadastro(); });
+  // Suporte da empresa: link no fim da página e botão flutuante (só na página inicial)
+  function linkSuporteEmpresa(texto) { return 'https://wa.me/' + suporteMenuReal + '?text=' + encodeURIComponent(texto); }
+  function atualizarBotoesSuporte() {
+    var a = $('#lp-falar');
+    if (a) { a.href = linkSuporteEmpresa('Olá! Vi o MenuReal e quero saber mais para a minha loja.'); a.target = '_blank'; a.rel = 'noopener'; }
+    var f = $('#btn-suporte');
+    if (f) { f.href = linkSuporteEmpresa('Olá! Preciso de ajuda com o MenuReal.'); f.hidden = !!LOJA; }
+  }
+  atualizarBotoesSuporte();
   if (!LOJA) {
-    // número de suporte do MenuReal, para o "fale com a gente"
     fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
-      suporteMenuReal = j.suporte || '';
-      var a = $('#lp-falar');
-      if (suporteMenuReal) { a.href = 'https://wa.me/' + suporteMenuReal + '?text=' + encodeURIComponent('Olá! Vi o MenuReal e quero saber mais para a minha loja de móveis.'); a.target = '_blank'; a.rel = 'noopener'; }
-      else a.closest('.lp-nota').hidden = true;
-    }).catch(function () { var n = $('#lp-falar'); if (n) n.closest('.lp-nota').hidden = true; });
+      if (j.suporte) { suporteMenuReal = j.suporte; atualizarBotoesSuporte(); }
+    }).catch(function () { /* fica o número padrão */ });
   }
   $('#btn-ajuda').addEventListener('click', function () { abrirAjuda(LOJA ? 'cliente' : 'loja'); });
   $('#admin-ajuda').addEventListener('click', function () { abrirAjuda('loja'); });
