@@ -219,7 +219,8 @@
           return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
         }),
         adicionais: lerAdicionais(x.adicionais),   // opcionais com preço (ex.: montagem, pés de outra cor)
-        esgotado: x.esgotado === true // acabou hoje: aparece, mas não dá para pedir
+        esgotado: x.esgotado === true, // acabou hoje: aparece, mas não dá para pedir
+        foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : ''   // produto ainda sem 3D
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -517,11 +518,14 @@
           '<span class="card__estado" data-estado><span class="carregando"><span class="spinner" aria-hidden="true"></span><span class="barra"><i></i></span></span></span>' +
         '</button>' +
         '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' no tamanho real, pela câmera">' + ICONES.ar + '<span>' + (ehAlimento() ? 'Na mesa' : 'Ver em casa') + '</span></button>'
-      : '<span class="card__palco card__palco--vazio" aria-hidden="true"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></span>';
-    return '<article class="card' + (temModelo ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
+      : p.foto
+        ? '<button class="card__palco card__palco--foto" type="button" data-acao="3d" aria-label="Ver detalhes e medidas de ' + esc(p.nome) + '"><img src="' + esc(urlModelo(p.foto)) + '" alt="' + esc(p.nome) + '" loading="lazy" decoding="async"></button>'
+        : '<button class="card__palco card__palco--vazio" type="button" data-acao="3d" aria-label="Ver detalhes e medidas de ' + esc(p.nome) + '"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></button>';
+    var mostraRegua = temModelo || !(p.dim.largura <= 5 && p.dim.altura <= 5 && p.dim.profundidade <= 5);
+    return '<article class="card' + (temModelo || p.foto ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
       '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>'
         : '') +
-        (temModelo ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
+        (mostraRegua ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
           ? num(Math.min.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' a ' + num(Math.max.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' cm'
           : reguaTexto(p.dim)) + '</span></span>' : '') +
       '</div>' +
@@ -676,7 +680,7 @@
 
   function preencherTextosViewer(p) {
     var ef = p.combo ? { preco: p.preco, dim: p.dim } : efetivo(p, tamAtual);
-    $('#viewer-cat').textContent = p.categoria + (p.ilustrativo ? ' · modelo ilustrativo' : '');
+    $('#viewer-cat').textContent = p.categoria + (p.ilustrativo && p.modelo ? ' · modelo ilustrativo' : '');
     $('#viewer-nome').textContent = p.nome;
     $('#viewer-preco').textContent = brl(ef.preco);
     $('#viewer-dim').textContent = p.combo ? 'itens lado a lado' : dimTexto(ef.dim);
@@ -794,9 +798,14 @@
       atualizarAvisoAR();
       return;
     }
+    $('#aba-ar').disabled = !ef.modelo;
+    var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
+    var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
-      estadoPalco('<div class="caixa-erro"><strong>Sem visualização 3D</strong>Este produto ainda não tem modelo 3D. ' +
-        (p.tamanhos && p.tamanhos.length ? 'Escolha o tamanho abaixo e adicione ao pedido.' : 'Você pode adicioná-lo ao pedido normalmente.') + '</div>', true);
+      trocarAba('3d');
+      estadoPalco((p.foto ? '<img class="palco-foto" src="' + esc(urlModelo(p.foto)) + '" alt="' + esc(p.nome) + '">' : '') +
+        '<div class="palco-sem3d"><strong>' + (p.foto ? 'Foto do produto' : 'Produto sem foto') + '</strong>' +
+        'O 3D deste produto ainda não está disponível. Confira as medidas e use o “Cabe no meu espaço?” abaixo.</div>');
       $('#viewer-dim-modelo').textContent = '—';
       return;
     }
@@ -1956,6 +1965,20 @@
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
     if (t.name === 'v-cenario') { visualRascunho(function (v) { v.cenario = t.value; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
+    if (t.matches('[data-up-foto]') && t.files && t.files[0]) {
+      var xp = produtoDoAlvo(t), arqP = t.files[0]; t.value = '';
+      if (!credenciais()) { toast('Entre na conta do estabelecimento'); return; }
+      toast('Enviando foto…');
+      reduzirParaEnvio(arqP, 1400, false).then(function (r) {
+        return fetch(comLoja('api/imagem'), { method: 'POST', headers: cabecalhos(), body: JSON.stringify({ imagem: r.base64, tipo: r.tipo, uso: 'produto' }) });
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.url) throw new Error(j.erro || 'Erro do servidor (' + r.status + ').'); return j; });
+      }).then(function (j) {
+        coletarAdmin(); xp.foto = j.url; abertoNoAdmin = xp.id; renderAdmin();
+        toast('Foto enviada. Toque em “Salvar alterações” para publicar.');
+      }).catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
+      return;
+    }
     if (t.matches('[data-forma-foto]') && t.files && t.files[0]) {
       var xf = produtoDoAlvo(t), arqF = t.files[0]; t.value = '';
       var im = new Image();
@@ -2161,6 +2184,17 @@
     if (e.target.open) atualizarRecortes();
   }, true);
 
+  // Foto do produto: aparece no catálogo enquanto o 3D não fica pronto (a loja pode começar só com fotos)
+  function htmlFotoProdutoAdmin(x) {
+    if (!servidor || ehAlimento(rascunho)) return '';
+    return '<div class="campo foto-prod"><span class="foto-prod__rot">Foto do produto' + (x.modelo ? ' <small>(o catálogo mostra o 3D; a foto fica de reserva)</small>' : ' <small>(aparece no catálogo enquanto o 3D não fica pronto)</small>') + '</span>' +
+      '<div class="foto-prod__linha">' +
+        (x.foto ? '<img src="' + esc(urlModelo(x.foto)) + '" alt="">' : '<span class="foto-prod__vazia" aria-hidden="true">sem foto</span>') +
+        '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.camera + (x.foto ? 'Trocar foto' : 'Enviar foto') + '<input type="file" accept="image/*" data-up-foto hidden></label>' +
+        (x.foto ? '<button class="btn btn--fantasma btn--p" type="button" data-tirar-foto>Remover</button>' : '') +
+      '</div></div>';
+  }
+
   function htmlProdutoAdmin(x, i) {
     var aberto = abertoNoAdmin === x.id;
     return '<details class="prod" data-i="' + i + '"' + (aberto ? ' open' : '') + '>' +
@@ -2188,6 +2222,7 @@
           campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
           campo('Altura (cm)', '<input data-f="altura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
         '</div>' +
+        htmlFotoProdutoAdmin(x) +
         htmlProduto3dAdmin(x) +
         '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
           '<small>Ex.: sofá 2 e 3 lugares. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
@@ -2408,6 +2443,15 @@
     if (e.target.closest('#conta-codigo')) { novoCodigo(e.target.closest('#conta-codigo')); return; }
     if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
     if (e.target.closest('#suporte-salvar')) { salvarSuporte(); return; }
+    var pok = e.target.closest('[data-pedido-ok]'), prem = e.target.closest('[data-pedido-rem]');
+    if (pok || prem) {
+      var corpoP = pok ? { acao: 'atendido', id: Number(pok.getAttribute('data-pedido-ok')), atendido: pok.getAttribute('data-v') === '1' } : { acao: 'remover', id: Number(prem.getAttribute('data-pedido-rem')) };
+      (prem ? confirmar('Remover este pedido de demonstração?', 'Remover') : Promise.resolve(true)).then(function (sim) {
+        if (!sim) return;
+        postarJson('api/contato', corpoP, credenciais()).then(carregarPedidosDemo).catch(function (er) { toast(er.message); });
+      });
+      return;
+    }
     var pl = e.target.closest('[data-plano]');
     if (pl) { mudarPlanoLoja(pl.getAttribute('data-slug'), pl.getAttribute('data-plano'), pl, pl.getAttribute('data-tipo')); return; }
     if (e.target.closest('#admin-sair')) {
@@ -2472,6 +2516,8 @@
       if (d) { d.scrollIntoView({ block: 'center', behavior: reduzMovimento ? 'auto' : 'smooth' }); d.querySelector('[data-f="nome"]').select(); }
       return;
     }
+    var tfoto = e.target.closest('[data-tirar-foto]');
+    if (tfoto) { var xt = produtoDoAlvo(tfoto); coletarAdmin(); xt.foto = ''; abertoNoAdmin = xt.id; renderAdmin(); return; }
     var fprev = e.target.closest('[data-forma-previa]');
     if (fprev) { gerarPreviaForma(fprev); return; }
     var fusar = e.target.closest('[data-forma-usar]');
@@ -2993,6 +3039,7 @@
           (j.contas.length
             ? '<p class="mini">' + resumoContas(j.contas) + '</p><ul class="lojas">' + j.contas.map(htmlLojaDono).join('') + '</ul>'
             : '<p class="mini">Nenhum estabelecimento ainda.</p>') +
+          '<div class="nova-loja" id="pedidos-demo"><h4>Pedidos de demonstração</h4><p class="mini">Carregando…</p></div>' +
           '<div class="nova-loja"><h4>Seu WhatsApp de suporte</h4>' +
             campo('As lojas veem este número para falar com você (ativar, tirar dúvidas, recuperar senha)', '<input id="suporte-num" inputmode="numeric" maxlength="15" placeholder="DDD + número" value="' + esc(String(j.suporte || '').replace(/^55/, '')) + '">') +
             '<button class="btn btn--sec" type="button" id="suporte-salvar">Salvar WhatsApp</button></div>' +
@@ -3005,11 +3052,30 @@
             '<div class="linha-acoes"><button class="btn btn--primario" type="button" id="loja-criar">Criar conta</button>' +
             '<button class="btn btn--fantasma" type="button" id="lojas-atualizar">Atualizar lista</button></div>' +
           '</div>';
+        carregarPedidosDemo();
         var nome = $('#nl-nome'), sl = $('#nl-slug');
         nome.addEventListener('input', function () { if (!sl.dataset.mexido) sl.value = slug(nome.value).slice(0, 40); });
         sl.addEventListener('input', function () { sl.dataset.mexido = '1'; });
       })
       .catch(function (e) { alvo.innerHTML = '<div class="ar-indisp" role="alert">' + esc(e.message) + '</div><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Tentar de novo</button>'; });
+  }
+  function carregarPedidosDemo() {
+    var alvo = $('#pedidos-demo'); if (!alvo) return;
+    fetch('api/contato', { headers: cabecalhos(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        var lista = j.pedidos || [];
+        var novos = lista.filter(function (x) { return !x.atendido; }).length;
+        alvo.innerHTML = '<h4>Pedidos de demonstração' + (novos ? ' <span class="contador-novo">' + novos + ' novo' + (novos > 1 ? 's' : '') + '</span>' : '') + '</h4>' +
+          (lista.length ? '<ul class="pedidos-demo">' + lista.map(function (x) {
+            var zap = 'https://wa.me/' + (x.whatsapp.length <= 11 ? '55' : '') + x.whatsapp + '?text=' + encodeURIComponent('Olá! Aqui é do MenuReal. Recebi seu pedido de demonstração para a ' + x.loja + '. Pode me mandar fotos de 2 ou 3 móveis que vocês mais vendem?');
+            return '<li class="' + (x.atendido ? 'pedido-ok' : '') + '"><div><strong>' + esc(x.loja) + '</strong><small>' + esc(x.whatsapp) + (x.cidade ? ' · ' + esc(x.cidade) : '') + ' · ' + new Date(x.criadoEm).toLocaleDateString('pt-BR') + '</small></div>' +
+              '<div class="linha-acoes"><a class="btn btn--sec btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Chamar no WhatsApp</a>' +
+              '<button class="btn btn--fantasma btn--p" type="button" data-pedido-ok="' + x.id + '" data-v="' + (x.atendido ? 0 : 1) + '">' + (x.atendido ? 'Desmarcar' : 'Marcar como atendido') + '</button>' +
+              '<button class="btn btn--fantasma btn--p" type="button" data-pedido-rem="' + x.id + '">Remover</button></div></li>';
+          }).join('') + '</ul>' : '<p class="mini">Nenhum pedido ainda. Eles chegam pelo botão “Peça uma demonstração” da página inicial.</p>');
+      })
+      .catch(function (e) { alvo.innerHTML = '<h4>Pedidos de demonstração</h4><p class="mini">' + esc(e.message) + '</p>'; });
   }
   function criarLoja() {
     var corpo = { nome: $('#nl-nome').value.trim(), slug: $('#nl-slug').value.trim().toLowerCase(), email: $('#nl-email').value.trim(), senha: $('#nl-senha').value, ramo: $('#nl-tipo').value };
@@ -3598,6 +3664,43 @@
   $('#land-criar-2').addEventListener('click', abrirCadastro);
   $('#lp-planos').innerHTML = htmlPlanos(null);
   $('#lp-planos').addEventListener('click', function (e) { if (e.target.closest('[data-plano]')) abrirCadastro(); });
+  // Pedido de demonstração: o lojista deixa o nome da loja e o WhatsApp; aparece no painel do dono
+  var contato = { loja: '', whatsapp: '', cidade: '' };
+  function abrirContato() {
+    renderContato();
+    abrirDialogo($('#dlg-contato'));
+  }
+  function renderContato(erro, campoErro, enviado) {
+    if (enviado) {
+      $('#contato-corpo').innerHTML = '<div class="contato-ok"><strong>Recebemos seu pedido!</strong>' +
+        '<p>Vamos chamar no WhatsApp <b>' + esc(contato.whatsapp) + '</b> para montar a demonstração com os móveis da <b>' + esc(contato.loja) + '</b>.</p>' +
+        '<p class="mini">Com pressa? Fale direto com a gente pelo botão de suporte.</p></div>';
+      $('#contato-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" data-fechar>Fechar</button>';
+      return;
+    }
+    var c = function (rot, id, attrs) { return campo(rot, '<input id="ct-' + id + '" ' + attrs + ' value="' + esc(contato[id]) + '"' + (campoErro === id ? ' aria-invalid="true"' : '') + '>'); };
+    $('#contato-corpo').innerHTML =
+      '<p class="cadastro__intro">Deixe o contato da sua loja. A gente monta uma página de teste com <strong>2 ou 3 móveis seus</strong> em 3D e te mostra pelo WhatsApp, sem custo e sem compromisso.</p>' +
+      c('Nome da loja', 'loja', 'maxlength="80" autocomplete="organization" placeholder="Ex.: Casa & Sala Móveis"') +
+      c('WhatsApp (com DDD)', 'whatsapp', 'inputmode="tel" maxlength="16" autocomplete="tel" placeholder="DDD + número"') +
+      c('Cidade (opcional)', 'cidade', 'maxlength="60" autocomplete="address-level2"') +
+      '<input id="ct-site" tabindex="-1" autocomplete="off" aria-hidden="true" class="isca">' +
+      (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '');
+    $('#contato-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="ct-enviar">Pedir demonstração</button>';
+    if (campoErro) { var el = $('#ct-' + campoErro); if (el) el.focus(); }
+  }
+  function enviarContato(btn) {
+    ['loja', 'whatsapp', 'cidade'].forEach(function (k) { contato[k] = $('#ct-' + k).value.trim(); });
+    btn.disabled = true; btn.textContent = 'Enviando…';
+    postarJson('api/contato', { loja: contato.loja, whatsapp: contato.whatsapp, cidade: contato.cidade, site: $('#ct-site').value })
+      .then(function () { renderContato(null, null, true); })
+      .catch(function (e) { renderContato(e.message, e.campo); });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('[data-pedir-demo]')) { abrirContato(); return; }
+    var b = e.target.closest('#ct-enviar'); if (b) enviarContato(b);
+  });
+
   // Suporte da empresa: link no fim da página e botão flutuante (só na página inicial)
   function linkSuporteEmpresa(texto) { return 'https://wa.me/' + suporteMenuReal + '?text=' + encodeURIComponent(texto); }
   function atualizarBotoesSuporte() {

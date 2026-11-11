@@ -965,3 +965,31 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .suporte-flutuante svg { width: 22px; height: 22px; }
 .suporte-flutuante:hover { background: #1E8C4C; }
 .suporte-flutuante[hidden] { display: none; }
+
+/* produto com foto (ainda sem 3D) */
+.card__palco--foto { padding: 0; border: 0; background: var(--palco-b); cursor: pointer; }
+.card__palco--foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
+.palco-foto { display: block; max-width: 100%; max-height: 56%; margin: 0 auto 10px; border-radius: 14px; object-fit: contain; }
+.palco-sem3d { max-width: 320px; margin: 0 auto; padding: 10px 14px; border-radius: 14px; background: var(--superficie); text-align: center; font-size: 14px; color: var(--tinta-2); box-shadow: 0 6px 18px -10px rgba(0,0,0,.4); }
+.palco-sem3d strong { display: block; color: var(--tinta); margin-bottom: 4px; }
+.foto-prod__rot { display: block; font-weight: 650; margin-bottom: 6px; }
+.foto-prod__rot small { font-weight: 400; color: var(--tinta-2); }
+.foto-prod__linha { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.foto-prod__linha img, .foto-prod__vazia { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--palco-b); display: grid; place-items: center; font-size: 11px; color: var(--tinta-2); }
+
+/* pedido de demonstração */
+.lp-demo-link { margin: 12px 0 0; font-size: 14.5px; color: #E4D9F2; }
+.link-botao { background: none; border: 0; padding: 0; font: inherit; font-weight: 750; color: #FFD23F; text-decoration: underline; cursor: pointer; }
+.lp-final__acoes { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.lp-final .btn--vidro { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .3); }
+.contato-ok { text-align: center; padding: 20px 4px; }
+.contato-ok strong { display: block; font-size: 20px; margin-bottom: 8px; }
+.pedidos-demo { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 10px; }
+.pedidos-demo li { padding: 12px; border: 1px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); }
+.pedidos-demo li.pedido-ok { opacity: .6; }
+.pedidos-demo strong { display: block; }
+.pedidos-demo small { color: var(--tinta-2); }
+.contador-novo { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--rosa); color: #fff; font-size: 12px; vertical-align: middle; }
+.ficha > div[hidden] { display: none; }
+.ficha:has(> div[hidden]) { grid-template-columns: 1fr; }

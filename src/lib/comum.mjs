@@ -18,7 +18,7 @@ export function erroComStatus(msg, status) { const e = new Error(msg); e.status 
 // Endereços das lojas
 // ---------------------------------------------------------------------------
 export const SLUG_OK = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])$/;
-const RESERVADOS = new Set(['api', 'assets', 'vendor', 'tools', 'index', 'admin', 'entrar', 'menureal', 'demo', 'criar', 'cadastro',
+const RESERVADOS = new Set(['api', 'assets', 'vendor', 'tools', 'index', 'admin', 'entrar', 'menureal', 'demo', 'criar', 'cadastro', 'contato',
   'recuperar', 'suporte', 'planos', 'precos', 'termos', 'privacidade', 'login', 'painel', 'conta', 'ajuda', 'www', 'app']);
 export function slugValido(s) { return SLUG_OK.test(s || '') && !RESERVADOS.has(s); }
 /** IP de quem chamou (para o limite de tentativas). */

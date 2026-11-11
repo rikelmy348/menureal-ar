@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 8; // 8: tipo do plano e uso do 3D por fotos · 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
+const VERSAO_ESQUEMA = 9; // 9: pedidos de demonstração · 8: tipo do plano e uso do 3D por fotos · 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -47,7 +47,7 @@ const ESQUEMA = [
      alergenos       TEXT NOT NULL DEFAULT '[]',              -- JSON
      tamanhos        TEXT NOT NULL DEFAULT '[]',              -- JSON
      adicionais      TEXT NOT NULL DEFAULT '[]',              -- JSON: complementos com preço
-     opcoes          TEXT NOT NULL DEFAULT '{}',              -- JSON: { esgotado }
+     opcoes          TEXT NOT NULL DEFAULT '{}',              -- JSON: { esgotado, foto }
      PRIMARY KEY (loja, id)
    )`,
   'CREATE INDEX IF NOT EXISTS produtos_por_loja ON produtos (loja, posicao)',
@@ -75,6 +75,14 @@ const ESQUEMA = [
      mes  TEXT NOT NULL,          -- AAAA-MM (horário de Brasília)
      n    INTEGER NOT NULL DEFAULT 0,
      PRIMARY KEY (loja, mes)
+   )`,
+  `CREATE TABLE IF NOT EXISTS contatos (
+     id        INTEGER PRIMARY KEY AUTOINCREMENT,
+     loja      TEXT NOT NULL,
+     whatsapp  TEXT NOT NULL,
+     cidade    TEXT NOT NULL DEFAULT '',
+     atendido  INTEGER NOT NULL DEFAULT 0,
+     criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
   `CREATE TABLE IF NOT EXISTS configuracao (
      chave TEXT PRIMARY KEY,
@@ -159,6 +167,12 @@ export function limparPedido(v) {
   };
 }
 
+/** Foto do produto (para quem ainda não tem o 3D): só imagens da pasta da própria loja. */
+function fotoProduto(u, slug) {
+  u = String(u || '');
+  return new RegExp('^api/arquivo/imagens/' + String(slug).replace(/[^a-z0-9_-]/g, '') + '/produto-[\\w.-]+\\.(webp|png|jpg)$').test(u) ? u : '';
+}
+
 export const FONTES = ['moderno', 'elegante', 'divertido', 'classico'];
 const COR = /^#[0-9a-f]{6}$/i;
 /** Aparência da página da loja. Imagens só da pasta da própria loja no KV. */
@@ -198,7 +212,8 @@ export async function lerCardapio(env, slug) {
       dim: { largura: p.largura_cm, profundidade: p.profundidade_cm, altura: p.altura_cm },
       modelo: p.modelo, ilustrativo: Boolean(p.ilustrativo), ingredientes: p.ingredientes,
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
-      esgotado: Boolean(lerJson(p.opcoes, {}).esgotado)
+      esgotado: Boolean(lerJson(p.opcoes, {}).esgotado),
+      foto: String(lerJson(p.opcoes, {}).foto || '')
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -245,7 +260,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s) })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;
@@ -419,4 +434,21 @@ export async function lerEventos(env, slug, dias = 30) {
   const desde = diaBrasil(Date.now() - (dias - 1) * 864e5);
   const { results } = await env.DB.prepare('SELECT dia, tipo, chave, n FROM eventos WHERE loja = ? AND dia >= ? ORDER BY dia').bind(slug, desde).all();
   return { desde, hoje: diaBrasil(), linhas: results };
+}
+
+// ---------------------------------------------------------------------------
+// Pedidos de demonstração (lojistas interessados que deixaram o contato)
+// ---------------------------------------------------------------------------
+export async function salvarContato(env, { loja, whatsapp, cidade }) {
+  await env.DB.prepare('INSERT INTO contatos (loja, whatsapp, cidade) VALUES (?, ?, ?)').bind(loja, whatsapp, cidade).run();
+}
+export async function listarContatos(env) {
+  const { results } = await env.DB.prepare('SELECT id, loja, whatsapp, cidade, atendido, criado_em AS criadoEm FROM contatos ORDER BY id DESC LIMIT 200').all();
+  return results.map((r) => ({ ...r, atendido: Boolean(r.atendido) }));
+}
+export async function marcarContato(env, id, atendido) {
+  await env.DB.prepare('UPDATE contatos SET atendido = ? WHERE id = ?').bind(atendido ? 1 : 0, id).run();
+}
+export async function removerContato(env, id) {
+  await env.DB.prepare('DELETE FROM contatos WHERE id = ?').bind(id).run();
 }

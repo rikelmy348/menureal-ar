@@ -55,6 +55,7 @@
             <button class="btn btn--sol" type="button" id="land-criar">Testar grátis por 7 dias</button>
             <a class="btn btn--vidro" href="#land-demo">Ver demonstração</a>
           </div>
+          <p class="lp-demo-link">Prefere que a gente mostre com os seus móveis? <button type="button" class="link-botao" data-pedir-demo>Peça uma demonstração</button></p>
           <ul class="lp-garantias">
             <li>Sem aplicativo</li><li>Sem cartão no teste</li><li>Pronto no mesmo dia</li>
           </ul>
@@ -165,7 +166,10 @@
       <div class="lp-final">
         <h2>Coloque sua loja na casa do cliente</h2>
         <p>7 dias grátis, sem cartão. Seu catálogo fica pronto hoje.</p>
-        <button class="btn btn--sol" type="button" id="land-criar-2">Testar grátis por 7 dias</button>
+        <div class="lp-final__acoes">
+          <button class="btn btn--sol" type="button" id="land-criar-2">Testar grátis por 7 dias</button>
+          <button class="btn btn--vidro" type="button" data-pedir-demo>Quero uma demonstração</button>
+        </div>
       </div>
     </section>
   </main>
@@ -309,6 +313,19 @@
   </dialog>
 
   <!-- ================= Cadastro da loja ================= -->
+  <dialog class="folha folha--admin" id="dlg-contato" aria-labelledby="contato-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="contato-titulo">Quero uma demonstração</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="contato-corpo"></div>
+      <div class="painel__rodape" id="contato-rodape"></div>
+    </div>
+  </dialog>
+
   <dialog class="folha folha--admin" id="dlg-cadastro" aria-labelledby="cadastro-titulo">
     <div class="painel">
       <div class="painel__topo">
