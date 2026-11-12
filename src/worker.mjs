@@ -15,6 +15,7 @@ import combo from './api/combo.mjs';
 import imagem from './api/imagem.mjs';
 import cadastro from './api/cadastro.mjs';
 import contato from './api/contato.mjs';
+import kiwify from './api/kiwify.mjs';
 import recuperar from './api/recuperar.mjs';
 import conta from './api/conta.mjs';
 import evento from './api/evento.mjs';
@@ -30,6 +31,7 @@ const ROTAS = {
   '/api/imagem': imagem,
   '/api/cadastro': cadastro,
   '/api/contato': contato,
+  '/api/kiwify': kiwify,
   '/api/recuperar': recuperar,
   '/api/conta': conta,
   '/api/evento': evento,

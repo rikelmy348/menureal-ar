@@ -1,14 +1,18 @@
 /* GET  /api/contas   lista as lojas + WhatsApp de suporte    (código MENUREAL_CODIGO)
    POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, ramo }
    POST /api/contas   { acao: 'plano', slug, plano: 'ativo'|'bloqueado'|'teste', dias, tipo: 'fundador'|'loja'|'anual' }
-   POST /api/contas   { acao: 'suporte', numero }   WhatsApp que as lojas veem para falar com você */
+   POST /api/contas   { acao: 'suporte', numero }   WhatsApp que as lojas veem para falar com você
+   POST /api/contas   { acao: 'checkouts', fundador, loja, anual }   links de pagamento da Kiwify */
 import { json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
-import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig } from '../lib/banco.mjs';
+import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig, lerCheckouts, listarPagamentos, CHECKOUT_OK } from '../lib/banco.mjs';
 
 export default async function contas(req, env) {
   if (!env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO nas variáveis da Cloudflare.' }, 500);
   if (!ehMestre(req, env)) return json({ erro: 'Código de acesso incorreto.' }, 401);
-  if (req.method === 'GET') return json({ contas: await listarLojas(env), suporte: (await lerConfig(env, 'suporte')) || '' });
+  if (req.method === 'GET') {
+    return json({ contas: await listarLojas(env), suporte: (await lerConfig(env, 'suporte')) || '',
+      checkouts: await lerCheckouts(env), pagamentos: await listarPagamentos(env), kiwifyConfigurado: Boolean((env.KIWIFY_TOKEN || '').trim()) });
+  }
   if (req.method !== 'POST') return json({ erro: 'Use GET ou POST.' }, 405);
 
   let d;
@@ -19,6 +23,16 @@ export default async function contas(req, env) {
     const tipo = ['fundador', 'loja', 'anual'].includes(d.tipo) ? d.tipo : '';
     if (plano === 'ativo' && !tipo) return json({ erro: 'Escolha o plano que a loja contratou (Fundador, Loja ou Anual).' }, 400);
     return json({ ok: true, ...(await mudarPlano(env, d.slug, plano, Math.min(90, Math.max(1, Number(d.dias) || 7)), tipo)) });
+  }
+  if (d.acao === 'checkouts') {
+    const c = {};
+    for (const t of ['fundador', 'loja', 'anual']) {
+      const v = String(d[t] || '').trim();
+      if (v && !CHECKOUT_OK.test(v)) return json({ erro: 'Link inválido no plano ' + t + '. Use o link de pagamento da Kiwify, que começa com https://pay.kiwify.com.br/' }, 400);
+      c[t] = v;
+    }
+    await gravarConfig(env, 'checkouts', c);
+    return json({ ok: true, checkouts: await lerCheckouts(env) });
   }
   if (d.acao === 'suporte') {
     let n = String(d.numero || '').replace(/\D/g, '');

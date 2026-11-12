@@ -993,3 +993,7 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .contador-novo { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; background: var(--rosa); color: #fff; font-size: 12px; vertical-align: middle; }
 .ficha > div[hidden] { display: none; }
 .ficha:has(> div[hidden]) { grid-template-columns: 1fr; }
+
+.kiwify-ok { color: var(--ok); font-weight: 650; }
+.pagamentos { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; font-size: 14px; }
+.pagamentos small { display: block; color: var(--tinta-2); }

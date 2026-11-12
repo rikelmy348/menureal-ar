@@ -6,7 +6,7 @@
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
-const VERSAO_ESQUEMA = 9; // 9: pedidos de demonstração · 8: tipo do plano e uso do 3D por fotos · 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
+const VERSAO_ESQUEMA = 10; // 10: pagamentos da Kiwify · 9: pedidos de demonstração · 8: tipo do plano e uso do 3D por fotos · 7: eventos (números da loja) · 2: lojas.visual · 3: produtos.adicionais · 4: produtos.opcoes · 5: lojas.pedido · 6: plano, teste, código de recuperação, limites
 
 const ESQUEMA = [
   `CREATE TABLE IF NOT EXISTS lojas (
@@ -82,6 +82,21 @@ const ESQUEMA = [
      whatsapp  TEXT NOT NULL,
      cidade    TEXT NOT NULL DEFAULT '',
      atendido  INTEGER NOT NULL DEFAULT 0,
+     criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS pagamentos (
+     id        INTEGER PRIMARY KEY AUTOINCREMENT,
+     evento    TEXT NOT NULL DEFAULT '',
+     email     TEXT NOT NULL DEFAULT '',
+     tipo      TEXT NOT NULL DEFAULT '',
+     loja      TEXT NOT NULL DEFAULT '',
+     resultado TEXT NOT NULL DEFAULT '',
+     pedido    TEXT NOT NULL DEFAULT '',
+     criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+   )`,
+  `CREATE TABLE IF NOT EXISTS pendentes (
+     email     TEXT PRIMARY KEY,
+     tipo      TEXT NOT NULL,
      criado_em TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
    )`,
   `CREATE TABLE IF NOT EXISTS configuracao (
@@ -451,4 +466,35 @@ export async function marcarContato(env, id, atendido) {
 }
 export async function removerContato(env, id) {
   await env.DB.prepare('DELETE FROM contatos WHERE id = ?').bind(id).run();
+}
+
+// ---------------------------------------------------------------------------
+// Pagamentos (Kiwify): registro para o dono e compras feitas antes de criar a loja
+// ---------------------------------------------------------------------------
+export async function registrarPagamento(env, p) {
+  await env.DB.prepare('INSERT INTO pagamentos (evento, email, tipo, loja, resultado, pedido) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(p.evento || '', p.email || '', p.tipo || '', p.loja || '', p.resultado || '', p.pedido || '').run();
+}
+export async function listarPagamentos(env) {
+  const { results } = await env.DB.prepare('SELECT id, evento, email, tipo, loja, resultado, criado_em AS criadoEm FROM pagamentos ORDER BY id DESC LIMIT 50').all();
+  return results;
+}
+export async function guardarPendente(env, email, tipo) {
+  await env.DB.prepare('INSERT INTO pendentes (email, tipo) VALUES (?, ?) ON CONFLICT (email) DO UPDATE SET tipo = excluded.tipo, criado_em = excluded.criado_em').bind(email, tipo).run();
+}
+/** Loja nova com e-mail que já tinha pago: ativa no plano comprado. */
+export async function aplicarPendente(env, email, slug) {
+  const p = await env.DB.prepare('SELECT tipo FROM pendentes WHERE email = ?').bind(String(email || '').toLowerCase()).first();
+  if (!p) return null;
+  await mudarPlano(env, slug, 'ativo', 7, p.tipo);
+  await env.DB.prepare('DELETE FROM pendentes WHERE email = ?').bind(String(email).toLowerCase()).run();
+  await registrarPagamento(env, { evento: 'loja criada', email, tipo: p.tipo, loja: slug, resultado: 'ativada (pagamento anterior)' });
+  return p.tipo;
+}
+export const CHECKOUT_OK = /^https:\/\/pay\.kiwify\.com\.br\/[A-Za-z0-9_-]{3,40}\/?$/;
+export async function lerCheckouts(env) {
+  const c = (await lerConfig(env, 'checkouts')) || {};
+  const r = {};
+  for (const t of ['fundador', 'loja', 'anual']) if (CHECKOUT_OK.test(String(c[t] || ''))) r[t] = c[t];
+  return r;
 }

@@ -4,7 +4,7 @@
    O próprio lojista cria a conta, com 7 dias de teste grátis.
    Limite: 3 contas por IP por dia. */
 import { json, slugValido, hashSenha, criarToken, ipDe, gerarCodigo, hashCodigo } from '../lib/comum.mjs';
-import { contaPorEmail, lojaExiste, salvarConta, lerConfig, dentroDoLimite, RAMOS } from '../lib/banco.mjs';
+import { contaPorEmail, lojaExiste, salvarConta, lerConfig, dentroDoLimite, RAMOS, aplicarPendente } from '../lib/banco.mjs';
 
 export const DIAS_TESTE = 7;
 
@@ -43,6 +43,7 @@ export default async function cadastro(req, env) {
   const zap = whatsapp && whatsapp.length <= 11 ? '55' + whatsapp : whatsapp;
   await salvarConta(env, { slug, nome, email, senhaHash: await hashSenha(senha), ramo, teste: DIAS_TESTE, whatsapp: zap,
     codigoHash: await hashCodigo(slug, codigo) });
+  const pago = await aplicarPendente(env, email, slug);   // já tinha pago na Kiwify com este e-mail?
   const conta = await contaPorEmail(env, email);
-  return json({ ok: true, token: await criarToken(env, slug), slug, nome, codigo, testeAte: conta && conta.teste_ate });
+  return json({ ok: true, token: await criarToken(env, slug), slug, nome, codigo, testeAte: conta && conta.teste_ate, planoPago: pago || '' });
 }

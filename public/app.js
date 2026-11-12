@@ -180,7 +180,9 @@
       pedido: lerPedido(p.pedido),
       plano: (function (pl) {
         pl = pl || {};
-        return { situacao: ['teste', 'vencido', 'bloqueado'].indexOf(pl.situacao) > -1 ? pl.situacao : 'ativo', ate: String(pl.ate || ''), suporte: String(pl.suporte || '').replace(/\D/g, '') };
+        var ck = {};
+        ['fundador', 'loja', 'anual'].forEach(function (t) { var v = pl.checkouts && String(pl.checkouts[t] || ''); if (/^https:\/\/pay\.kiwify\.com\.br\/[\w-]+\/?$/.test(v)) ck[t] = v; });
+        return { situacao: ['teste', 'vencido', 'bloqueado'].indexOf(pl.situacao) > -1 ? pl.situacao : 'ativo', ate: String(pl.ate || ''), suporte: String(pl.suporte || '').replace(/\D/g, ''), checkouts: ck };
       })(p.plano)
     };
     var categorias = [];
@@ -2443,6 +2445,8 @@
     if (e.target.closest('#conta-codigo')) { novoCodigo(e.target.closest('#conta-codigo')); return; }
     if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
     if (e.target.closest('#suporte-salvar')) { salvarSuporte(); return; }
+    var cks = e.target.closest('#ck-salvar');
+    if (cks) { salvarCheckouts(cks); return; }
     var pok = e.target.closest('[data-pedido-ok]'), prem = e.target.closest('[data-pedido-rem]');
     if (pok || prem) {
       var corpoP = pok ? { acao: 'atendido', id: Number(pok.getAttribute('data-pedido-ok')), atendido: pok.getAttribute('data-v') === '1' } : { acao: 'remover', id: Number(prem.getAttribute('data-pedido-rem')) };
@@ -3039,6 +3043,7 @@
           (j.contas.length
             ? '<p class="mini">' + resumoContas(j.contas) + '</p><ul class="lojas">' + j.contas.map(htmlLojaDono).join('') + '</ul>'
             : '<p class="mini">Nenhum estabelecimento ainda.</p>') +
+          htmlKiwifyDono(j) +
           '<div class="nova-loja" id="pedidos-demo"><h4>Pedidos de demonstração</h4><p class="mini">Carregando…</p></div>' +
           '<div class="nova-loja"><h4>Seu WhatsApp de suporte</h4>' +
             campo('As lojas veem este número para falar com você (ativar, tirar dúvidas, recuperar senha)', '<input id="suporte-num" inputmode="numeric" maxlength="15" placeholder="DDD + número" value="' + esc(String(j.suporte || '').replace(/^55/, '')) + '">') +
@@ -3058,6 +3063,31 @@
         sl.addEventListener('input', function () { sl.dataset.mexido = '1'; });
       })
       .catch(function (e) { alvo.innerHTML = '<div class="ar-indisp" role="alert">' + esc(e.message) + '</div><button class="btn btn--sec btn--bloco" type="button" id="lojas-abrir">Tentar de novo</button>'; });
+  }
+  function htmlKiwifyDono(j) {
+    var ck = j.checkouts || {}, pags = j.pagamentos || [];
+    var rot = { fundador: 'Fundador (R$ 49/mês)', loja: 'Loja (R$ 99/mês)', anual: 'Loja anual (R$ 990/ano)' };
+    return '<div class="nova-loja"><h4>Pagamentos automáticos (Kiwify)</h4>' +
+      (j.kiwifyConfigurado
+        ? '<p class="mini kiwify-ok">✓ Token da Kiwify configurado. Compras aprovadas ativam a loja sozinhas; cancelamento, atraso, reembolso ou chargeback pausam.</p>'
+        : '<p class="ar-indisp">Falta o token: crie o webhook na Kiwify e salve o token na Cloudflare com o nome <code>KIWIFY_TOKEN</code> (Workers → menureal-ar → Settings → Variables and Secrets → tipo Secret).</p>') +
+      campo('Endereço do webhook (cole na Kiwify)', '<input readonly value="' + esc(location.origin + '/api/kiwify') + '" onclick="this.select()">') +
+      ['fundador', 'loja', 'anual'].map(function (t) {
+        return campo('Link de pagamento — ' + rot[t], '<input id="ck-' + t + '" inputmode="url" placeholder="https://pay.kiwify.com.br/…" value="' + esc(ck[t] || '') + '">');
+      }).join('') +
+      '<button class="btn btn--sec" type="button" id="ck-salvar">Salvar links</button>' +
+      '<details class="conta-det"><summary>Últimos avisos da Kiwify (' + pags.length + ')</summary>' +
+        (pags.length ? '<ul class="pagamentos">' + pags.map(function (p) {
+          return '<li><strong>' + esc(p.resultado || '—') + '</strong> · ' + esc(p.evento) + (p.tipo ? ' · ' + esc(p.tipo) : '') + '<small>' + esc(p.email) + (p.loja ? ' → /' + esc(p.loja) : '') + ' · ' + new Date(p.criadoEm).toLocaleString('pt-BR') + '</small></li>';
+        }).join('') + '</ul>' : '<p class="mini">Nenhum aviso ainda.</p>') +
+      '</details></div>';
+  }
+  function salvarCheckouts(btn) {
+    var corpo = { acao: 'checkouts' };
+    ['fundador', 'loja', 'anual'].forEach(function (t) { corpo[t] = $('#ck-' + t).value.trim(); });
+    btn.disabled = true;
+    postarJson('api/contas', corpo, credenciais()).then(function () { toast('Links de pagamento salvos'); })
+      .catch(function (e) { toast(e.message); }).then(function () { btn.disabled = false; });
   }
   function carregarPedidosDemo() {
     var alvo = $('#pedidos-demo'); if (!alvo) return;
@@ -3174,8 +3204,12 @@
     return PLANOS.map(function (pl) {
       var acao;
       if (loja) {
-        var zap = linkSuporte('Olá! Quero contratar o plano ' + pl.nome + ' (' + pl.preco + pl.per + ') para a loja ' + loja + '.');
-        acao = zap ? '<a class="btn btn--primario btn--bloco btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Quero este plano</a>' : '';
+        var ck = checkoutsDaLoja()[pl.id];
+        if (ck) acao = '<a class="btn btn--primario btn--bloco btn--p" data-checkout="' + esc(ck) + '" href="' + esc(linkCheckout(ck)) + '" target="_blank" rel="noopener">Assinar agora</a>';
+        else {
+          var zap = linkSuporte('Olá! Quero contratar o plano ' + pl.nome + ' (' + pl.preco + pl.per + ') para a loja ' + loja + '.');
+          acao = zap ? '<a class="btn btn--primario btn--bloco btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Quero este plano</a>' : '';
+        }
       } else acao = '<button class="btn ' + (pl.id === 'fundador' ? 'btn--primario' : 'btn--contorno') + ' btn--bloco" type="button" data-plano="' + pl.id + '">Testar grátis</button>';
       return '<article class="lp-plano' + (pl.id === 'fundador' ? ' lp-plano--destaque' : '') + '">' +
         (pl.selo ? '<span class="lp-plano__selo">' + esc(pl.selo) + '</span>' : '') +
@@ -3184,6 +3218,19 @@
     }).join('');
   }
   function diasRestantes(iso) { return Math.max(0, Math.ceil((Date.parse(iso) - Date.now()) / 864e5)); }
+  // Pagamento pela Kiwify: o plano é liberado sozinho quando o e-mail da compra é o mesmo da conta
+  var emailConta = '';
+  function checkoutsDaLoja() { return (dados.padaria.plano && dados.padaria.plano.checkouts) || {}; }
+  function linkCheckout(base) { return base + (emailConta ? (base.indexOf('?') > -1 ? '&' : '?') + 'email=' + encodeURIComponent(emailConta) : ''); }
+  function buscarEmailConta() {
+    if (emailConta || !LOJA || !credenciais()) return;
+    fetch(comLoja('api/conta'), { headers: cabecalhos(), cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.email) return;
+      emailConta = j.email;
+      $$('[data-checkout]').forEach(function (a) { a.href = linkCheckout(a.getAttribute('data-checkout')); });
+      $$('[data-email-conta]').forEach(function (b) { b.textContent = emailConta; });
+    }).catch(function () { /* sem problema */ });
+  }
   function htmlAvisoPlano(pl) {
     if (!pl || pl.situacao === 'ativo') return '';
     var loja = dados.padaria.nome + ' (' + location.host + '/' + LOJA + ')';
@@ -3192,7 +3239,10 @@
     var planos = pl.situacao === 'bloqueado' ? '' :
       '<details class="aviso-plano__planos"' + (pl.situacao === 'vencido' ? ' open' : '') + '><summary>Ver planos e contratar</summary>' +
       '<div class="lp-planos lp-planos--painel">' + htmlPlanos(loja) + '</div>' +
-      '<p class="mini">O pagamento é por Pix. Você escolhe o plano, a gente confirma pelo WhatsApp e libera na hora.</p></details>';
+      (Object.keys(checkoutsDaLoja()).length
+        ? '<p class="mini">Pagamento por Pix ou cartão, pela Kiwify. <strong>Use o mesmo e-mail da sua conta (<b data-email-conta>' + esc(emailConta || 'o e-mail com que você entra aqui') + '</b>)</strong> para o plano ser liberado na hora, automaticamente.</p>'
+        : '<p class="mini">O pagamento é por Pix. Você escolhe o plano, a gente confirma pelo WhatsApp e libera na hora.</p>') + '</details>';
+    setTimeout(buscarEmailConta, 0);
     if (pl.situacao === 'teste') {
       var d = diasRestantes(pl.ate);
       return '<div class="aviso-plano"><strong>Teste grátis: ' + (d <= 1 ? 'último dia' : 'faltam ' + d + ' dias') + '</strong>' +
@@ -3401,7 +3451,7 @@
         try { localStorage.setItem('menureal:token:' + j.slug, j.token); } catch (er) { /* ignora */ }
         $('#cadastro-titulo').textContent = 'Sua loja está pronta!';
         $('#cadastro-corpo').innerHTML = '<div class="cadastro">' +
-          '<p class="cadastro__intro">Seu catálogo: <strong>' + esc(location.host + '/' + j.slug) + '</strong><br>Teste grátis até <strong>' + esc(new Date(j.testeAte).toLocaleDateString('pt-BR')) + '</strong>.</p>' +
+          '<p class="cadastro__intro">Seu catálogo: <strong>' + esc(location.host + '/' + j.slug) + '</strong>' + (j.planoPago ? '<br>Pagamento identificado: <strong>plano ' + esc(({ fundador: 'Fundador', loja: 'Loja', anual: 'Loja anual' })[j.planoPago] || j.planoPago) + ' ativo</strong>.' : '<br>Teste grátis até <strong>' + esc(new Date(j.testeAte).toLocaleDateString('pt-BR')) + '</strong>.') + '</p>' +
           htmlCodigo(j.codigo) + '</div>';
         $('#cadastro-rodape').innerHTML = '<a class="btn btn--primario btn--bloco" href="/' + esc(j.slug) + '?bemvindo=1">Já guardei o código, abrir minha loja</a>';
       })

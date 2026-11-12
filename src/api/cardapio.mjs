@@ -2,7 +2,7 @@
    PUT  /api/cardapio?loja=slug   conta da loja (ou código mestre)
    Sem ?loja: demonstração da página inicial (só o código mestre edita) */
 import { json, autorizar, lerSlug } from '../lib/comum.mjs';
-import { lerCardapio, salvarCardapio, lerConfig } from '../lib/banco.mjs';
+import { lerCardapio, salvarCardapio, lerConfig, lerCheckouts } from '../lib/banco.mjs';
 
 const LIMITE = 600_000; // bytes
 
@@ -12,7 +12,10 @@ export default async function cardapio(req, env) {
     const dados = await lerCardapio(env, slug);
     if (!dados) return json({ erro: slug ? 'Estabelecimento não encontrado.' : 'Nenhum cardápio publicado ainda.' }, 404);
     const sit = dados.padaria.plano.situacao;
-    if (sit !== 'ativo') dados.padaria.plano.suporte = (await lerConfig(env, 'suporte')) || '';
+    if (sit !== 'ativo') {
+      dados.padaria.plano.suporte = (await lerConfig(env, 'suporte')) || '';
+      dados.padaria.plano.checkouts = await lerCheckouts(env);   // links de pagamento (Kiwify) para contratar
+    }
     if (sit === 'vencido' || sit === 'bloqueado') {
       // fora do ar para os clientes; a própria loja (logada) continua vendo e editando
       let dono = false;
