@@ -3191,6 +3191,7 @@
     return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(texto) : '';
   }
   // Planos do MenuReal (usados na página inicial e no aviso do painel da loja)
+  var checkoutsPublicos = {};   // links de pagamento (Kiwify) para a página inicial
   var PLANOS = [
     { id: 'fundador', nome: 'Fundador', preco: 'R$ 49', per: '/mês', selo: 'Vagas para as primeiras lojas',
       itens: ['Tudo do plano Loja', 'Preço fixo por 12 meses', 'Ajuda para montar os primeiros produtos'] },
@@ -3210,7 +3211,11 @@
           var zap = linkSuporte('Olá! Quero contratar o plano ' + pl.nome + ' (' + pl.preco + pl.per + ') para a loja ' + loja + '.');
           acao = zap ? '<a class="btn btn--primario btn--bloco btn--p" href="' + esc(zap) + '" target="_blank" rel="noopener">Quero este plano</a>' : '';
         }
-      } else acao = '<button class="btn ' + (pl.id === 'fundador' ? 'btn--primario' : 'btn--contorno') + ' btn--bloco" type="button" data-plano="' + pl.id + '">Testar grátis</button>';
+      } else {
+        var ckp = checkoutsPublicos[pl.id];
+        acao = (ckp ? '<a class="btn ' + (pl.id === 'fundador' ? 'btn--primario' : 'btn--sec') + ' btn--bloco" href="' + esc(ckp) + '" target="_blank" rel="noopener">Assinar agora</a>' : '') +
+          '<button class="btn ' + (ckp ? 'btn--fantasma' : pl.id === 'fundador' ? 'btn--primario' : 'btn--contorno') + ' btn--bloco" type="button" data-plano="' + pl.id + '">Testar grátis por 7 dias</button>';
+      }
       return '<article class="lp-plano' + (pl.id === 'fundador' ? ' lp-plano--destaque' : '') + '">' +
         (pl.selo ? '<span class="lp-plano__selo">' + esc(pl.selo) + '</span>' : '') +
         '<h3>' + esc(pl.nome) + '</h3><p class="lp-plano__preco">' + esc(pl.preco) + '<small>' + esc(pl.per) + '</small></p>' +
@@ -3389,8 +3394,10 @@
   // ---------------------------------------------------------------------
   var cad = { nome: '', slug: '', tipo: 'moveis', whatsapp: '', email: '', senha: '', mexido: false };
   var cadSeq = 0;
-  function abrirCadastro() {
+  var cadastroPosCompra = false;
+  function abrirCadastro(posCompra) {
     if (!servidor && location.protocol === 'file:') { toast('O cadastro funciona no site publicado.'); return; }
+    cadastroPosCompra = posCompra === true;
     renderCadastro();
     abrirDialogo($('#dlg-cadastro'));
     fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { suporteMenuReal = j.suporte || SUPORTE_PADRAO; }).catch(function () { /* ok */ });
@@ -3400,7 +3407,9 @@
     var c = function (rot, id, attrs, ajuda) { return campo(rot, '<input id="cad-' + id + '" ' + attrs + ' value="' + esc(cad[id]) + '"' + (campoErro === id ? ' aria-invalid="true"' : '') + '>', ajuda); };
     $('#cadastro-corpo').innerHTML =
       '<div class="cadastro">' +
-        '<p class="cadastro__intro"><strong>7 dias grátis, sem cartão.</strong> Sua loja ganha um endereço próprio com os móveis em 3D, no tamanho real, na casa do cliente, e orçamentos pelo WhatsApp.</p>' +
+        (cadastroPosCompra
+          ? '<p class="cadastro__intro cadastro__pago"><strong>Pagamento recebido, obrigado!</strong> Agora crie a conta da sua loja. <strong>Use o mesmo e-mail da compra</strong>: assim o seu plano é liberado na hora.</p>'
+          : '<p class="cadastro__intro"><strong>7 dias grátis, sem cartão.</strong> Sua loja ganha um endereço próprio com os móveis em 3D, no tamanho real, na casa do cliente, e orçamentos pelo WhatsApp.</p>') +
         c('Nome da loja', 'nome', 'maxlength="60" autocomplete="organization" placeholder="Ex.: Casa & Sala Móveis"') +
         '<label class="campo">Endereço do seu catálogo<span class="cad-slug"><span>' + esc(location.host) + '/</span><input id="cad-slug" maxlength="40" autocapitalize="off" autocomplete="off" spellcheck="false" value="' + esc(cad.slug) + '"' + (campoErro === 'slug' ? ' aria-invalid="true"' : '') + '></span>' +
           '<small id="cad-slug-st" aria-live="polite">Letras minúsculas, números e hífen.</small></label>' +
@@ -3414,7 +3423,7 @@
         (erro ? '<div class="ar-indisp" role="alert">' + esc(erro) + '</div>' : '') +
         '<p class="mini">Ao criar, você concorda com os <a href="/termos" target="_blank" rel="noopener">termos de uso e privacidade</a>.</p>' +
       '</div>';
-    $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">Criar meu catálogo grátis</button>';
+    $('#cadastro-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cad-criar">' + (cadastroPosCompra ? 'Criar minha conta e liberar o plano' : 'Criar meu catálogo grátis') + '</button>';
     if (cad.slug) conferirSlug();
     if (campoErro) { var el = $('#cad-' + campoErro); if (el) el.focus(); }
   }
@@ -3763,7 +3772,14 @@
   if (!LOJA) {
     fetch('api/cadastro', { cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
       if (j.suporte) { suporteMenuReal = j.suporte; atualizarBotoesSuporte(); }
+      if (j.checkouts && Object.keys(j.checkouts).length) {
+        Object.keys(j.checkouts).forEach(function (t) { if (/^https:\/\/pay\.kiwify\.com\.br\/[\w-]+\/?$/.test(j.checkouts[t])) checkoutsPublicos[t] = j.checkouts[t]; });
+        $('#lp-planos').innerHTML = htmlPlanos(null);
+        var nota = $('#lp-pagar-nota'); if (nota) nota.hidden = false;
+      }
     }).catch(function () { /* fica o número padrão */ });
+    // voltou da Kiwify depois de pagar: abre o cadastro pedindo o mesmo e-mail da compra
+    if (/[?&]comprou=1/.test(location.search)) { setTimeout(function () { abrirCadastro(true); }, 300); }
   }
   $('#btn-ajuda').addEventListener('click', function () { abrirAjuda(LOJA ? 'cliente' : 'loja'); });
   $('#admin-ajuda').addEventListener('click', function () { abrirAjuda('loja'); });

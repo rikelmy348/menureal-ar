@@ -1,10 +1,11 @@
-/* GET  /api/cadastro?slug=x   → { livre, suporte }   (endereço disponível?)
+/* GET  /api/cadastro           → { suporte, checkouts }   (links de pagamento dos planos)
+   GET  /api/cadastro?slug=x   → { livre, suporte }   (endereço disponível?)
    POST /api/cadastro          { nome, slug, ramo, whatsapp, email, senha }
         → { token, slug, nome, codigo, testeAte }
    O próprio lojista cria a conta, com 7 dias de teste grátis.
    Limite: 3 contas por IP por dia. */
 import { json, slugValido, hashSenha, criarToken, ipDe, gerarCodigo, hashCodigo } from '../lib/comum.mjs';
-import { contaPorEmail, lojaExiste, salvarConta, lerConfig, dentroDoLimite, RAMOS, aplicarPendente } from '../lib/banco.mjs';
+import { contaPorEmail, lojaExiste, salvarConta, lerConfig, dentroDoLimite, RAMOS, aplicarPendente, lerCheckouts } from '../lib/banco.mjs';
 
 export const DIAS_TESTE = 7;
 
@@ -12,7 +13,7 @@ export default async function cadastro(req, env) {
   if (req.method === 'GET') {
     const slug = String(new URL(req.url).searchParams.get('slug') || '').toLowerCase();
     const suporte = (await lerConfig(env, 'suporte')) || '';
-    if (!slug) return json({ suporte });
+    if (!slug) return json({ suporte, checkouts: await lerCheckouts(env) });
     return json({ livre: slugValido(slug) && !(await lojaExiste(env, slug)), valido: slugValido(slug), suporte });
   }
   if (req.method !== 'POST') return json({ erro: 'Use GET ou POST.' }, 405);

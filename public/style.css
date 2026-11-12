@@ -997,3 +997,6 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .kiwify-ok { color: var(--ok); font-weight: 650; }
 .pagamentos { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; font-size: 14px; }
 .pagamentos small { display: block; color: var(--tinta-2); }
+
+.lp-plano .btn + .btn { margin-top: 8px; }
+.cadastro__pago { padding: 12px 14px; border-radius: var(--raio-p); background: var(--limao-suave); }
