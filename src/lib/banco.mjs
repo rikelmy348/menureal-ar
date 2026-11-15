@@ -338,7 +338,10 @@ export async function contaPorSlug(env, slug) {
   return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
 }
 export async function lojaExiste(env, slug) {
-  return Boolean(await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first());
+  if (await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first()) return true;
+  // endereço de loja excluída fica reservado por 31 dias (o tempo de vida dos logins antigos)
+  const ex = await lerConfig(env, 'excluida:' + slug);
+  return Boolean(ex && Date.now() - Number(ex) < 31 * 864e5);
 }
 /** ativo | teste (dentro do prazo) | vencido (teste acabou) | bloqueado */
 export function situacaoLoja(l) {
@@ -497,4 +500,32 @@ export async function lerCheckouts(env) {
   const r = {};
   for (const t of ['fundador', 'loja', 'anual']) if (CHECKOUT_OK.test(String(c[t] || ''))) r[t] = c[t];
   return r;
+}
+
+// ---------------------------------------------------------------------------
+// Excluir loja (só o dono do MenuReal): apaga conta, produtos, números e arquivos
+// ---------------------------------------------------------------------------
+export async function excluirLoja(env, slug) {
+  if (!slug || slug === DEMO) throw erroComStatus('Essa loja não pode ser excluída.', 400);
+  const l = await env.DB.prepare('SELECT slug FROM lojas WHERE slug = ?').bind(slug).first();
+  if (!l) throw erroComStatus('Loja não encontrada.', 404);
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM produtos WHERE loja = ?').bind(slug),
+    env.DB.prepare('DELETE FROM tarefas_3d WHERE loja = ?').bind(slug),
+    env.DB.prepare('DELETE FROM eventos WHERE loja = ?').bind(slug),
+    env.DB.prepare('DELETE FROM uso_3d WHERE loja = ?').bind(slug),
+    env.DB.prepare('DELETE FROM lojas WHERE slug = ?').bind(slug)
+  ]);
+  await gravarConfig(env, 'excluida:' + slug, Date.now());
+  // arquivos 3D e imagens da loja
+  let apagados = 0;
+  for (const prefixo of ['modelos/' + slug + '/', 'imagens/' + slug + '/']) {
+    let cursor;
+    do {
+      const r = await env.MODELOS.list({ prefix: prefixo, cursor });
+      for (const k of r.keys) { await env.MODELOS.delete(k.name); apagados++; }
+      cursor = r.list_complete ? null : r.cursor;
+    } while (cursor && apagados < 900);
+  }
+  return { apagados };
 }

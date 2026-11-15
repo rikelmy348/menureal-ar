@@ -2,9 +2,10 @@
    POST /api/contas   cria ou redefine a senha  { slug, nome, email, senha, ramo }
    POST /api/contas   { acao: 'plano', slug, plano: 'ativo'|'bloqueado'|'teste', dias, tipo: 'fundador'|'loja'|'anual' }
    POST /api/contas   { acao: 'suporte', numero }   WhatsApp que as lojas veem para falar com você
-   POST /api/contas   { acao: 'checkouts', fundador, loja, anual }   links de pagamento da Kiwify */
+   POST /api/contas   { acao: 'checkouts', fundador, loja, anual }   links de pagamento da Kiwify
+   POST /api/contas   { acao: 'excluir', slug, confirmacao }   apaga a loja de vez (confirmacao = slug) */
 import { json, ehMestre, slugValido, hashSenha } from '../lib/comum.mjs';
-import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig, lerCheckouts, listarPagamentos, CHECKOUT_OK } from '../lib/banco.mjs';
+import { listarLojas, contaPorEmail, salvarConta, mudarPlano, lerConfig, gravarConfig, lerCheckouts, listarPagamentos, CHECKOUT_OK, excluirLoja } from '../lib/banco.mjs';
 
 export default async function contas(req, env) {
   if (!env.MENUREAL_CODIGO) return json({ erro: 'Servidor não configurado: defina MENUREAL_CODIGO nas variáveis da Cloudflare.' }, 500);
@@ -23,6 +24,11 @@ export default async function contas(req, env) {
     const tipo = ['fundador', 'loja', 'anual'].includes(d.tipo) ? d.tipo : '';
     if (plano === 'ativo' && !tipo) return json({ erro: 'Escolha o plano que a loja contratou (Fundador, Loja ou Anual).' }, 400);
     return json({ ok: true, ...(await mudarPlano(env, d.slug, plano, Math.min(90, Math.max(1, Number(d.dias) || 7)), tipo)) });
+  }
+  if (d.acao === 'excluir') {
+    const slug = String(d.slug || '');
+    if (!slug || d.confirmacao !== slug) return json({ erro: 'Confirmação inválida.' }, 400);
+    return json({ ok: true, ...(await excluirLoja(env, slug)) });
   }
   if (d.acao === 'checkouts') {
     const c = {};

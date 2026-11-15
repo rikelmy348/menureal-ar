@@ -2445,6 +2445,18 @@
     if (e.target.closest('#conta-codigo')) { novoCodigo(e.target.closest('#conta-codigo')); return; }
     if (e.target.closest('[data-copiar]')) { copiarTexto(e.target.closest('[data-copiar]').getAttribute('data-copiar')); return; }
     if (e.target.closest('#suporte-salvar')) { salvarSuporte(); return; }
+    var exl = e.target.closest('[data-excluir-loja]');
+    if (exl) {
+      var sx = exl.getAttribute('data-excluir-loja'), nx = exl.getAttribute('data-nome');
+      confirmar('Excluir a loja “' + nx + '” (/' + sx + ') para sempre? Apaga a conta, os produtos, as fotos, os modelos 3D e os números. Não dá para desfazer.', 'Excluir para sempre').then(function (sim) {
+        if (!sim) return;
+        exl.disabled = true;
+        postarJson('api/contas', { acao: 'excluir', slug: sx, confirmacao: sx }, credenciais())
+          .then(function () { toast('Loja /' + sx + ' excluída'); carregarLojas(); })
+          .catch(function (er) { exl.disabled = false; toast(er.message); });
+      });
+      return;
+    }
     var cks = e.target.closest('#ck-salvar');
     if (cks) { salvarCheckouts(cks); return; }
     var pok = e.target.closest('[data-pedido-ok]'), prem = e.target.closest('[data-pedido-rem]');
@@ -3375,6 +3387,7 @@
       '</div><div class="linha-acoes">' +
         b('teste', '+7 dias de teste') +
         (sit !== 'bloqueado' ? b('bloqueado', 'Bloquear') : '') +
+        '<button class="btn btn--perigo btn--p" type="button" data-excluir-loja="' + esc(c.slug) + '" data-nome="' + esc(c.nome) + '">Excluir</button>' +
       '</div></li>';
   }
   function mudarPlanoLoja(slugLoja, plano, botao, tipo) {
