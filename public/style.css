@@ -1000,3 +1000,8 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 
 .lp-plano .btn + .btn { margin-top: 8px; }
 .cadastro__pago { padding: 12px 14px; border-radius: var(--raio-p); background: var(--limao-suave); }
+
+/* versões do produto com 3D próprio */
+.tam-3d { margin: 8px 0 2px; padding: 10px 12px; border-radius: var(--raio-p); background: var(--palco-b); }
+.tam-3d .modelo-admin__estado { display: block; font-size: 13.5px; margin-bottom: 6px; }
+.tam-3d .modelo-admin__estado.ok { color: var(--ok); font-weight: 650; }

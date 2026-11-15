@@ -221,6 +221,7 @@
           return { id: tid, nome: String(t.nome).slice(0, 30), preco: Math.max(0, Number(t.preco) || 0), dim: lerDimObj(t.dim), modelo: String(t.modelo || '') };
         }),
         adicionais: lerAdicionais(x.adicionais),   // opcionais com preço (ex.: montagem, pés de outra cor)
+        versao: String(x.versao || '').trim().slice(0, 30),   // nome da versão principal (quando há outras versões)
         esgotado: x.esgotado === true, // acabou hoje: aparece, mas não dá para pedir
         foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : ''   // produto ainda sem 3D
       };
@@ -366,12 +367,16 @@
   function efetivo(p, tamId) {
     var t = null;
     (p.tamanhos || []).forEach(function (x) { if (x.id === tamId) t = x; });
-    if (!t) return { p: p, t: null, preco: p.preco, dim: p.dim, modelo: p.modelo, nome: p.nome };
+    if (!t) return { p: p, t: null, preco: p.preco, dim: p.dim, modelo: p.modelo, nome: p.nome + (temVersaoPrincipal(p) ? ' (' + (p.versao || 'Original') + ')' : '') };
     return { p: p, t: t, preco: t.preco, dim: t.dim, modelo: t.modelo || p.modelo, nome: p.nome + ' (' + t.nome + ')' };
   }
+  // Em catálogos de produtos, o próprio produto é a 1ª versão (as outras ficam em "tamanhos")
+  function temVersaoPrincipal(p) { return !ehAlimento() && !!(p.tamanhos && p.tamanhos.length); }
   function precoMinimo(p) {
     if (!p.tamanhos || !p.tamanhos.length) return p.preco;
-    return Math.min.apply(null, p.tamanhos.map(function (t) { return t.preco; }));
+    var precos = p.tamanhos.map(function (t) { return t.preco; });
+    if (temVersaoPrincipal(p)) precos.push(p.preco);
+    return Math.min.apply(null, precos);
   }
 
   // Credenciais para o servidor: conta da loja (token) ou código mestre
@@ -675,7 +680,7 @@
     var p = produtoPorId(id);
     if (!p) return;
     registrar('produto', p.id);
-    tamAtual = p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
+    tamAtual = temVersaoPrincipal(p) ? null : p.tamanhos && p.tamanhos.length ? p.tamanhos[Math.min(1, p.tamanhos.length - 1)].id : null;
     adicSel = [];
     abrirViewerProduto(p, modo);
   }
@@ -689,8 +694,11 @@
     $('#viewer-desc').textContent = p.descricao;
     var tams = $('#viewer-tamanhos');
     tams.hidden = !(p.tamanhos && p.tamanhos.length);
-    tams.innerHTML = (p.tamanhos || []).map(function (t) {
-      return '<button type="button" class="tam" data-tam="' + esc(t.id) + '" aria-pressed="' + (t.id === tamAtual) + '">' +
+    tams.setAttribute('aria-label', ehAlimento() ? 'Tamanho' : 'Versão');
+    var opcoes = (p.tamanhos || []).slice();
+    if (temVersaoPrincipal(p)) opcoes.unshift({ id: '', nome: p.versao || 'Original', preco: p.preco, dim: p.dim });
+    tams.innerHTML = opcoes.map(function (t) {
+      return '<button type="button" class="tam" data-tam="' + esc(t.id) + '" aria-pressed="' + (t.id === (tamAtual || '')) + '">' +
         '<strong>' + esc(t.nome) + '</strong><span>' + brl(t.preco) + '</span><small>' + esc(dimTexto(t.dim)) + '</small></button>';
     }).join('');
     var info = '';
@@ -1045,7 +1053,7 @@
     var b = e.target.closest('[data-tam]');
     if (!b || !produtoAtual) return;
     var antes = efetivo(produtoAtual, tamAtual).modelo;
-    tamAtual = b.getAttribute('data-tam');
+    tamAtual = b.getAttribute('data-tam') || null;
     var ef = efetivo(produtoAtual, tamAtual);
     preencherTextosViewer(produtoAtual);
     var mv = palco.querySelector('model-viewer');
@@ -2004,6 +2012,13 @@
       else { var bu = t.closest('[data-forma-det]').querySelector('[data-forma-usar]'); if (bu) bu.disabled = true; }
       return;
     }
+    if (t.matches('[data-tam-up3d]') && t.files && t.files[0]) {
+      coletarAdmin();
+      var xv = produtoDoAlvo(t), tv = xv.tamanhos[Number(t.closest('.tam-linha').getAttribute('data-ti'))];
+      if (tv) enviar3d(t.files[0], xv, tv.id);
+      t.value = '';
+      return;
+    }
     if (t.matches('[data-up3d]') && t.files && t.files[0]) {
       coletarAdmin();
       enviar3d(t.files[0], produtoDoAlvo(t));
@@ -2019,7 +2034,7 @@
     if (!moduloGlb) moduloGlb = import(new URL('glb.mjs', document.baseURI).href);
     return moduloGlb;
   }
-  function enviar3d(arquivo, x) {
+  function enviar3d(arquivo, x, tamId) {
     if (!credenciais()) { toast(LOJA ? 'Entre na conta da loja' : 'Preencha o código de acesso'); return; }
     if (!/\.glb$/i.test(arquivo.name)) { toast('Envie o arquivo em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).'); return; }
     if (arquivo.size > 25 * 1024 * 1024) { toast('Arquivo grande demais (máximo 25 MB). Peça uma versão mais leve à fábrica ou reduza as texturas.'); return; }
@@ -2032,12 +2047,25 @@
       } catch (e) { throw new Error('Este arquivo não é um .glb válido.'); }
       if (!(med.largura > 0)) throw new Error('O arquivo não tem nenhum objeto 3D.');
       toast('Enviando o 3D…');
-      return fetch(comLoja('api/modelo-arquivo') + (LOJA ? '&' : '?') + 'nome=' + encodeURIComponent(slug(x.nome || arquivo.name)), {
+      var nomeArq = (x.nome || arquivo.name) + (tamId ? '-' + tamId : '');
+      return fetch(comLoja('api/modelo-arquivo') + (LOJA ? '&' : '?') + 'nome=' + encodeURIComponent(slug(nomeArq)), {
         method: 'POST', headers: Object.assign({ 'content-type': 'model/gltf-binary' }, credenciais()), body: bytes
       }).then(function (resp) {
         return resp.json().catch(function () { return {}; }).then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; });
       }).then(function (j) { return { url: j.url, med: med }; });
     }).then(function (res) {
+      if (tamId) {
+        // versão do produto: guarda o 3D só nela (o resto do produto não muda)
+        coletarAdmin();
+        var tv = (x.tamanhos || []).filter(function (v) { return v.id === tamId; })[0];
+        if (!tv) throw new Error('A versão foi removida antes do envio terminar.');
+        tv.modelo = res.url;
+        var semMedV = tv.dim.largura <= 5 && tv.dim.profundidade <= 5 && tv.dim.altura <= 5;
+        if (semMedV) tv.dim = res.med;
+        abertoNoAdmin = x.id; renderAdmin();
+        toast('3D da versão “' + tv.nome + '” enviado' + (semMedV ? ' (' + dimTexto(res.med) + ')' : '') + '. Toque em “Salvar alterações”.');
+        return;
+      }
       x.modelo = res.url;
       x.ilustrativo = false;
       var med = res.med, dim = x.dim;
@@ -2226,8 +2254,10 @@
         '</div>' +
         htmlFotoProdutoAdmin(x) +
         htmlProduto3dAdmin(x) +
-        '<fieldset class="campo tams-admin"><legend>Tamanhos (opcional)</legend>' +
-          '<small>Ex.: sofá 2 e 3 lugares. Cada tamanho tem preço e medidas próprios; o 3D é ajustado para cada um.</small>' +
+        '<fieldset class="campo tams-admin"><legend>' + (ehAlimento(rascunho) ? 'Tamanhos (opcional)' : 'Versões: cor, tamanho ou modelo (opcional)') + '</legend>' +
+          '<small>' + (ehAlimento(rascunho) ? 'Ex.: pequeno e grande. Cada tamanho tem preço e medidas próprios.'
+            : 'O mesmo móvel em outras opções. Ex.: sofá cinza e azul, ou 2 e 3 lugares. Cada versão tem nome, preço, medidas e pode ter o seu próprio 3D; sem 3D próprio, usa o 3D principal ajustado às medidas.') + '</small>' +
+          (ehAlimento(rascunho) ? '' : campo('Nome da versão principal (a do 3D e do preço acima)', '<input data-f="versao" maxlength="30" placeholder="Ex.: Cinza, 3 lugares… (se vazio: Original)" value="' + esc(x.versao || '') + '">')) +
           x.tamanhos.map(function (t, ti) {
             return '<div class="tam-linha" data-ti="' + ti + '">' +
               '<div class="campos campos--2">' +
@@ -2240,13 +2270,21 @@
                 campo('Alt. (cm)', '<input data-t="altura" type="number" min="0.1" step="0.1" inputmode="decimal" value="' + t.dim.altura + '">') +
               '</div>' +
               '<input type="hidden" data-t="modelo" value="' + esc(t.modelo) + '">' +
-              '<div class="tam-rodape"><span class="mini">' + (t.modelo ? '3D pronto' : 'Sem 3D próprio') + '</span>' +
-                '<button class="link-remover" type="button" data-tam-remover>Remover tamanho</button></div>' +
+              (servidor && !ehAlimento(rascunho)
+                ? '<div class="tam-3d"><span class="modelo-admin__estado' + (t.modelo ? ' ok' : '') + '">' + (t.modelo ? '✓ Esta versão tem o próprio 3D' : 'Usa o 3D principal (ajustado às medidas)') + '</span>' +
+                  '<div class="linha-acoes">' +
+                    '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-tam-up3d hidden></label>' +
+                    '<button class="btn btn--sec btn--p" type="button" data-tam-gerar>' + ICONES.camera + 'Criar com fotos</button>' +
+                    (t.modelo ? '<button class="btn btn--fantasma btn--p" type="button" data-tam-limpar>Usar o 3D principal</button>' : '') +
+                  '</div></div>'
+                : '') +
+              '<div class="tam-rodape"><span class="mini">' + (ehAlimento(rascunho) ? (t.modelo ? '3D pronto' : 'Sem 3D próprio') : '') + '</span>' +
+                '<button class="link-remover" type="button" data-tam-remover>' + (ehAlimento(rascunho) ? 'Remover tamanho' : 'Remover versão') + '</button></div>' +
             '</div>';
           }).join('') +
           '<div class="linha-acoes">' +
-            '<button class="btn btn--fantasma btn--p" type="button" data-tam-novo>' + ICONES.mais + 'Adicionar tamanho</button>' +
-            (servidor && x.tamanhos.length && x.modelo ? '<button class="btn btn--sec btn--p" type="button" data-tam-3d>' + ICONES.cubo + 'Gerar 3D de cada tamanho</button>' : '') +
+            '<button class="btn btn--fantasma btn--p" type="button" data-tam-novo>' + ICONES.mais + (ehAlimento(rascunho) ? 'Adicionar tamanho' : 'Adicionar versão') + '</button>' +
+            (servidor && ehAlimento(rascunho) && x.tamanhos.length && x.modelo ? '<button class="btn btn--sec btn--p" type="button" data-tam-3d>' + ICONES.cubo + 'Gerar 3D de cada tamanho</button>' : '') +
           '</div>' +
         '</fieldset>' +
         '<fieldset class="campo tams-admin adic-admin"><legend>Opcionais (opcional)</legend>' +
@@ -2295,6 +2333,7 @@
       x.modelo = g('modelo').value.trim();
       x.ilustrativo = g('ilustrativo').checked;
       x.esgotado = g('esgotado').checked;
+      x.versao = g('versao') ? g('versao').value.trim() : (x.versao || '');
       x.ingredientes = g('ingredientes').value.trim();
       if (ehAlimento(rascunho)) x.alergenos = $$('[data-alerg]', d).filter(function (c) { return c.checked; }).map(function (c) { return c.getAttribute('data-alerg'); });
       x.tamanhos = $$('.tam-linha', d).map(function (l) {
@@ -2511,6 +2550,17 @@
       var pq = rascunho.produtos[Number(adicRem.closest('details.prod').getAttribute('data-i'))];
       pq.adicionais.splice(Number(adicRem.closest('.adic-linha').getAttribute('data-ai')), 1);
       abertoNoAdmin = pq.id; renderAdmin();
+      return;
+    }
+    var tamG = e.target.closest('[data-tam-gerar]'), tamL = e.target.closest('[data-tam-limpar]');
+    if (tamG || tamL) {
+      coletarAdmin();
+      var bt = tamG || tamL, ip = Number(bt.closest('details.prod').getAttribute('data-i')), xg = rascunho.produtos[ip];
+      var tg = xg.tamanhos[Number(bt.closest('.tam-linha').getAttribute('data-ti'))];
+      if (!tg) return;
+      if (tamL) { tg.modelo = ''; abertoNoAdmin = xg.id; renderAdmin(); toast('A versão “' + tg.nome + '” volta a usar o 3D principal.'); return; }
+      if (!tg.nome) { toast('Dê um nome para a versão antes (ex.: Cinza).'); return; }
+      abrirGerador3D(ip, tg.id);
       return;
     }
     var tam3d = e.target.closest('[data-tam-3d]');
@@ -2867,10 +2917,17 @@
 
   function tarefas3d() { return ler(CHAVE_TAREFAS) || {}; }
   function guardarTarefa(id, t) { var x = tarefas3d(); if (t) x[id] = t; else delete x[id]; gravar(CHAVE_TAREFAS, x); }
-  function produtoG3d() { return rascunho && rascunho.produtos[g3d.i]; }
+  function produtoG3d() {
+    var x = rascunho && rascunho.produtos[g3d.i];
+    if (!x || !g3d.tamId) return x;
+    var t = (x.tamanhos || []).filter(function (v) { return v.id === g3d.tamId; })[0];
+    if (!t) return x;
+    // a versão se comporta como um produto para o gerador (as medidas são as dela)
+    return { id: x.id + '~' + t.id, nome: x.nome + ' — ' + t.nome, dim: t.dim, modelo: t.modelo, _prod: x, _tam: t };
+  }
 
-  function abrirGerador3D(i) {
-    g3d.i = i; g3d.fotos = []; g3d.resultado = null;
+  function abrirGerador3D(i, tamId) {
+    g3d.i = i; g3d.tamId = tamId || ''; g3d.fotos = []; g3d.resultado = null;
     abrirDialogo($('#dlg-3d'));
     var x = produtoG3d();
     var pend = tarefas3d()[x.id];
@@ -3024,9 +3081,8 @@
     if (e.target.closest('#g3d-refazer')) { g3d.resultado = null; renderG3dInicio(); return; }
     if (e.target.closest('#g3d-usar')) {
       var x = produtoG3d();
-      x.modelo = g3d.resultado.url;
-      x.ilustrativo = false;
-      abertoNoAdmin = x.id;
+      if (x._tam) { x._tam.modelo = g3d.resultado.url; abertoNoAdmin = x._prod.id; }
+      else { x.modelo = g3d.resultado.url; x.ilustrativo = false; abertoNoAdmin = x.id; }
       fecharDialogo($('#dlg-3d'));
       renderAdmin();
       toast('Modelo aplicado. Toque em “Salvar alterações” para publicar.');
