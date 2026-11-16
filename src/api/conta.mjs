@@ -3,7 +3,8 @@
    POST /api/conta?loja=slug { acao: 'senha', atual, nova }
    POST /api/conta?loja=slug { acao: 'codigo', senha }   → { codigo }  (novo código de recuperação) */
 import { json, autorizar, lerSlug, hashSenha, conferirSenha, gerarCodigo, hashCodigo, ipDe } from '../lib/comum.mjs';
-import { contaPorSlug, mudarSenha, gravarCodigoRecuperacao, situacaoLoja, dentroDoLimite } from '../lib/banco.mjs';
+import { contaPorSlug, mudarSenha, gravarCodigoRecuperacao, situacaoLoja, dentroDoLimite, lerConfig, gravarConfig, resumoSemanal } from '../lib/banco.mjs';
+import { emailConfigurado, textoResumo } from '../lib/resumo.mjs';
 
 export default async function conta(req, env) {
   const slug = lerSlug(req);
@@ -11,10 +12,20 @@ export default async function conta(req, env) {
   await autorizar(req, env, slug);
   const c = await contaPorSlug(env, slug);
   if (!c) return json({ erro: 'Loja não encontrada.' }, 404);
+  const url = new URL(req.url);
+  if (req.method === 'GET' && url.searchParams.get('resumo') === '1') {
+    const r = await resumoSemanal(env, slug);
+    return json({ ...r, texto: textoResumo({ nome: c.nome, tipo: c.tipo, slug: c.slug }, r, url.origin), emailLigado: !(await lerConfig(env, 'resumo-off:' + slug)), emailConfigurado: emailConfigurado(env), email: c.email });
+  }
   if (req.method === 'GET') return json({ email: c.email, situacao: situacaoLoja(c), testeAte: c.plano === 'teste' ? c.teste_ate : '', temCodigo: Boolean(c.codigo_hash) });
   if (req.method !== 'POST') return json({ erro: 'Use GET ou POST.' }, 405);
   let d;
   try { d = await req.json(); } catch { return json({ erro: 'Requisição inválida.' }, 400); }
+  if (d.acao === 'resumo') {   // liga/desliga o resumo semanal por e-mail (não pede senha)
+    if (d.ligado) await env.DB.prepare('DELETE FROM configuracao WHERE chave = ?').bind('resumo-off:' + slug).run();
+    else await gravarConfig(env, 'resumo-off:' + slug, true);
+    return json({ ok: true, emailLigado: Boolean(d.ligado) });
+  }
   if (!(await dentroDoLimite(env, 'conta:' + slug + ':' + ipDe(req), 10, 36e5))) return json({ erro: 'Muitas tentativas. Espere uma hora.' }, 429);
   const atual = String(d.atual || d.senha || '');
   if (!(await conferirSenha(atual, c.senha_hash))) {

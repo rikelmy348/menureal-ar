@@ -18,5 +18,7 @@
   "kv_namespaces": [{ "binding": "MODELOS" }],
   // Mantém as chaves cadastradas no painel a cada nova publicação
   "keep_vars": true,
+  // Resumo semanal por e-mail: segunda, de 8h a 11h (Brasília), uma tentativa por hora
+  "triggers": { "crons": ["17 11-14 * * 1"] },
   "observability": { "enabled": true }
 }

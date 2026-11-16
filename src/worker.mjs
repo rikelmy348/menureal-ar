@@ -5,6 +5,7 @@
    ========================================================================= */
 import { json, slugValido } from './lib/comum.mjs';
 import { garantirEsquema, resumoLoja } from './lib/banco.mjs';
+import { enviarResumos } from './lib/resumo.mjs';
 import cardapio from './api/cardapio.mjs';
 import contas from './api/contas.mjs';
 import entrar from './api/entrar.mjs';
@@ -79,6 +80,11 @@ async function paginaComPrevia(req, env, caminho) {
 }
 
 export default {
+  // Toda segunda de manhã: resumo da semana por e-mail (só se o e-mail estiver configurado)
+  async scheduled(evento, env, ctx) {
+    if (!env.DB) return;
+    ctx.waitUntil(garantirEsquema(env).then(() => enviarResumos(env)).catch((e) => console.error('agendado', e)));
+  },
   async fetch(req, env) {
     const { pathname } = new URL(req.url);
     if (!pathname.startsWith('/api/')) {

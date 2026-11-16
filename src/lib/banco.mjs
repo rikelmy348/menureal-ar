@@ -229,10 +229,22 @@ export async function lerCardapio(env, slug) {
       alergenos: lerJson(p.alergenos, []), tamanhos: lerJson(p.tamanhos, []), adicionais: lerJson(p.adicionais, []),
       esgotado: Boolean(lerJson(p.opcoes, {}).esgotado),
       foto: String(lerJson(p.opcoes, {}).foto || ''),
-      versao: String(lerJson(p.opcoes, {}).versao || '')
+      versao: String(lerJson(p.opcoes, {}).versao || ''),
+      pontos: limparPontos(lerJson(p.opcoes, {}).pontos),
+      pontosDe: String(lerJson(p.opcoes, {}).pontosDe || '')
     })),
     atualizadoEm: l.atualizada_em
   };
+}
+
+/** Pontos de informação no 3D: até 8, cada um com posição e normal (metros) e um texto curto. */
+export function limparPontos(lista) {
+  const vet = (v) => (Array.isArray(v) && v.length === 3 && v.every((n) => Number.isFinite(Number(n)) && Math.abs(Number(n)) < 50)
+    ? v.map((n) => Math.round(Number(n) * 1e4) / 1e4) : null);
+  return (Array.isArray(lista) ? lista : []).map((x) => {
+    const p = vet(x && x.p), n = vet(x && x.n) || [0, 1, 0], t = texto(x && x.t, 80);
+    return p && t ? { p, n, t } : null;
+  }).filter(Boolean).slice(0, 8);
 }
 
 /** Substitui o cardápio inteiro da loja, numa transação (batch). */
@@ -276,7 +288,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30) })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300) })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;
@@ -336,7 +348,7 @@ export async function contaPorEmail(env, email) {
   return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE email = ?').bind(email).first();
 }
 export async function contaPorSlug(env, slug) {
-  return env.DB.prepare('SELECT slug, nome, email, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
+  return env.DB.prepare('SELECT slug, nome, email, tipo, senha_hash, codigo_hash, plano, teste_ate FROM lojas WHERE slug = ?').bind(slug).first();
 }
 export async function lojaExiste(env, slug) {
   if (await env.DB.prepare('SELECT 1 AS ok FROM lojas WHERE slug = ?').bind(slug).first()) return true;
@@ -453,6 +465,32 @@ export async function lerEventos(env, slug, dias = 30) {
   const desde = diaBrasil(Date.now() - (dias - 1) * 864e5);
   const { results } = await env.DB.prepare('SELECT dia, tipo, chave, n FROM eventos WHERE loja = ? AND dia >= ? ORDER BY dia').bind(slug, desde).all();
   return { desde, hoje: diaBrasil(), linhas: results };
+}
+
+/** Resumo da semana (últimos 7 dias, sem contar hoje) comparado com a semana anterior. */
+export async function resumoSemanal(env, slug) {
+  const ate = diaBrasil(Date.now() - 864e5), desde = diaBrasil(Date.now() - 7 * 864e5), antes = diaBrasil(Date.now() - 14 * 864e5);
+  const { results } = await env.DB.prepare('SELECT dia, tipo, chave, n FROM eventos WHERE loja = ? AND dia >= ? AND dia <= ?').bind(slug, antes, ate).all();
+  const semana = { visita: 0, produto: 0, ar: 0, pedido: 0 }, anterior = { visita: 0, produto: 0, ar: 0, pedido: 0 }, prods = {};
+  for (const l of results) {
+    const alvo = l.dia >= desde ? semana : anterior;
+    alvo[l.tipo] = (alvo[l.tipo] || 0) + l.n;
+    if (l.dia >= desde && l.tipo === 'produto') prods[l.chave] = (prods[l.chave] || 0) + l.n;
+  }
+  const ids = Object.keys(prods).sort((a, b) => prods[b] - prods[a]).slice(0, 3);
+  let nomes = {};
+  if (ids.length) {
+    const r = await env.DB.prepare(`SELECT id, nome FROM produtos WHERE loja = ? AND id IN (${ids.map(() => '?').join(',')})`).bind(slug, ...ids).all();
+    nomes = Object.fromEntries(r.results.map((x) => [x.id, x.nome]));
+  }
+  return { desde, ate, semana, anterior, top: ids.filter((id) => nomes[id]).map((id) => ({ nome: nomes[id], n: prods[id] })) };
+}
+/** Lojas que recebem o resumo por e-mail: com e-mail, no teste ou ativas, sem ter desligado. */
+export async function lojasParaResumo(env) {
+  const { results } = await env.DB.prepare(`SELECT l.slug, l.nome, l.email, l.tipo, l.plano, l.teste_ate FROM lojas l
+    WHERE l.email IS NOT NULL AND l.email <> '' AND l.slug <> ?
+      AND NOT EXISTS (SELECT 1 FROM configuracao c WHERE c.chave = 'resumo-off:' || l.slug)`).bind(DEMO).all();
+  return results.filter((l) => ['ativo', 'teste'].includes(situacaoLoja(l)));
 }
 
 // ---------------------------------------------------------------------------

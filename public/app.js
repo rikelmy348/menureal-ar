@@ -165,6 +165,13 @@
   var produtoAtual = null;
   var servidor = false; // true quando /api/cardapio existe (site publicado com funções)
 
+  function lerPontos(l) {
+    var vet = function (v) { return Array.isArray(v) && v.length === 3 && v.every(function (n) { return isFinite(Number(n)); }) ? v.map(Number) : null; };
+    return (Array.isArray(l) ? l : []).map(function (x) {
+      var p = vet(x && x.p), t = String((x && x.t) || '').trim().slice(0, 80);
+      return p && t ? { p: p, n: vet(x.n) || [0, 1, 0], t: t } : null;
+    }).filter(Boolean).slice(0, 8);
+  }
   function validarDados(d) {
     if (!d || typeof d !== 'object' || !d.padaria || !Array.isArray(d.produtos)) return null;
     var p = d.padaria;
@@ -223,7 +230,9 @@
         adicionais: lerAdicionais(x.adicionais),   // opcionais com preço (ex.: montagem, pés de outra cor)
         versao: String(x.versao || '').trim().slice(0, 30),   // nome da versão principal (quando há outras versões)
         esgotado: x.esgotado === true, // acabou hoje: aparece, mas não dá para pedir
-        foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : ''   // produto ainda sem 3D
+        foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : '',   // produto ainda sem 3D
+        pontos: lerPontos(x.pontos),            // pontos de informação no 3D (ex.: "tecido impermeável")
+        pontosDe: String(x.pontosDe || '')       // o 3D em que os pontos foram marcados
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -690,7 +699,7 @@
     $('#viewer-cat').textContent = p.categoria + (p.ilustrativo && p.modelo ? ' · modelo ilustrativo' : '');
     $('#viewer-nome').textContent = p.nome;
     $('#viewer-preco').textContent = brl(ef.preco);
-    $('#viewer-dim').textContent = p.combo ? 'itens lado a lado' : dimTexto(ef.dim);
+    $('#viewer-dim').textContent = p.combo ? (p.ambiente ? 'como você arrumou' : 'itens lado a lado') : dimTexto(ef.dim);
     $('#viewer-desc').textContent = p.descricao;
     var tams = $('#viewer-tamanhos');
     tams.hidden = !(p.tamanhos && p.tamanhos.length);
@@ -788,6 +797,16 @@
       '<span class="adic__marca" aria-hidden="true">' + ICONES.ok + '</span>' +
       '<span class="adic__txt">' + esc(a.nome) + '<small>' + (fora ? 'esgotado' : '+ ' + brl(a.preco)) + '</small></span></label>';
   }
+  // Pontos de informação marcados pela loja (só no 3D em que foram marcados)
+  function pontosValidos(p, ef) {
+    return !p.combo && p.pontos && p.pontos.length && p.modelo && p.pontosDe === p.modelo && ef.modelo === p.modelo ? p.pontos : [];
+  }
+  function htmlPontosViewer(p, ef) {
+    return pontosValidos(p, ef).map(function (pt, i) {
+      return '<button slot="hotspot-info' + i + '" class="info-ponto" type="button" data-position="' + pt.p.join('m ') + 'm" data-normal="' + pt.n.join('m ') + 'm" data-visibility-attribute="visible" aria-expanded="false" aria-label="Informação ' + (i + 1) + ': ' + esc(pt.t) + '">' +
+        '<span class="info-ponto__n" aria-hidden="true">' + (i + 1) + '</span><span class="info-ponto__txt">' + esc(pt.t) + '</span></button>';
+    }).join('');
+  }
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
     preencherTextosViewer(p);
@@ -846,7 +865,7 @@
     mv.innerHTML =
       '<button slot="ar-button" class="botao-ar" type="button" aria-label="Abrir câmera e ver no tamanho real">' + ICONES.ar + (ehAlimento() ? 'Ver na mesa' : 'Ver na sua casa') + '</button>' +
       '<div slot="progress-bar" class="progresso"><i></i></div>' +
-      HTML_MEDIDAS;
+      HTML_MEDIDAS + htmlPontosViewer(p, ef);
     mv.classList.toggle('sem-medidas', !medidasLigadas);
     palco.insertBefore(mv, palcoEstado);
     estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Carregando modelo 3D…</span></div>');
@@ -866,6 +885,7 @@
         conferirEscala(mv, { dim: efetivo(p, tamAtual).dim });
       }
       atualizarAvisoAR();
+      if (pontosValidos(p, ef).length) toast('Toque nos números no 3D para ver os detalhes do móvel.');
     });
     mv.addEventListener('error', function () {
       estadoPalco('<div class="caixa-erro"><strong>Não foi possível carregar o modelo 3D</strong>' +
@@ -1005,6 +1025,14 @@
   }
 
   palco.addEventListener('click', function (e) {
+    var ip = e.target.closest('.info-ponto');
+    if (ip) {
+      var abrir = ip.getAttribute('aria-expanded') !== 'true';
+      $$('.info-ponto', palco).forEach(function (o) { o.setAttribute('aria-expanded', 'false'); });
+      ip.setAttribute('aria-expanded', String(abrir));
+      var mvp = palco.querySelector('model-viewer'); if (mvp) mvp.autoRotate = false;
+      return;
+    }
     var b = e.target.closest('.med-alternar');
     if (!b) return;
     medidasLigadas = !medidasLigadas;
@@ -1158,8 +1186,11 @@
         '</div></div>';
     }).join('') +
       (itensCom3d().length >= 2
-        ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + (ehAlimento() ? 'Ver o pedido na mesa (3D)' : 'Ver os itens juntos (3D)') + '</button>' +
-          '<p class="mini">Mostra os itens do pedido juntos, lado a lado, no tamanho real.</p>'
+        ? (ehAlimento()
+          ? '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="ver-combo">' + ICONES.ar + 'Ver o pedido na mesa (3D)</button>' +
+            '<p class="mini">Mostra os itens do pedido juntos, lado a lado, no tamanho real.</p>'
+          : '<button class="btn btn--sec btn--bloco combo-btn" type="button" id="montar-ambiente">' + ICONES.ar + 'Montar o ambiente (3D)</button>' +
+            '<p class="mini">Arrume os móveis do ' + orc() + ' como na sua sala e veja todos juntos na câmera, no tamanho real.</p>')
         : '');
     var total = totalCarrinho(), cfg = dados.padaria.pedido, sit = situacaoPedidos();
     var esgot = itens.some(function (i) { return i.p.esgotado; });
@@ -1202,6 +1233,156 @@
       })
       .catch(function (e) { botao.disabled = false; botao.innerHTML = ICONES.ar + (ehAlimento() ? 'Ver o pedido na mesa (3D)' : 'Ver os itens juntos (3D)'); toast(e.message); });
   }
+
+  // ---- Montar ambiente: o cliente arruma os móveis vistos de cima e vê tudo junto em 3D e na câmera
+  var amb = null;   // { pecas: [{ modelo, nome, w, d, x, z, r }] (cm), sala: { w, d } (cm), sel }
+  function pecasDoCarrinho() {
+    var pecas = [];
+    itensCarrinho().forEach(function (i) {
+      if (!i.p.modelo || MODELOS_EMBUTIDOS) return;
+      for (var k = 0; k < i.qtd && pecas.length < 8; k++) {
+        var d = i.p.dim || {};
+        pecas.push({ modelo: i.p.modelo, nome: i.p.nome, w: Math.max(10, Number(d.largura) || 60), d: Math.max(10, Number(d.profundidade) || 60), x: 0, z: 0, r: 0 });
+      }
+    });
+    return pecas;
+  }
+  function pegada(pc) { return pc.r % 180 ? { w: pc.d, d: pc.w } : { w: pc.w, d: pc.d }; }
+  function arrumarInicial(pecas) {
+    // sala do tamanho que cabe tudo, com folga; móveis em fila encostados na parede do fundo
+    var soma = pecas.reduce(function (s2, pc) { return s2 + pc.w; }, 0);
+    var salaW = Math.max(300, Math.min(800, Math.ceil((Math.min(soma, 700) + 80) / 50) * 50));
+    var x = -salaW / 2 + 30, z = 0, linhaD = 0, fundo = 0;
+    var salaD0 = 300;
+    pecas.forEach(function (pc) {
+      if (x + pc.w > salaW / 2 - 20 && x > -salaW / 2 + 30) { x = -salaW / 2 + 30; z += linhaD + 30; linhaD = 0; }
+      pc.x = x + pc.w / 2; pc.zRel = z + pc.d / 2; x += pc.w + 20; linhaD = Math.max(linhaD, pc.d); fundo = Math.max(fundo, z + pc.d);
+    });
+    var salaD = Math.max(salaD0, Math.ceil((fundo + 80) / 50) * 50);
+    pecas.forEach(function (pc) { pc.z = -salaD / 2 + 25 + pc.zRel; delete pc.zRel; });
+    return { w: salaW, d: salaD };
+  }
+  function abrirAmbiente() {
+    var pecas = pecasDoCarrinho();
+    if (pecas.length < 2) return;
+    if (!servidor) { toast('Montar o ambiente funciona no site publicado.'); return; }
+    amb = { pecas: pecas, sala: arrumarInicial(pecas), sel: 0 };
+    fecharDialogo($('#dlg-carrinho'));
+    setTimeout(function () { renderAmbiente(); abrirDialogo($('#dlg-ambiente')); }, 150);
+  }
+  function limitarPeca(pc) {
+    var f = pegada(pc), s2 = amb.sala;
+    pc.x = Math.max(-s2.w / 2 + f.w / 2, Math.min(s2.w / 2 - f.w / 2, pc.x));
+    pc.z = Math.max(-s2.d / 2 + f.d / 2, Math.min(s2.d / 2 - f.d / 2, pc.z));
+  }
+  function svgAmbiente() {
+    var s2 = amb.sala, m = 30, grade = '';
+    for (var gx = 50; gx < s2.w; gx += 50) grade += '<line x1="' + (-s2.w / 2 + gx) + '" y1="' + (-s2.d / 2) + '" x2="' + (-s2.w / 2 + gx) + '" y2="' + (s2.d / 2) + '"/>';
+    for (var gz = 50; gz < s2.d; gz += 50) grade += '<line x1="' + (-s2.w / 2) + '" y1="' + (-s2.d / 2 + gz) + '" x2="' + (s2.w / 2) + '" y2="' + (-s2.d / 2 + gz) + '"/>';
+    return '<svg class="amb-planta" id="amb-planta" viewBox="' + (-s2.w / 2 - m) + ' ' + (-s2.d / 2 - m) + ' ' + (s2.w + m * 2) + ' ' + (s2.d + m * 2) + '" role="application" aria-label="Planta da sala vista de cima. Arraste os móveis.">' +
+      '<rect class="amb-sala" x="' + (-s2.w / 2) + '" y="' + (-s2.d / 2) + '" width="' + s2.w + '" height="' + s2.d + '"/>' +
+      '<g class="amb-grade">' + grade + '</g>' +
+      '<text class="amb-cota" x="0" y="' + (-s2.d / 2 - 9) + '">' + num(s2.w / 100) + ' m</text>' +
+      '<text class="amb-cota" x="' + (s2.w / 2 + 9) + '" y="0" transform="rotate(90 ' + (s2.w / 2 + 9) + ' 0)">' + num(s2.d / 100) + ' m</text>' +
+      amb.pecas.map(function (pc, i) {
+        var rot = pc.nome.length > 18 ? pc.nome.slice(0, 17) + '…' : pc.nome, pg = pegada(pc);
+        var fs = Math.max(8, Math.min(20, pg.d / 2.6, pg.w * 1.7 / Math.max(4, rot.length)));
+        return '<g class="amb-peca' + (i === amb.sel ? ' sel' : '') + '" data-peca="' + i + '" tabindex="0" role="button" aria-label="' + esc(pc.nome) + ', ' + Math.round(pc.w) + ' por ' + Math.round(pc.d) + ' cm. Use as setas para mover." transform="translate(' + pc.x + ' ' + pc.z + ') rotate(' + (-pc.r) + ')">' +
+          '<rect x="' + (-pc.w / 2) + '" y="' + (-pc.d / 2) + '" width="' + pc.w + '" height="' + pc.d + '" rx="4"/>' +
+          '<line class="amb-frente" x1="' + (-pc.w / 2 + 4) + '" y1="' + (pc.d / 2 - 3) + '" x2="' + (pc.w / 2 - 4) + '" y2="' + (pc.d / 2 - 3) + '"/>' +
+          '<text x="0" y="' + (fs / 3) + '" font-size="' + fs.toFixed(1) + '" transform="rotate(' + pc.r + ')">' + esc(rot) + '</text></g>';
+      }).join('') + '</svg>';
+  }
+  function renderAmbiente() {
+    var pc = amb.pecas[amb.sel];
+    $('#ambiente-corpo').innerHTML =
+      '<p class="mini" style="margin-top:0">Vista de cima. <strong>Arraste os móveis</strong> para arrumar. Cada quadrado tem 50 cm. A linha grossa é a frente do móvel.</p>' +
+      '<div class="amb-palco">' + svgAmbiente() + '</div>' +
+      '<div class="amb-sel"><span>' + (pc ? '<strong>' + esc(pc.nome) + '</strong> ' + Math.round(pegada(pc).w) + ' × ' + Math.round(pegada(pc).d) + ' cm' : '') + '</span>' +
+        '<button class="btn btn--sec btn--p" type="button" id="amb-girar">↻ Girar</button></div>' +
+      '<div class="campos campos--2">' +
+        campo('Largura da sala (m)', '<input id="amb-w" type="number" min="1.5" max="12" step="0.1" inputmode="decimal" value="' + (amb.sala.w / 100) + '">') +
+        campo('Profundidade (m)', '<input id="amb-d" type="number" min="1.5" max="12" step="0.1" inputmode="decimal" value="' + (amb.sala.d / 100) + '">') +
+      '</div>';
+    $('#ambiente-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="amb-ver">' + ICONES.ar + 'Ver em 3D e na minha casa</button>';
+    ligarArrasto();
+  }
+  function atualizarPlanta() {
+    var palcoA = $('.amb-palco'); if (!palcoA) return;
+    palcoA.innerHTML = svgAmbiente();
+    var pc = amb.pecas[amb.sel], info = $('.amb-sel span');
+    if (info && pc) info.innerHTML = '<strong>' + esc(pc.nome) + '</strong> ' + Math.round(pegada(pc).w) + ' × ' + Math.round(pegada(pc).d) + ' cm';
+    ligarArrasto();
+  }
+  function ligarArrasto() {
+    var svg = $('#amb-planta'); if (!svg) return;
+    var arr = null;
+    function ponto(e) { var pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+    svg.addEventListener('pointerdown', function (e) {
+      var g = e.target.closest('[data-peca]'); if (!g) return;
+      var i = Number(g.getAttribute('data-peca')), pc = amb.pecas[i], p0 = ponto(e);
+      arr = { i: i, dx: pc.x - p0.x, dz: pc.z - p0.y, id: e.pointerId };
+      if (amb.sel !== i) { amb.sel = i; $$('.amb-peca', svg).forEach(function (n) { n.classList.toggle('sel', n === g); }); var info = $('.amb-sel span'); if (info) info.innerHTML = '<strong>' + esc(pc.nome) + '</strong> ' + Math.round(pegada(pc).w) + ' × ' + Math.round(pegada(pc).d) + ' cm'; }
+      try { svg.setPointerCapture(e.pointerId); } catch (er) { /* ok */ }
+      e.preventDefault();
+    });
+    svg.addEventListener('pointermove', function (e) {
+      if (!arr || e.pointerId !== arr.id) return;
+      var p1 = ponto(e), pc = amb.pecas[arr.i];
+      pc.x = Math.round((p1.x + arr.dx) / 5) * 5; pc.z = Math.round((p1.y + arr.dz) / 5) * 5;
+      limitarPeca(pc);
+      var g = svg.querySelector('[data-peca="' + arr.i + '"]');
+      if (g) g.setAttribute('transform', 'translate(' + pc.x + ' ' + pc.z + ') rotate(' + (-pc.r) + ')');
+    });
+    var soltar = function () { arr = null; };
+    svg.addEventListener('pointerup', soltar); svg.addEventListener('pointercancel', soltar);
+    svg.addEventListener('keydown', function (e) {
+      var g = e.target.closest('[data-peca]'); if (!g) return;
+      var i = Number(g.getAttribute('data-peca')), pc = amb.pecas[i], passo = e.shiftKey ? 25 : 5;
+      var mov = { ArrowLeft: [-passo, 0], ArrowRight: [passo, 0], ArrowUp: [0, -passo], ArrowDown: [0, passo] }[e.key];
+      if (e.key === 'r' || e.key === 'R') { amb.sel = i; girarPeca(); e.preventDefault(); return; }
+      if (!mov) return;
+      e.preventDefault();
+      amb.sel = i; pc.x += mov[0]; pc.z += mov[1]; limitarPeca(pc);
+      atualizarPlanta();
+      var ng = $('#amb-planta [data-peca="' + i + '"]'); if (ng) ng.focus();
+    });
+  }
+  function girarPeca() {
+    var pc = amb.pecas[amb.sel]; if (!pc) return;
+    pc.r = (pc.r + 90) % 360; limitarPeca(pc); atualizarPlanta();
+  }
+  function verAmbiente(botao) {
+    var pecas = amb.pecas;
+    botao.disabled = true; botao.textContent = 'Montando o ambiente em 3D…';
+    var corpo = { itens: pecas.map(function (pc) { return pc.modelo; }), posicoes: pecas.map(function (pc) { return { x: pc.x / 100, z: pc.z / 100, r: pc.r }; }) };
+    fetch('api/combo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(corpo) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        var nomes = itensCarrinho().map(function (i) { return i.qtd + 'x ' + i.p.nome; }).join(' · ');
+        fecharDialogo($('#dlg-ambiente'));
+        tamAtual = null;
+        setTimeout(function () {
+          abrirViewerProduto({ id: '__combo', combo: true, ambiente: true, nome: 'Seu ambiente', categoria: 'Montado por você', preco: totalCarrinho(),
+            descricao: nomes + (pecas.length < qtdCarrinho() ? ' (itens sem 3D ficam de fora)' : ''), dim: null, modelo: j.url, ilustrativo: false }, '3d');
+        }, 150);
+      })
+      .catch(function (e) { toast(e.message); })
+      .then(function () { var b = $('#amb-ver'); if (b) { b.disabled = false; b.innerHTML = ICONES.ar + 'Ver em 3D e na minha casa'; } });
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#montar-ambiente')) { abrirAmbiente(); return; }
+    if (!amb || !e.target.closest('#dlg-ambiente')) return;
+    if (e.target.closest('#amb-girar')) { girarPeca(); return; }
+    var v = e.target.closest('#amb-ver'); if (v) verAmbiente(v);
+  });
+  document.addEventListener('change', function (e) {
+    if (!amb || (e.target.id !== 'amb-w' && e.target.id !== 'amb-d')) return;
+    var val = Math.round(Math.max(1.5, Math.min(12, Number(String(e.target.value).replace(',', '.')) || 3)) * 100);
+    if (e.target.id === 'amb-w') amb.sala.w = val; else amb.sala.d = val;
+    amb.pecas.forEach(limitarPeca);
+    atualizarPlanta();
+  });
 
   // ---- Finalizar: entrega/retirada, endereço, pagamento → WhatsApp da loja
   var CHAVE_CLIENTE = 'menureal:cliente:v1';
@@ -1525,10 +1706,11 @@
       inicio: function () {
         return htmlAvisoPlano(plano) +
           '<section class="secao-admin"><h3>Últimos 7 dias</h3><div id="resultados"><p class="mini">Carregando os números…</p></div></section>' +
+          (servidor ? '<section class="secao-admin"><h3>Resumo da semana</h3><div id="resumo-semana"><p class="mini">Carregando…</p></div></section>' : '') +
           '<div class="atalhos">' +
             '<a class="btn btn--sec" href="/' + esc(LOJA) + '" target="_blank" rel="noopener">Ver meu ' + termo(rascunho) + '</a>' +
             '<button class="btn btn--contorno" type="button" data-aba-ir="produtos">Editar produtos</button>' +
-            '<button class="btn btn--contorno" type="button" data-aba-ir="divulgar">Cartaz com QR</button>' +
+            '<button class="btn btn--contorno" type="button" data-aba-ir="divulgar">Etiquetas e cartaz com QR</button>' +
             '<button class="btn btn--contorno" type="button" data-ajuda="loja">Como usar</button>' +
           '</div>';
       },
@@ -1571,7 +1753,7 @@
       },
       pedidos: function () { return htmlPedidoAdmin(p.pedido); },
       visual: function () { return htmlAparencia(p); },
-      divulgar: function () { return htmlCartazAdmin(); },
+      divulgar: function () { return htmlEtiquetasAdmin() + htmlCartazAdmin(); },
       conta: function () {
         return '<div class="aviso-admin aviso-admin--ok conta"><span><strong>' + esc(dados.padaria.nome) + '</strong>' + esc(location.host + '/' + LOJA) + '</span>' +
           '<button class="btn btn--fantasma btn--p" type="button" id="admin-sair">Sair</button></div>' + htmlContaAdmin();
@@ -1585,7 +1767,7 @@
       abas.map(function (a) {
         return '<div class="painel-aba" role="tabpanel" data-aba="' + a + '"' + (a === abaAdmin ? '' : ' hidden') + '>' + conteudo[a]() + '</div>';
       }).join('');
-    if (abaAdmin === 'inicio') carregarResultados();
+    if (abaAdmin === 'inicio') { carregarResultados(); carregarResumo(); }
   }
   function mostrarAba(a) {
     abaAdmin = a;
@@ -1593,7 +1775,7 @@
     $$('#admin-corpo .painel-aba').forEach(function (d) { d.hidden = d.getAttribute('data-aba') !== a; });
     var corpo = $('#admin-corpo'); if (corpo) corpo.scrollTop = 0;
     var b = $('#admin-corpo [data-aba-btn="' + a + '"]'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'nearest', inline: 'center' });
-    if (a === 'inicio') carregarResultados();
+    if (a === 'inicio') { carregarResultados(); carregarResumo(); }
   }
 
   // ---- Números da loja (contagens anônimas por dia)
@@ -1605,6 +1787,41 @@
       .then(function (j) { var el = $('#resultados'); if (el) el.innerHTML = htmlResultados(j); })
       .catch(function (e) { var el = $('#resultados'); if (el) el.innerHTML = '<p class="mini">Não deu para carregar os números agora (' + esc(e.message) + ').</p>'; });
   }
+  // Resumo da semana: texto pronto para mandar no WhatsApp e opção de receber por e-mail toda segunda
+  var resumoAtual = null;
+  function carregarResumo() {
+    if (!$('#resumo-semana') || !LOJA || !servidor) return;
+    fetch(comLoja('api/conta') + '&resumo=1', { headers: cabecalhos(), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) { resumoAtual = j; renderResumo(); })
+      .catch(function (e) { var el = $('#resumo-semana'); if (el) el.innerHTML = '<p class="mini">Não deu para carregar o resumo agora (' + esc(e.message) + ').</p>'; });
+  }
+  function renderResumo() {
+    var el = $('#resumo-semana'), j = resumoAtual;
+    if (!el || !j) return;
+    var zap = String(rascunho.padaria.whatsapp || '').replace(/\D/g, '');
+    el.innerHTML = '<pre class="resumo-texto">' + esc(j.texto) + '</pre>' +
+      '<div class="linha-acoes">' +
+        (zap ? '<a class="btn btn--primario btn--p" target="_blank" rel="noopener" href="https://wa.me/' + zap + '?text=' + encodeURIComponent(j.texto) + '">Mandar no meu WhatsApp</a>' : '') +
+        '<button class="btn btn--contorno btn--p" type="button" id="resumo-copiar">Copiar</button>' +
+      '</div>' +
+      (j.emailConfigurado
+        ? '<label class="checar"><input type="checkbox" id="resumo-email"' + (j.emailLigado ? ' checked' : '') + '> Receber este resumo por e-mail toda segunda (' + esc(j.email || '') + ')</label>'
+        : '<p class="mini">Toda segunda o resumo da semana anterior fica pronto aqui. Mande para você ou para o seu sócio.</p>');
+  }
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#resumo-copiar') && resumoAtual) {
+      var t = resumoAtual.texto;
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function () { toast('Resumo copiado.'); }, function () { toast('Não deu para copiar.'); });
+    }
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id !== 'resumo-email') return;
+    var ligado = e.target.checked;
+    postarJson(comLoja('api/conta'), { acao: 'resumo', ligado: ligado }, cabecalhos())
+      .then(function () { if (resumoAtual) resumoAtual.emailLigado = ligado; toast(ligado ? 'Você vai receber o resumo toda segunda.' : 'Resumo por e-mail desligado.'); })
+      .catch(function (err) { e.target.checked = !ligado; toast(err.message); });
+  });
   function htmlResultados(j) {
     var dias = [], porDia = {}, tot = { visita: 0, produto: 0, ar: 0, pedido: 0 }, prods = {};
     for (var i = 13; i >= 0; i--) {
@@ -1629,6 +1846,7 @@
         '<p class="mini">Ainda não há visitas. Mande o link no WhatsApp e cole o cartaz com QR nas mesas: os números aparecem aqui. (Suas próprias visitas logado não contam.)</p>';
     }
     return '<div class="numeros">' + tile(tot.visita, 'visitas') + tile(tot.pedido, orc() + 's enviados') + tile(tot.ar, 'abriram a câmera') + tile(conv + '%', 'visitas que pediram') + '</div>' +
+      (tot.qr ? '<p class="mini" style="margin:0 0 8px">' + tot.qr + (tot.qr === 1 ? ' cliente abriu' : ' clientes abriram') + ' um produto pelo QR das etiquetas.</p>' : '') +
       '<p class="mini" style="margin:0">Visitas por dia (14 dias)</p>' +
       '<div class="grafico" role="img" aria-label="Visitas por dia nos últimos 14 dias: ' + dias.map(function (d) { return dataBr(d) + ' ' + porDia[d].visita; }).join(', ') + '">' +
         dias.map(function (d, k) {
@@ -1721,6 +1939,118 @@
     if (px.tipo === 'aleatoria' && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c)) return 'A chave aleatória tem 36 caracteres, com hífens.';
     return '';
   }
+
+  // ---- Etiquetas com QR Code por produto (para colar no móvel da loja física)
+  function linkProduto(id, qr) { return enderecoLoja() + '?p=' + encodeURIComponent(id) + (qr ? '&qr=1' : ''); }
+  var etiquetasSel = null;   // ids marcados (null = todos)
+  var etiquetasPreco = true;
+  function htmlEtiquetasAdmin() {
+    var prods = rascunho.produtos.filter(function (x) { return x.nome; });
+    if (!prods.length) return '';
+    return '<section class="secao-admin" id="secao-etiquetas"><h3>Etiquetas com QR Code</h3>' +
+      '<p class="mini">Cole no móvel da loja. O cliente aponta a câmera e abre <strong>aquele produto</strong> em 3D, com as versões, e pode ver na casa dele. 8 etiquetas por folha A4.</p>' +
+      '<div class="etq-lista">' + prods.map(function (x) {
+        var marcado = !etiquetasSel || etiquetasSel.indexOf(x.id) > -1;
+        return '<div class="etq-item"><label class="checar checar--p"><input type="checkbox" data-etq="' + esc(x.id) + '"' + (marcado ? ' checked' : '') + '> ' +
+          '<span>' + esc(x.nome) + (x.modelo ? '' : ' <small>(sem 3D)</small>') + '</span></label>' +
+          '<button class="btn btn--fantasma btn--p" type="button" data-copiar-link="' + esc(x.id) + '">Copiar link</button></div>';
+      }).join('') + '</div>' +
+      '<label class="checar"><input type="checkbox" id="etq-preco"' + (etiquetasPreco ? ' checked' : '') + '> Mostrar o preço na etiqueta</label>' +
+      '<button class="btn btn--sec btn--bloco" type="button" id="etq-gerar">Criar etiquetas para imprimir</button>' +
+      '<div id="etq-area"></div></section>';
+  }
+  function gerarEtiquetas(lista) {
+    var p = rascunho.padaria, v = p.visual, cor = v.cor || COR_PADRAO, sobre = textoSobre(cor);
+    var fonte = (FONTES_LOJA[v.fonte] || FONTES_LOJA.moderno).css.replace('var(--fonte)', 'system-ui, sans-serif');
+    var W = 1240, H = 1754, CW = W / 2, CH = H / 4, comPreco = etiquetasPreco;
+    return Promise.all([carregarQr(), carregarImagem(v.logo), document.fonts ? document.fonts.load('700 40px ' + fonte).catch(function () {}) : null]).then(function (r) {
+      var qrcode = r[0], logo = r[1], paginas = [];
+      for (var ini = 0; ini < lista.length; ini += 8) {
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        var ctx = cv.getContext('2d');
+        ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, W, H);
+        lista.slice(ini, ini + 8).forEach(function (x, k) {
+          var cx = (k % 2) * CW, cy = Math.floor(k / 2) * CH, pad = 34;
+          // faixa com a cor da loja e o nome (ou logo)
+          ctx.fillStyle = cor; ctx.fillRect(cx + pad, cy + pad, CW - pad * 2, 64);
+          ctx.fillStyle = sobre; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+          if (logo) {
+            var k2 = Math.min(220 / logo.width, 44 / logo.height);
+            ctx.fillStyle = '#FFFFFF'; ctx.fillRect(cx + pad + 10, cy + pad + 8, logo.width * k2 + 16, 48);
+            ctx.drawImage(logo, cx + pad + 18, cy + pad + 10 + (44 - logo.height * k2) / 2, logo.width * k2, logo.height * k2);
+          } else {
+            ctx.font = '700 28px ' + fonte; ctx.fillText(p.nome.slice(0, 32), cx + pad + 18, cy + pad + 33);
+          }
+          // QR
+          var q = qrcode(0, 'M'); q.addData(linkProduto(x.id, true)); q.make();
+          var n = q.getModuleCount(), lado = 250, m = lado / (n + 2), qx = cx + pad, qy = cy + pad + 84;
+          ctx.fillStyle = '#111411';
+          for (var yy = 0; yy < n; yy++) for (var xx = 0; xx < n; xx++) if (q.isDark(yy, xx)) ctx.fillRect(Math.floor(qx + (xx + 1) * m), Math.floor(qy + (yy + 1) * m), Math.ceil(m), Math.ceil(m));
+          // textos
+          var tx = qx + lado + 22, larg = CW - pad - (tx - cx) - 10;
+          ctx.textBaseline = 'alphabetic'; ctx.fillStyle = '#111411'; ctx.font = '700 34px ' + fonte;
+          var yNome = textoQuebrado(ctx, x.nome, tx, qy + 44, larg, 40);
+          var y2 = yNome + 44;
+          if (comPreco && x.preco > 0) { ctx.font = '800 36px system-ui, sans-serif'; ctx.fillStyle = '#111411'; ctx.fillText(brl(x.preco), tx, y2); y2 += 46; }
+          ctx.font = '400 24px system-ui, sans-serif'; ctx.fillStyle = '#4A524D';
+          y2 = textoQuebrado(ctx, x.modelo ? 'Aponte a câmera e veja em 3D e na sua casa' : 'Aponte a câmera e veja detalhes e medidas', tx, Math.min(y2, qy + 200), larg, 30);
+          ctx.font = '600 22px system-ui, sans-serif'; ctx.fillStyle = '#111411';
+          ctx.fillText(dimTexto(x.dim), tx, Math.min(y2 + 36, cy + CH - pad - 8));
+          // linhas de corte
+          ctx.strokeStyle = '#C9CCC8'; ctx.lineWidth = 2; ctx.setLineDash([10, 10]);
+          ctx.strokeRect(cx + 1, cy + 1, CW - 2, CH - 2); ctx.setLineDash([]);
+        });
+        paginas.push(cv.toDataURL('image/png'));
+      }
+      return paginas;
+    });
+  }
+  function mostrarEtiquetas(botao) {
+    var lista = rascunho.produtos.filter(function (x) { return x.nome && (!etiquetasSel || etiquetasSel.indexOf(x.id) > -1); });
+    if (!lista.length) { toast('Marque pelo menos um produto.'); return; }
+    botao.disabled = true; botao.textContent = 'Criando as etiquetas…';
+    gerarEtiquetas(lista).then(function (pgs) {
+      $('#etq-area').innerHTML = pgs.map(function (png, i) {
+        return '<img class="cartaz-previa etq-previa" src="' + png + '" alt="Folha ' + (i + 1) + ' de etiquetas com QR Code">' +
+          '<a class="btn btn--contorno btn--p" download="etiquetas-' + esc(LOJA || 'menureal') + '-' + (i + 1) + '.png" href="' + png + '">Baixar folha ' + (i + 1) + '</a>';
+      }).join('') +
+        '<div class="linha-acoes"><button class="btn btn--primario" type="button" id="etq-imprimir">Imprimir ' + (pgs.length > 1 ? 'as ' + pgs.length + ' folhas' : 'a folha') + '</button></div>' +
+        '<p class="mini">Dica: imprima em papel adesivo A4 (ou comum, e cole com fita). Teste um QR com o seu celular antes de colar.</p>';
+    }).catch(function (e) { toast(e.message || 'Não foi possível criar as etiquetas.'); })
+      .then(function () { botao.disabled = false; botao.textContent = 'Criar de novo'; });
+  }
+  function imprimirImagens(srcs, titulo) {
+    var fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+    document.body.appendChild(fr);
+    var d = fr.contentDocument;
+    d.open();
+    d.write('<!doctype html><title>' + titulo + '</title><style>@page{size:A4;margin:0}html,body{margin:0}img{width:100%;height:100vh;object-fit:contain;display:block;break-after:page}</style>' +
+      srcs.map(function (s2) { return '<img src="' + s2 + '">'; }).join(''));
+    d.close();
+    var ims = Array.prototype.slice.call(d.images), faltam = ims.length;
+    var vai = function () { fr.contentWindow.focus(); fr.contentWindow.print(); setTimeout(function () { fr.remove(); }, 60000); };
+    ims.forEach(function (im) { if (im.complete) { if (!--faltam) vai(); } else im.onload = function () { if (!--faltam) vai(); }; });
+  }
+  document.addEventListener('change', function (e) {
+    var c = e.target.closest('[data-etq]');
+    if (c) {
+      etiquetasSel = $$('[data-etq]').filter(function (i) { return i.checked; }).map(function (i) { return i.getAttribute('data-etq'); });
+      return;
+    }
+    if (e.target.id === 'etq-preco') etiquetasPreco = e.target.checked;
+  });
+  document.addEventListener('click', function (e) {
+    var g = e.target.closest('#etq-gerar'); if (g) { coletarAdmin(); mostrarEtiquetas(g); return; }
+    if (e.target.closest('#etq-imprimir')) { imprimirImagens($$('.etq-previa').map(function (i) { return i.src; }), 'Etiquetas'); return; }
+    var cl = e.target.closest('[data-copiar-link]');
+    if (cl) {
+      var url = linkProduto(cl.getAttribute('data-copiar-link'));
+      var ok = function () { toast('Link copiado. Cole no WhatsApp ou no Instagram.'); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(ok, function () { window.prompt('Copie o link:', url); });
+      else window.prompt('Copie o link:', url);
+    }
+  });
 
   // ---- Cartaz com QR Code para mesa e balcão
   function enderecoLoja() { return location.origin + '/' + (LOJA || ''); }
@@ -2102,12 +2432,94 @@
           '</div>' +
           '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
         : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
+      (servidor && x.modelo && !ehAlimento(rascunho) ? htmlPontosAdmin(x) : '') +
       (servidor ? htmlFormaAdmin(x) : '') +
       '<details class="conta-det"><summary>Endereço do arquivo (avançado)</summary>' +
         campo('Arquivo 3D', '<input data-f="modelo" maxlength="300" placeholder="https://… .glb" value="' + esc(x.modelo) + '">', 'Caminho ou link https de um arquivo .glb em metros.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Mostrar selo “Modelo ilustrativo” (use se o 3D não for fiel ao produto)</label>' +
       '</details></fieldset>';
   }
+
+  // ----- Pontos de informação no 3D (ex.: "tecido impermeável", "gaveta com corrediça") -----
+  function htmlPontosAdmin(x) {
+    var validos = x.pontos && x.pontos.length && x.pontosDe === x.modelo;
+    var velhos = x.pontos && x.pontos.length && !validos;
+    return '<div class="pontos-admin"><div><strong>Pontos de informação</strong>' +
+      '<small>' + (validos ? x.pontos.length + (x.pontos.length === 1 ? ' ponto marcado' : ' pontos marcados') + ' no 3D.'
+        : velhos ? 'O 3D mudou: marque os pontos de novo.' : 'Marque detalhes no 3D, como “tecido impermeável” ou “gaveta com amortecedor”.') + '</small></div>' +
+      '<button class="btn btn--sec btn--p" type="button" data-pontos>' + ICONES.mais + (validos ? 'Editar pontos' : 'Marcar pontos') + '</button></div>';
+  }
+  var pontosEd = null; // { x: produto, lista, pend: { p, n } }
+  function abrirPontos(x) {
+    pontosEd = { x: x, lista: x.pontosDe === x.modelo ? (x.pontos || []).map(function (p) { return { p: p.p.slice(), n: p.n.slice(), t: p.t }; }) : [], pend: null };
+    $('#pontos-corpo').innerHTML =
+      '<p class="mini" style="margin-top:0">Gire o 3D e <strong>toque no lugar do móvel</strong> onde quer colocar a informação. Até 8 pontos.</p>' +
+      '<div class="pontos-palco"><model-viewer id="pontos-mv" src="' + esc(urlModelo(x.modelo)) + '" camera-controls touch-action="none" loading="eager" interaction-prompt="none" ' +
+        'environment-image="' + esc(ESTUDIO()) + '" tone-mapping="neutral" shadow-intensity="1" camera-orbit="28deg 72deg auto" alt="3D de ' + esc(x.nome) + '"></model-viewer></div>' +
+      '<div id="pontos-form"></div><ol class="pontos-lista" id="pontos-lista"></ol>';
+    $('#pontos-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="pontos-pronto">Pronto</button>';
+    abrirDialogo($('#dlg-pontos'));
+    var mv = $('#pontos-mv'), ini = null;
+    mv.addEventListener('pointerdown', function (e) { ini = { x: e.clientX, y: e.clientY }; });
+    mv.addEventListener('pointerup', function (e) {
+      if (!ini || Math.hypot(e.clientX - ini.x, e.clientY - ini.y) > 6 || e.target.closest('.info-ponto')) { ini = null; return; }
+      ini = null;
+      var r = mv.positionAndNormalFromPoint ? mv.positionAndNormalFromPoint(e.clientX, e.clientY) : null;
+      if (!r) { toast('Toque em cima do móvel.'); return; }
+      if (pontosEd.lista.length >= 8) { toast('Máximo de 8 pontos. Remova um para marcar outro.'); return; }
+      var arr = function (v) { return [v.x, v.y, v.z].map(function (n) { return Math.round(n * 1e4) / 1e4; }); };
+      pontosEd.pend = { p: arr(r.position), n: arr(r.normal) };
+      renderPontos(true);
+    });
+    renderPontos();
+  }
+  function renderPontos(focar) {
+    var ed = pontosEd, mv = $('#pontos-mv');
+    if (!ed || !mv) return;
+    $$('.info-ponto', mv).forEach(function (b) { b.remove(); });
+    var todos = ed.lista.concat(ed.pend ? [Object.assign({ t: '', novo: true }, ed.pend)] : []);
+    todos.forEach(function (pt, i) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.slot = 'hotspot-ed' + i + '-' + Date.now();
+      b.className = 'info-ponto' + (pt.novo ? ' info-ponto--novo' : '');
+      b.setAttribute('data-position', pt.p.join('m ') + 'm'); b.setAttribute('data-normal', pt.n.join('m ') + 'm');
+      b.setAttribute('aria-label', 'Ponto ' + (i + 1));
+      b.innerHTML = '<span class="info-ponto__n">' + (pt.novo ? '+' : i + 1) + '</span>';
+      mv.appendChild(b);
+    });
+    $('#pontos-form').innerHTML = ed.pend
+      ? '<div class="pontos-novo">' + campo('O que destacar neste ponto?', '<input id="pontos-texto" maxlength="80" placeholder="Ex.: Tecido impermeável">') +
+        '<div class="linha-acoes"><button class="btn btn--primario btn--p" type="button" id="pontos-add">Adicionar ponto</button>' +
+        '<button class="btn btn--fantasma btn--p" type="button" id="pontos-cancelar">Cancelar</button></div></div>'
+      : '';
+    $('#pontos-lista').innerHTML = ed.lista.length
+      ? ed.lista.map(function (pt, i) { return '<li><span>' + esc(pt.t) + '</span><button class="link-remover" type="button" data-pontos-rem="' + i + '">Remover</button></li>'; }).join('')
+      : '<li class="pontos-lista__vazia">Nenhum ponto ainda.</li>';
+    if (focar && $('#pontos-texto')) $('#pontos-texto').focus();
+  }
+  document.addEventListener('click', function (e) {
+    if (!pontosEd || !e.target.closest('#dlg-pontos')) return;
+    if (e.target.closest('#pontos-add')) {
+      var t = $('#pontos-texto').value.trim().slice(0, 80);
+      if (!t) { toast('Escreva o texto do ponto.'); $('#pontos-texto').focus(); return; }
+      pontosEd.lista.push({ p: pontosEd.pend.p, n: pontosEd.pend.n, t: t }); pontosEd.pend = null; renderPontos();
+      return;
+    }
+    if (e.target.closest('#pontos-cancelar')) { pontosEd.pend = null; renderPontos(); return; }
+    var rem = e.target.closest('[data-pontos-rem]');
+    if (rem) { pontosEd.lista.splice(Number(rem.getAttribute('data-pontos-rem')), 1); renderPontos(); return; }
+    if (e.target.closest('#pontos-pronto')) {
+      var x = pontosEd.x;
+      x.pontos = pontosEd.lista; x.pontosDe = x.pontos.length ? x.modelo : '';
+      pontosEd = null;
+      fecharDialogo($('#dlg-pontos'));
+      abertoNoAdmin = x.id; renderAdmin();
+      toast(x.pontos.length ? x.pontos.length + (x.pontos.length === 1 ? ' ponto pronto' : ' pontos prontos') + '. Toque em “Salvar alterações” para publicar.' : 'Pontos removidos. Toque em “Salvar alterações”.');
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.id === 'pontos-texto') { e.preventDefault(); var b = $('#pontos-add'); if (b) b.click(); }
+  });
 
   // ----- 3D por forma simples + foto (lata, balde, caixa, colchão…) -----
   var formaEstado = {}; // por produto: { img, recorte: {x,y,w,h} de 0 a 1, glb }
@@ -2594,6 +3006,8 @@
       enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
       return;
     }
+    var bpt = e.target.closest('[data-pontos]');
+    if (bpt) { coletarAdmin(); var xpt = produtoDoAlvo(bpt); if (xpt && xpt.modelo) abrirPontos(xpt); return; }
     var g3d = e.target.closest('[data-gerar-3d]');
     if (g3d) {
       coletarAdmin();
@@ -3761,9 +4175,22 @@
       abertoNoAdmin = null;
       rascunho = clonar(dados); renderAdmin(); abrirDialogo($('#dlg-admin'));
       toast('Sua loja está no ar! Ajuste preços, horário e WhatsApp e toque em Salvar.');
+      return;
     }
+    abrirProdutoDoLink();
   });
   setInterval(renderCabecalho, 60000);
+  // Link direto para um produto (etiqueta com QR Code): /<loja>?p=<id>&qr=1
+  function abrirProdutoDoLink() {
+    var m = location.search.match(/[?&]p=([^&#]+)/);
+    if (!m || !LOJA || indisponivel) return;
+    var id = ''; try { id = decodeURIComponent(m[1]); } catch (e) { return; }
+    var veioDoQr = /[?&]qr=1/.test(location.search);
+    try { history.replaceState(null, '', location.pathname); } catch (e) { /* ok */ }
+    if (!produtoPorId(id)) { toast('Este produto não está mais no ' + termo() + '. Veja os outros.'); return; }
+    if (veioDoQr) registrar('qr', id);
+    abrirViewer(id, '3d');
+  }
 
   // Versão nova publicada enquanto a aba estava aberta: oferece recarregar
   (function () {

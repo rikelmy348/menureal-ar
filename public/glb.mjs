@@ -141,13 +141,14 @@ export function combinar(itens, gerador = 'MenuReal AR') {
         if (p.indices != null) p.indices += off.acc;
         if (p.material != null) p.material += off.mat;
         (p.targets || []).forEach((t) => { for (const k of Object.keys(t)) t[k] += off.acc; });
-        if (p.extensions) delete p.extensions.KHR_draco_mesh_compression;
+        if (p.extensions) { delete p.extensions.KHR_draco_mesh_compression; delete p.extensions.KHR_materials_variants; }   // variantes de cor ficam na cor padrão
       });
       saida.meshes.push(n);
     });
     (json.nodes || []).forEach((nd) => {
       const n = { ...nd };
       delete n.camera; delete n.skin;
+      if (n.extensions) { n.extensions = { ...n.extensions }; delete n.extensions.KHR_lights_punctual; if (!Object.keys(n.extensions).length) delete n.extensions; }   // luzes do arquivo não vêm junto
       if (n.mesh != null) n.mesh += off.mesh;
       if (n.children) n.children = n.children.map((c2) => c2 + off.node);
       saida.nodes.push(n);
@@ -156,7 +157,7 @@ export function combinar(itens, gerador = 'MenuReal AR') {
     saida.nodes.push(Object.assign({}, item.no || {}, { children: cena.nodes.map((k) => k + off.node) }));
     saida.scenes[0].nodes.push(saida.nodes.length - 1);
     nos.push(saida.nodes.length - 1);
-    (json.extensionsUsed || []).forEach((e) => usados.add(e));
+    (json.extensionsUsed || []).filter((e) => e !== 'KHR_materials_variants' && e !== 'KHR_lights_punctual').forEach((e) => usados.add(e));
     (json.extensionsRequired || []).forEach((e) => exigidos.add(e));
   });
   if (usados.has('KHR_draco_mesh_compression')) throw new Error('Modelo comprimido com Draco não pode ser combinado.');
@@ -184,10 +185,24 @@ export function finalizar(c) {
   return escreverGlb(s, bin);
 }
 
-/** Combo na mesa: itens lado a lado, apoiados em y = 0, com uma folga entre eles. */
-export function juntarGlbs(lista, folgaM = 0.02) {
+/** Combo na mesa: itens lado a lado, apoiados em y = 0, com uma folga entre eles.
+ *  posicoes (opcional, "montar ambiente"): [{ x, z, r }] em metros e graus (giro em torno do eixo vertical),
+ *  com x/z = centro do item visto de cima. */
+export function juntarGlbs(lista, folgaM = 0.02, posicoes = null) {
   const glbs = lista.map((buf) => lerGlb(buf));
   const caixas = glbs.map((g) => caixaGlb(g.json));
+  if (posicoes) {
+    const itens = glbs.map((glb, i) => {
+      const c = caixas[i], ps = posicoes[i] || { x: 0, z: 0, r: 0 };
+      const cx = (c.mn[0] + c.mx[0]) / 2, cz = (c.mn[2] + c.mx[2]) / 2, a = (ps.r || 0) * Math.PI / 180;
+      const co = Math.cos(a), si = Math.sin(a);
+      // posição final = R·(p − centro) + alvo  →  translation = alvo − R·centro
+      const no = { name: 'item_' + (i + 1), translation: [ps.x - (co * cx + si * cz), -c.mn[1], ps.z - (-si * cx + co * cz)] };
+      if (a) no.rotation = [0, Math.sin(a / 2), 0, Math.cos(a / 2)];
+      return { glb, no };
+    });
+    return finalizar(combinar(itens, 'MenuReal AR ambiente'));
+  }
   const total = caixas.reduce((s, c) => s + (c.mx[0] - c.mn[0]), 0) + folgaM * (lista.length - 1);
   let x = -total / 2;
   const itens = glbs.map((glb, i) => {

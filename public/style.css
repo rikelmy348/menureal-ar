@@ -1005,3 +1005,48 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .tam-3d { margin: 8px 0 2px; padding: 10px 12px; border-radius: var(--raio-p); background: var(--palco-b); }
 .tam-3d .modelo-admin__estado { display: block; font-size: 13.5px; margin-bottom: 6px; }
 .tam-3d .modelo-admin__estado.ok { color: var(--ok); font-weight: 650; }
+
+/* ---- Pontos de informação no 3D ---- */
+.info-ponto { position: relative; display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; cursor: pointer; font: 700 13px/1.25 var(--fonte); color: var(--tinta); transform: translate(-14px, -14px); transform-origin: 14px 14px; }
+.info-ponto__n { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #fff; color: #111411; border: 2px solid var(--limao); box-shadow: 0 2px 10px rgba(0,0,0,.35); font-size: 13px; }
+.info-ponto:not([data-visible]) { opacity: .4; }
+.info-ponto__txt { display: none; max-width: 190px; padding: 7px 10px; border-radius: 10px; background: #fff; color: #111411; box-shadow: 0 4px 16px rgba(0,0,0,.25); text-align: left; font-weight: 600; }
+.info-ponto[aria-expanded="true"] { z-index: 2; }
+.info-ponto[aria-expanded="true"] .info-ponto__txt { display: block; }
+.info-ponto[aria-expanded="true"] .info-ponto__n { background: var(--limao); color: var(--sobre-limao); }
+.info-ponto--novo .info-ponto__n { background: var(--limao); color: var(--sobre-limao); animation: pulso-ponto 1.2s ease-in-out infinite; }
+@keyframes pulso-ponto { 50% { transform: scale(1.18); } }
+@media (prefers-reduced-motion: reduce) { .info-ponto--novo .info-ponto__n { animation: none; } }
+.pontos-admin { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; background: var(--fundo); border: 1px solid var(--linha); margin: 8px 0; }
+.pontos-admin > div { display: grid; gap: 2px; }
+.pontos-admin small { color: var(--tinta-2); }
+.pontos-palco { position: relative; height: min(52vh, 380px); border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #F3F1EC, #E4E1DA); }
+.pontos-palco model-viewer { width: 100%; height: 100%; --poster-color: transparent; }
+.pontos-novo { margin-top: 12px; }
+.pontos-lista { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 6px; }
+.pontos-lista li { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.pontos-lista__vazia { list-style: none; margin-left: -22px; color: var(--tinta-2); font-size: 14px; }
+
+/* ---- Etiquetas com QR Code ---- */
+.etq-lista { display: grid; gap: 4px; margin: 8px 0 10px; max-height: 300px; overflow: auto; padding-right: 4px; }
+.etq-item { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.etq-item .checar { min-height: 40px; }
+.etq-item small { color: var(--tinta-2); }
+.etq-previa { margin-top: 12px; }
+
+/* ---- Resumo da semana ---- */
+.resumo-texto { margin: 0 0 10px; padding: 12px 14px; border-radius: 12px; background: var(--superficie); font: 14px/1.5 var(--fonte); white-space: pre-wrap; word-break: break-word; }
+
+/* ---- Montar ambiente ---- */
+.amb-palco { border-radius: 16px; background: #F6F4EF; padding: 6px; touch-action: none; }
+.amb-planta { display: block; width: 100%; height: auto; max-height: 56vh; user-select: none; -webkit-user-select: none; touch-action: none; }
+.amb-sala { fill: #FFFFFF; stroke: #2B2F2C; stroke-width: 4; }
+.amb-grade line { stroke: #E3E0D9; stroke-width: 1; }
+.amb-cota { font: 600 14px var(--fonte); fill: #5A615C; text-anchor: middle; }
+.amb-peca { cursor: grab; outline: none; }
+.amb-peca rect { fill: rgba(46, 125, 79, .16); stroke: #2E7D4F; stroke-width: 2.5; }
+.amb-peca .amb-frente { stroke: #2E7D4F; stroke-width: 6; stroke-linecap: round; }
+.amb-peca text { font-family: var(--fonte); font-weight: 700; fill: #143A24; text-anchor: middle; pointer-events: none; }
+.amb-peca.sel rect, .amb-peca:focus-visible rect { fill: rgba(255, 196, 0, .3); stroke: #B07A00; stroke-width: 3.5; }
+.amb-peca.sel .amb-frente, .amb-peca:focus-visible .amb-frente { stroke: #B07A00; }
+.amb-sel { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0; min-height: 40px; font-size: 14px; }
