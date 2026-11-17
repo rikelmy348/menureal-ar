@@ -3,6 +3,7 @@
    Lojas, contas e produtos ficam aqui; arquivos 3D ficam no KV (MODELOS).
    O esquema é criado/atualizado sozinho na primeira requisição.
    ========================================================================= */
+import { normalizarFicha } from '../../public/planejado.mjs';
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
@@ -231,7 +232,8 @@ export async function lerCardapio(env, slug) {
       foto: String(lerJson(p.opcoes, {}).foto || ''),
       versao: String(lerJson(p.opcoes, {}).versao || ''),
       pontos: limparPontos(lerJson(p.opcoes, {}).pontos),
-      pontosDe: String(lerJson(p.opcoes, {}).pontosDe || '')
+      pontosDe: String(lerJson(p.opcoes, {}).pontosDe || ''),
+      planejado: lerJson(p.opcoes, {}).planejado || null
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -288,7 +290,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300) })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

@@ -1050,3 +1050,33 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .amb-peca.sel rect, .amb-peca:focus-visible rect { fill: rgba(255, 196, 0, .3); stroke: #B07A00; stroke-width: 3.5; }
 .amb-peca.sel .amb-frente, .amb-peca:focus-visible .amb-frente { stroke: #B07A00; }
 .amb-sel { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 10px 0; min-height: 40px; font-size: 14px; }
+
+/* ---- Montador de planejados ---- */
+.plan-bloco { padding: 14px; border: 1px solid var(--linha); border-radius: 16px; margin: 0 0 14px; }
+.plan-bloco h3 { margin: 0 0 4px; font-size: 17px; }
+.plan-arqs { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 4px; }
+.plan-arqs li { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; padding: 0 0 0 10px; border-radius: 10px; background: var(--fundo); }
+.plan-arqs li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plan-modelos { display: flex; flex-wrap: wrap; gap: 8px; }
+.plan-lendo { padding: 40px 10px; text-align: center; }
+.plan-palco { position: sticky; top: -16px; z-index: 2; height: min(32vh, 300px); margin: -4px 0 12px; border-radius: 16px; overflow: hidden; background: linear-gradient(180deg, #F3F1EC, #E2DFD8); box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+.plan-palco model-viewer { width: 100%; height: 100%; --poster-color: transparent; }
+.plan-medidas { position: absolute; left: 10px; bottom: 10px; padding: 5px 10px; border-radius: 999px; background: rgba(255,255,255,.92); color: #1B1D1A; font: 700 13px var(--fonte); }
+.plan-obs { margin: 0 0 12px; padding: 10px 12px; border-radius: 12px; background: #FFF6D6; color: #3B3200; font-size: 14px; }
+.plan-obs p { margin: 4px 0 0; }
+.plan-acab .campos--3 { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+.plan-trecho { border: 1px solid var(--linha); border-radius: 16px; padding: 0 12px 12px; margin: 0 0 12px; }
+.plan-trecho > summary { cursor: pointer; padding: 12px 0; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; min-height: 44px; }
+.plan-trecho > summary small { color: var(--tinta-2); }
+.plan-checks { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 4px 0; }
+.plan-sub { margin: 10px 0 6px; font-weight: 700; font-size: 14px; }
+.plan-mods { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 8px; counter-reset: mod; }
+.plan-mod { display: flex; flex-direction: column-reverse; gap: 2px; padding: 8px 10px 6px 30px; border-radius: 12px; background: var(--fundo); position: relative; counter-increment: mod; }
+.plan-mod::before { content: counter(mod); position: absolute; left: 9px; top: 12px; font: 800 13px var(--fonte); color: var(--tinta-2); }
+.plan-mod__campos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; }
+.plan-mod__campos .campo { margin-bottom: 4px; font-size: 13px; }
+.plan-mod__acoes { display: flex; justify-content: flex-end; gap: 6px; }
+.btn-mini { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--linha); background: var(--superficie); color: var(--tinta); font: 700 15px var(--fonte); cursor: pointer; }
+.btn-mini:disabled { opacity: .35; cursor: default; }
+.btn-mini--rem { color: var(--perigo); }
+.plan-rod { justify-content: space-between; width: 100%; }

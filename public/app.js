@@ -232,7 +232,8 @@
         esgotado: x.esgotado === true, // acabou hoje: aparece, mas não dá para pedir
         foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : '',   // produto ainda sem 3D
         pontos: lerPontos(x.pontos),            // pontos de informação no 3D (ex.: "tecido impermeável")
-        pontosDe: String(x.pontosDe || '')       // o 3D em que os pontos foram marcados
+        pontosDe: String(x.pontosDe || ''),      // o 3D em que os pontos foram marcados
+        planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null   // ficha do montador de planejados
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -2428,8 +2429,10 @@
         ? '<div class="linha-acoes">' +
             '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
+            (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
           '</div>' +
+          (!ehAlimento(rascunho) ? '<small><strong>Móvel planejado</strong> (cozinha, guarda-roupa, painel, banheiro, escritório)? Use “Montar planejado”: envie a planta e a IA monta o 3D com as medidas do projeto, ou comece de um modelo pronto.</small>' : '') +
           '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
         : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
       (servidor && x.modelo && !ehAlimento(rascunho) ? htmlPontosAdmin(x) : '') +
@@ -2519,6 +2522,231 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target.id === 'pontos-texto') { e.preventDefault(); var b = $('#pontos-add'); if (b) b.click(); }
+  });
+
+  // ----- Montador de planejados: a "ficha" (trechos e módulos com medidas) vira um 3D leve e fiel -----
+  var plan = null;   // { x, P (módulo), ficha, glb, medidas, url, arquivos, descricao, lendo, erro }
+  var moduloPlan = null;
+  function carregarPlanejado() { if (!moduloPlan) moduloPlan = import(new URL('planejado.mjs', document.baseURI).href); return moduloPlan; }
+  function abrirPlanejado(x) {
+    carregarPlanejado().then(function (P) {
+      plan = { x: x, P: P, ficha: x.planejado ? P.normalizarFicha(x.planejado) : null, arquivos: [], descricao: '' };
+      renderPlanejado();
+      abrirDialogo($('#dlg-planejado'));
+      if (plan.ficha) gerarPreviaPlan();
+    }).catch(function () { toast('Não foi possível abrir o montador. Recarregue a página.'); });
+  }
+  function opcoes(lista, atual) {
+    return Object.keys(lista).map(function (k) { return '<option value="' + k + '"' + (k === atual ? ' selected' : '') + '>' + esc(lista[k]) + '</option>'; }).join('');
+  }
+  function renderPlanejado() {
+    var P = plan.P, corpo = $('#plan-corpo'), rod = $('#plan-rodape');
+    if (plan.lendo) {
+      corpo.innerHTML = '<div class="carregando plan-lendo"><div class="spinner" aria-hidden="true"></div><p><strong>A IA está lendo o projeto…</strong><br>Leva até 1 minuto. Não feche esta tela.</p></div>';
+      rod.innerHTML = ''; return;
+    }
+    if (!plan.ficha) {
+      corpo.innerHTML =
+        '<p class="mini" style="margin-top:0">Monte o 3D do móvel planejado com as <strong>medidas do projeto</strong>. Fica leve e fiel, bem melhor que gerar por foto.</p>' +
+        '<section class="plan-bloco"><h3>Ler o projeto com IA</h3>' +
+          '<p class="mini">Envie a planta (PDF ou foto), as vistas com medidas e, se tiver, o render. Até 6 arquivos.</p>' +
+          '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.mais + 'Escolher arquivos<input type="file" id="plan-arq" multiple accept="application/pdf,image/jpeg,image/png,image/webp" hidden></label>' +
+          (plan.arquivos.length ? '<ul class="plan-arqs">' + plan.arquivos.map(function (a, i) { return '<li><span>' + esc(a.nome) + '</span><button class="link-remover" type="button" data-plan-tirar="' + i + '">Tirar</button></li>'; }).join('') + '</ul>' : '') +
+          campo('Descreva o móvel (opcional)', '<textarea id="plan-desc" rows="3" maxlength="1500" placeholder="Ex.: cozinha em L, portas cinza, tampo granito preto, aéreo com ripado e LED">' + esc(plan.descricao) + '</textarea>') +
+          (plan.erro ? '<div class="ar-indisp" role="alert"><strong>Não deu certo</strong>' + esc(plan.erro) + '</div>' : '') +
+          '<button class="btn btn--primario btn--bloco" type="button" id="plan-ler"' + (plan.arquivos.length ? '' : ' disabled') + '>Ler o projeto e montar o 3D</button>' +
+        '</section>' +
+        '<section class="plan-bloco"><h3>Ou comece de um modelo pronto</h3><p class="mini">Depois é só ajustar as medidas e as cores.</p><div class="plan-modelos">' +
+          Object.keys(P.NOMES_MODELOS).map(function (k) { return '<button class="btn btn--contorno btn--p" type="button" data-plan-modelo="' + k + '">' + esc(P.NOMES_MODELOS[k]) + '</button>'; }).join('') +
+        '</div></section>';
+      rod.innerHTML = '';
+      return;
+    }
+    var f = plan.ficha, rolagem = corpo.scrollTop;
+    corpo.innerHTML =
+      '<div class="plan-palco"><model-viewer id="plan-mv" camera-controls touch-action="pan-y" loading="eager" interaction-prompt="none" environment-image="' + esc(ESTUDIO()) + '" tone-mapping="neutral" shadow-intensity="1" camera-orbit="-25deg 68deg auto" alt="Prévia do móvel planejado"></model-viewer>' +
+        '<span class="plan-medidas" id="plan-medidas">Montando…</span></div>' +
+      (f.observacoes ? '<div class="plan-obs"><strong>Confira com o projeto:</strong><p>' + esc(f.observacoes).replace(/\n/g, '<br>') + '</p></div>' : '') +
+      '<fieldset class="campo plan-acab"><legend>Acabamentos</legend><div class="campos campos--3">' +
+        campo('Portas', '<select data-plan-acab="portas">' + opcoes(P.CORES, f.acabamentos.portas) + '</select>') +
+        campo('Corpo e ripado', '<select data-plan-acab="corpo">' + opcoes(P.CORES, f.acabamentos.corpo) + '</select>') +
+        campo('Tampo', '<select data-plan-acab="tampo">' + opcoes(P.TAMPOS, f.acabamentos.tampo) + '</select>') +
+      '</div></fieldset>' +
+      f.trechos.map(function (t, i) { return htmlTrechoPlan(t, i); }).join('') +
+      '<button class="btn btn--contorno btn--bloco" type="button" data-plan-acao="add-trecho">' + ICONES.mais + 'Adicionar trecho (aéreo, outra parede, painel…)</button>';
+    corpo.scrollTop = rolagem;
+    rod.innerHTML = '<div class="linha-acoes plan-rod"><button class="btn btn--fantasma btn--p" type="button" data-plan-acao="recomecar">Recomeçar</button>' +
+      '<button class="btn btn--primario" type="button" id="plan-usar">Usar este 3D no produto</button></div>';
+  }
+  function htmlTrechoPlan(t, i) {
+    var P = plan.P, comTampo = t.tipo === 'baixo' || t.tipo === 'bancada', comp = P.comprimentoTrecho(t);
+    var num_ = function (campo_, rot, v, min, max) { return campo(rot, '<input type="number" inputmode="decimal" min="' + min + '" max="' + max + '" step="0.5" data-pt="' + campo_ + '" value="' + v + '">'); };
+    return '<details class="plan-trecho" data-t="' + i + '"' + (plan.abertos && plan.abertos[i] === false ? '' : ' open') + '><summary><strong>' + esc(t.nome) + '</strong> <small>' + esc(P.TIPOS_TRECHO[t.tipo].split(' (')[0]) + ' · ' + num(comp) + ' cm</small></summary>' +
+      '<div class="campos campos--2">' +
+        campo('Nome', '<input data-pt="nome" maxlength="40" value="' + esc(t.nome) + '">') +
+        campo('Tipo', '<select data-pt="tipo">' + opcoes(P.TIPOS_TRECHO, t.tipo) + '</select>') +
+        campo('Parede', '<select data-pt="parede">' + opcoes(P.PAREDES, t.parede) + '</select>') +
+        num_('inicio', t.parede === 'A' ? 'Começa a (cm da ponta)' : 'Começa a (cm do canto)', t.inicio, 0, 2000) +
+        num_('altura', t.tipo === 'baixo' && t.tampo ? 'Altura com tampo (cm)' : 'Altura (cm)', t.altura, 5, 320) +
+        num_('profundidade', 'Profundidade (cm)', t.profundidade, 1, 120) +
+        num_('elevacao', 'Distância do chão (cm)', t.elevacao, 0, 260) +
+        (t.ripado ? num_('altura_ripado', 'Altura do ripado (cm)', t.altura_ripado, 5, 120) : '') +
+      '</div>' +
+      '<div class="plan-checks">' +
+        (comTampo ? '<label class="checar"><input type="checkbox" data-pt="tampo"' + (t.tampo ? ' checked' : '') + '> Tampo</label>' : '') +
+        (t.tipo !== 'painel' ? '<label class="checar"><input type="checkbox" data-pt="ripado"' + (t.ripado ? ' checked' : '') + '> Ripado em cima</label>' : '') +
+        '<label class="checar"><input type="checkbox" data-pt="led"' + (t.led ? ' checked' : '') + '> LED</label>' +
+      '</div>' +
+      '<p class="plan-sub">Módulos, da esquerda para a direita' + (t.parede === 'A' ? '' : ' (a partir do canto)') + '</p>' +
+      '<ol class="plan-mods">' + t.modulos.map(function (m, j) { return htmlModuloPlan(t, m, i, j); }).join('') + '</ol>' +
+      '<div class="linha-acoes"><button class="btn btn--sec btn--p" type="button" data-plan-acao="add-mod">' + ICONES.mais + 'Módulo</button>' +
+        '<button class="btn btn--fantasma btn--p" type="button" data-plan-acao="rem-trecho">Remover trecho</button></div>' +
+    '</details>';
+  }
+  function htmlModuloPlan(t, m, i, j) {
+    var P = plan.P, det = '';
+    if (m.tipo === 'portas') det = campo('Portas', '<input type="number" min="1" max="6" data-pm="portas" value="' + (m.portas || 1) + '">');
+    else if (m.tipo === 'gavetas') det = campo('Gavetas (cm, de cima p/ baixo)', '<input data-pm="gavetas" inputmode="decimal" placeholder="16, 15, 15, 30" value="' + esc(m.gavetas.join(', ')) + '">');
+    else if (m.tipo === 'nicho') det = campo('Prateleiras', '<input type="number" min="0" max="10" data-pm="prateleiras" value="' + m.prateleiras + '">');
+    else if (m.tipo === 'eletro') det = campo('Aparelho', '<select data-pm="aparelho">' + opcoes(P.APARELHOS, m.aparelho) + '</select>');
+    var frente = /portas|gavetas|nicho/.test(m.tipo) ? campo('Frente', '<select data-pm="frente">' + opcoes(P.FRENTES, m.frente) + '</select>') : '';
+    var tampo = (t.tipo === 'baixo' || t.tipo === 'bancada') && t.tampo && m.tipo !== 'vazio' ? campo('No tampo', '<select data-pm="item_tampo">' + opcoes(P.ITENS_TAMPO, m.item_tampo) + '</select>') : '';
+    return '<li class="plan-mod" data-m="' + j + '"><div class="plan-mod__campos">' +
+        campo('Tipo', '<select data-pm="tipo">' + opcoes(P.TIPOS_MODULO, m.tipo) + '</select>') +
+        campo('Largura (cm)', '<input type="number" inputmode="decimal" min="5" max="400" step="0.5" data-pm="largura" value="' + m.largura + '">') +
+        det + frente + tampo +
+      '</div><div class="plan-mod__acoes">' +
+        '<button type="button" class="btn-mini" data-plan-acao="sobe" aria-label="Mover para a esquerda"' + (j ? '' : ' disabled') + '>↑</button>' +
+        '<button type="button" class="btn-mini" data-plan-acao="desce" aria-label="Mover para a direita"' + (j < t.modulos.length - 1 ? '' : ' disabled') + '>↓</button>' +
+        '<button type="button" class="btn-mini" data-plan-acao="dup" aria-label="Duplicar módulo">⧉</button>' +
+        '<button type="button" class="btn-mini btn-mini--rem" data-plan-acao="rem-mod" aria-label="Remover módulo">✕</button>' +
+      '</div></li>';
+  }
+  var planTimer = null, planGeracao = 0;
+  function gerarPreviaPlan() {
+    clearTimeout(planTimer);
+    planTimer = setTimeout(function () {
+      if (!plan || !plan.ficha) return;
+      var minha = ++planGeracao;
+      plan.P.montarPlanejado(plan.ficha).then(function (r) {
+        if (!plan || minha !== planGeracao) return;
+        plan.glb = r.glb; plan.medidas = r.medidas;
+        if (plan.url) URL.revokeObjectURL(plan.url);
+        plan.url = URL.createObjectURL(new Blob([r.glb], { type: 'model/gltf-binary' }));
+        var mv = $('#plan-mv'); if (mv) mv.src = plan.url;
+        var md = $('#plan-medidas'); if (md) md.textContent = num(r.medidas.largura) + ' × ' + num(r.medidas.profundidade) + ' × ' + num(r.medidas.altura) + ' cm · ' + Math.max(1, Math.round(r.glb.length / 1024)) + ' KB';
+      }).catch(function (e) { var md = $('#plan-medidas'); if (md) md.textContent = e.message || 'Erro ao montar'; plan.glb = null; });
+    }, 350);
+  }
+  function lerArquivoPlan(arq) {
+    if (arq.type === 'application/pdf') {
+      if (arq.size > 6 * 1024 * 1024) return Promise.reject(new Error('O PDF “' + arq.name + '” passa de 6 MB. Envie só as páginas da planta.'));
+      return new Promise(function (ok, falha) {
+        var fr = new FileReader();
+        fr.onload = function () { ok({ nome: arq.name, tipo: 'application/pdf', dados: String(fr.result).split(',')[1] }); };
+        fr.onerror = function () { falha(new Error('Não deu para ler ' + arq.name)); };
+        fr.readAsDataURL(arq);
+      });
+    }
+    return new Promise(function (ok, falha) {   // imagem: reduz para no máximo 2000 px (as cotas continuam legíveis)
+      var url = URL.createObjectURL(arq), img = new Image();
+      img.onload = function () {
+        var k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight)), c = document.createElement('canvas');
+        c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+        var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        ok({ nome: arq.name, tipo: 'image/jpeg', dados: c.toDataURL('image/jpeg', 0.88).split(',')[1] });
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); falha(new Error('Não deu para abrir ' + arq.name)); };
+      img.src = url;
+    });
+  }
+  function lerProjetoIA() {
+    plan.descricao = ($('#plan-desc') || {}).value || plan.descricao;
+    plan.lendo = true; plan.erro = ''; renderPlanejado();
+    fetch(comLoja('api/planejado'), {
+      method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, credenciais()),
+      body: JSON.stringify({ arquivos: plan.arquivos.map(function (a) { return { tipo: a.tipo, dados: a.dados }; }), descricao: plan.descricao })
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        if (!plan) return;
+        plan.lendo = false;
+        if (!j.ficha || !j.ficha.trechos.length) { plan.erro = (j.ficha && j.ficha.observacoes) || 'A IA não encontrou um móvel nesses arquivos.'; renderPlanejado(); return; }
+        plan.ficha = j.ficha; renderPlanejado(); gerarPreviaPlan();
+      })
+      .catch(function (e) { if (!plan) return; plan.lendo = false; plan.erro = e.message; renderPlanejado(); });
+  }
+  function lerCampoPlan(el) {
+    var f = plan.ficha, td = el.closest('[data-t]'), t = td ? f.trechos[Number(td.getAttribute('data-t'))] : null;
+    var v = el.type === 'checkbox' ? el.checked : el.value, estrutura = false;
+    if (el.hasAttribute('data-plan-acab')) f.acabamentos[el.getAttribute('data-plan-acab')] = v;
+    else if (el.hasAttribute('data-pm') && t) {
+      var m = t.modulos[Number(el.closest('[data-m]').getAttribute('data-m'))], k = el.getAttribute('data-pm');
+      if (k === 'gavetas') m.gavetas = String(v).split(/[;,\s]+/).map(function (n) { return Number(n.replace(',', '.')); }).filter(function (n) { return n > 0; });
+      else if (k === 'largura' || k === 'portas' || k === 'prateleiras') m[k] = Number(String(v).replace(',', '.')) || 0;
+      else { m[k] = v; estrutura = k === 'tipo'; }
+      if (k === 'tipo') { if (v === 'portas' && !m.portas) m.portas = 1; if (v === 'gavetas' && !m.gavetas.length) m.gavetas = [20, 20, 20]; }
+    } else if (el.hasAttribute('data-pt') && t) {
+      var c = el.getAttribute('data-pt');
+      if (el.type === 'number') t[c] = Number(String(v).replace(',', '.')) || 0; else t[c] = v;
+      estrutura = c === 'tipo' || c === 'parede' || c === 'tampo' || c === 'ripado';
+    }
+    plan.ficha = plan.P.normalizarFicha(f);
+    if (estrutura) renderPlanejado();
+    else if (td) { var sm = td.querySelector('summary small'); if (sm) { var tt = plan.ficha.trechos[Number(td.getAttribute('data-t'))]; sm.textContent = plan.P.TIPOS_TRECHO[tt.tipo].split(' (')[0] + ' · ' + num(plan.P.comprimentoTrecho(tt)) + ' cm'; } }
+    gerarPreviaPlan();
+  }
+  function usarPlanejado() {
+    var x = plan.x, ir = function () {
+      x.planejado = plan.ficha;
+      x.dim = { largura: plan.medidas.largura, profundidade: plan.medidas.profundidade, altura: plan.medidas.altura };
+      if (!x.nome) x.nome = plan.ficha.nome;
+      var arq = new File([plan.glb], slug(x.nome || 'planejado') + '.glb', { type: 'model/gltf-binary' });
+      fecharDialogo($('#dlg-planejado'));
+      enviar3d(arq, x);
+    };
+    if (plan.glb) ir();
+    else plan.P.montarPlanejado(plan.ficha).then(function (r) { plan.glb = r.glb; plan.medidas = r.medidas; ir(); }).catch(function (e) { toast(e.message); });
+  }
+  document.addEventListener('change', function (e) {
+    if (!plan || !e.target.closest('#dlg-planejado')) return;
+    if (e.target.id === 'plan-arq') {
+      var lista = Array.prototype.slice.call(e.target.files || []).slice(0, 6 - plan.arquivos.length);
+      plan.descricao = ($('#plan-desc') || {}).value || plan.descricao;
+      Promise.all(lista.map(lerArquivoPlan)).then(function (r) {
+        plan.arquivos = plan.arquivos.concat(r).slice(0, 6); plan.erro = ''; renderPlanejado();
+      }).catch(function (err) { toast(err.message); });
+      return;
+    }
+    if (e.target.matches('[data-plan-acab],[data-pm],[data-pt]')) lerCampoPlan(e.target);
+  });
+  document.addEventListener('input', function (e) {
+    if (!plan || !plan.ficha || !e.target.closest('#dlg-planejado')) return;
+    if (e.target.matches('input[type="number"][data-pm],input[type="number"][data-pt],input[data-pm="gavetas"]')) lerCampoPlan(e.target);
+  });
+  document.addEventListener('click', function (e) {
+    if (!plan || !e.target.closest('#dlg-planejado')) return;
+    var mod = e.target.closest('[data-plan-modelo]');
+    if (mod) { plan.ficha = plan.P.normalizarFicha(JSON.parse(JSON.stringify(plan.P.MODELOS_PRONTOS[mod.getAttribute('data-plan-modelo')]))); renderPlanejado(); gerarPreviaPlan(); return; }
+    var tirar = e.target.closest('[data-plan-tirar]');
+    if (tirar) { plan.descricao = ($('#plan-desc') || {}).value || plan.descricao; plan.arquivos.splice(Number(tirar.getAttribute('data-plan-tirar')), 1); renderPlanejado(); return; }
+    if (e.target.closest('#plan-ler')) { lerProjetoIA(); return; }
+    if (e.target.closest('#plan-usar')) { usarPlanejado(); return; }
+    var ac = e.target.closest('[data-plan-acao]');
+    if (!ac) return;
+    var a = ac.getAttribute('data-plan-acao'), f = plan.ficha;
+    if (a === 'recomecar') { confirmar('Recomeçar do zero? A ficha atual será descartada.', 'Recomeçar').then(function (ok) { if (ok) { plan.ficha = null; plan.glb = null; renderPlanejado(); } }); return; }
+    if (a === 'add-trecho') { f.trechos.push({ nome: 'Trecho ' + (f.trechos.length + 1), tipo: 'aereo', parede: 'A', modulos: [{ tipo: 'portas', largura: 80, portas: 2 }] }); }
+    var td = ac.closest('[data-t]'), ti = td ? Number(td.getAttribute('data-t')) : -1, t = f.trechos[ti];
+    var li = ac.closest('[data-m]'), mi = li ? Number(li.getAttribute('data-m')) : -1;
+    if (a === 'rem-trecho' && t) f.trechos.splice(ti, 1);
+    if (a === 'add-mod' && t) t.modulos.push({ tipo: 'portas', largura: 60, portas: 1 });
+    if (a === 'rem-mod' && t) t.modulos.splice(mi, 1);
+    if (a === 'dup' && t) t.modulos.splice(mi + 1, 0, JSON.parse(JSON.stringify(t.modulos[mi])));
+    if ((a === 'sobe' || a === 'desce') && t) { var d = a === 'sobe' ? -1 : 1, m = t.modulos.splice(mi, 1)[0]; t.modulos.splice(mi + d, 0, m); }
+    plan.abertos = $$('#plan-corpo .plan-trecho').map(function (dt) { return dt.open; });
+    plan.ficha = plan.P.normalizarFicha(f);
+    renderPlanejado(); gerarPreviaPlan();
   });
 
   // ----- 3D por forma simples + foto (lata, balde, caixa, colchão…) -----
@@ -2800,7 +3028,7 @@
       var g = function (k) { return d.querySelector('[data-f="' + k + '"]'); };
       var antes = primeiro;
       if (!x.nome) erro(g('nome'), 'Informe o nome.');
-      if (!isFinite(x.preco) || x.preco < 0 || x.preco > 10000) erro(g('preco'), 'Preço inválido. Ex.: 8,50');
+      if (!isFinite(x.preco) || x.preco < 0 || x.preco > 1000000) erro(g('preco'), 'Preço inválido. Ex.: 8,50 ou 28.900,00');
       ['largura', 'profundidade', 'altura'].forEach(function (k) {
         if (!(x.dim[k] > 0 && x.dim[k] <= 1000)) erro(g(k), 'Entre 0,1 e 1000 cm.');
       });
@@ -3006,6 +3234,8 @@
       enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
       return;
     }
+    var bpl = e.target.closest('[data-planejado]');
+    if (bpl) { coletarAdmin(); var xpl = produtoDoAlvo(bpl); if (xpl) abrirPlanejado(xpl); return; }
     var bpt = e.target.closest('[data-pontos]');
     if (bpt) { coletarAdmin(); var xpt = produtoDoAlvo(bpt); if (xpt && xpt.modelo) abrirPontos(xpt); return; }
     var g3d = e.target.closest('[data-gerar-3d]');

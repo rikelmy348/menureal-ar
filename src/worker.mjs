@@ -21,6 +21,7 @@ import recuperar from './api/recuperar.mjs';
 import conta from './api/conta.mjs';
 import evento from './api/evento.mjs';
 import modeloArquivo from './api/modelo-arquivo.mjs';
+import planejado from './api/planejado.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -36,7 +37,8 @@ const ROTAS = {
   '/api/recuperar': recuperar,
   '/api/conta': conta,
   '/api/evento': evento,
-  '/api/modelo-arquivo': modeloArquivo
+  '/api/modelo-arquivo': modeloArquivo,
+  '/api/planejado': planejado
 };
 
 // ---------------------------------------------------------------------------
