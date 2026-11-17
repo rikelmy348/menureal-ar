@@ -350,6 +350,10 @@ function montarTrecho(G, t, fic) {
   }
   // laterais de acabamento nas pontas do trecho (madeira)
   if (t.tipo === 'aereo' || t.tipo === 'alto') { C('corpo', xmin - 1.8, xmin, E, E + H, 0, P); C('corpo', xmax, xmax + 1.8, E, E + H, 0, P); }
+  if (t.tipo === 'baixo') {   // laterais de acabamento (fecham as pontas do balcão)
+    const yl = temTampo ? E + H - TAMPO : E + H;
+    C('corpo', xmin - 0.01, xmin + 1.8, E, yl, 0, P); C('corpo', xmax - 1.8, xmax + 0.01, E, yl, 0, P);
+  }
 }
 
 function eletro(G, ap, a, b, y0, yt, zf0, zf1, E, comRodape) {
