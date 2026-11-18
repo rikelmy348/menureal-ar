@@ -2743,7 +2743,6 @@
         ? '<div class="linha-acoes">' +
             '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
-            (x.modelo ? '<button class="btn btn--contorno btn--p" type="button" data-3d-leve>Deixar mais leve</button>' : '') +
             (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
           '</div>' +
@@ -3677,8 +3676,6 @@
       enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
       return;
     }
-    var blv = e.target.closest('[data-3d-leve]');
-    if (blv) { coletarAdmin(); var xlv = produtoDoAlvo(blv); if (xlv && xlv.modelo) deixar3dLeve(xlv, xlv.modelo, null, false); return; }
     var bcm = e.target.closest('[data-cores-movel]');
     if (bcm) { coletarAdmin(); var xcm = produtoDoAlvo(bcm); if (xcm && xcm.modelo) abrirCoresMovel(xcm); return; }
     var bpl = e.target.closest('[data-planejado]');
