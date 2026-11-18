@@ -75,8 +75,12 @@ export function caixaGlb(json) {
         json.meshes[n.mesh].primitives.forEach((p) => {
           const a = json.accessors[p.attributes.POSITION];
           if (!a || !a.min || !a.max) return;
+          // posições comprimidas (KHR_mesh_quantization): min/max vêm em inteiros; normaliza para -1…1
+          const d = a.normalized ? ({ 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 })[a.componentType] || 1 : 1;
+          const norm = (v) => (a.normalized ? Math.max(v / d, -1) : v);
+          const amin = a.min.map(norm), amax = a.max.map(norm);
           for (let c = 0; c < 8; c++) {
-            const v = aplicar(m, [c & 1 ? a.max[0] : a.min[0], c & 2 ? a.max[1] : a.min[1], c & 4 ? a.max[2] : a.min[2]]);
+            const v = aplicar(m, [c & 1 ? amax[0] : amin[0], c & 2 ? amax[1] : amin[1], c & 4 ? amax[2] : amin[2]]);
             for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], v[k]); mx[k] = Math.max(mx[k], v[k]); }
           }
         });

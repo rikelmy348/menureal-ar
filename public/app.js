@@ -2651,14 +2651,35 @@
     if (!moduloGlb) moduloGlb = import(new URL('glb.mjs', document.baseURI).href);
     return moduloGlb;
   }
+  function mb(n) { return (n / 1048576).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' MB'; }
+  // Deixa mais leve um 3D que já está no produto (ou numa versão) e envia de novo, sem mexer nas medidas
+  function deixar3dLeve(x, url, tamId, automatico) {
+    toast('Deixando o 3D mais leve…');
+    Promise.all([import(new URL('otimizar.mjs', document.baseURI).href), fetch(urlModelo(url)).then(function (r) { if (!r.ok) throw new Error('Não deu para baixar o 3D.'); return r.arrayBuffer(); })])
+      .then(function (r) { return r[0].otimizarGlb(new Uint8Array(r[1])); })
+      .then(function (res) {
+        if (res.depois >= res.antes) { if (!automatico) toast('Este 3D já está leve (' + mb(res.antes) + ').'); return; }
+        var arq = new File([res.glb], slug(x.nome || 'movel') + '.glb', { type: 'model/gltf-binary' });
+        enviar3d(arq, x, tamId, { manterMedidas: true, semOtimizar: true, reducao: res, aviso: '3D mais leve. Toque em “Salvar alterações” para publicar.' });
+      })
+      .catch(function (e) { if (!automatico) toast(e.message || 'Não deu para reduzir o 3D.'); });
+  }
   function enviar3d(arquivo, x, tamId, opcoesEnvio) {
     opcoesEnvio = opcoesEnvio || {};
     if (!credenciais()) { toast(LOJA ? 'Entre na conta da loja' : 'Preencha o código de acesso'); return; }
     if (!/\.glb$/i.test(arquivo.name)) { toast('Envie o arquivo em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).'); return; }
-    if (arquivo.size > 25 * 1024 * 1024) { toast('Arquivo grande demais (máximo 25 MB). Peça uma versão mais leve à fábrica ou reduza as texturas.'); return; }
+    if (arquivo.size > 60 * 1024 * 1024) { toast('Arquivo grande demais (máximo 60 MB). Peça uma versão mais leve à fábrica.'); return; }
     toast('Conferindo o arquivo 3D…');
     Promise.all([carregarModuloGlb(), arquivo.arrayBuffer()]).then(function (r) {
+      // arquivo pesado: deixa mais leve antes de enviar (abre mais rápido no celular do cliente)
+      if (opcoesEnvio.semOtimizar || r[1].byteLength < 3 * 1024 * 1024) return r;
+      toast('Deixando o 3D mais leve para abrir rápido no celular…');
+      return import(new URL('otimizar.mjs', document.baseURI).href).then(function (o) { return o.otimizarGlb(new Uint8Array(r[1])); })
+        .then(function (res) { opcoesEnvio.reducao = res.depois < res.antes ? res : null; return [r[0], res.glb.buffer.slice(res.glb.byteOffset, res.glb.byteOffset + res.glb.byteLength)]; })
+        .catch(function (e) { console.warn('otimizar', e); return r; });
+    }).then(function (r) {
       var m = r[0], bytes = new Uint8Array(r[1]), med;
+      if (bytes.length > 25 * 1024 * 1024) throw new Error('Mesmo reduzido, o 3D passa de 25 MB. Peça uma versão mais leve à fábrica.');
       try {
         var g = m.lerGlb(bytes), cx = m.caixaGlb(g.json);
         med = { largura: +((cx.mx[0] - cx.mn[0]) * 100).toFixed(1), profundidade: +((cx.mx[2] - cx.mn[2]) * 100).toFixed(1), altura: +((cx.mx[1] - cx.mn[1]) * 100).toFixed(1) };
@@ -2686,9 +2707,10 @@
       }
       x.modelo = res.url;
       x.ilustrativo = false;
-      if (opcoesEnvio.manterMedidas) {   // mesmo móvel, só mudou a cor: medidas e ajuste continuam como estavam
+      var txtReducao = opcoesEnvio.reducao ? ' (ficou mais leve: ' + mb(opcoesEnvio.reducao.antes) + ' → ' + mb(opcoesEnvio.reducao.depois) + ')' : '';
+      if (opcoesEnvio.manterMedidas) {   // mesmo móvel (só mudou a cor ou o peso): medidas e ajuste continuam como estavam
         abertoNoAdmin = x.id; renderAdmin();
-        toast(opcoesEnvio.aviso || '3D atualizado. Toque em “Salvar alterações” para publicar.');
+        toast((opcoesEnvio.aviso || '3D atualizado. Toque em “Salvar alterações” para publicar.') + txtReducao);
         return;
       }
       var med = res.med, dim = x.dim;
@@ -2701,7 +2723,7 @@
         toast('3D enviado, mas ele mede ' + dimTexto(med) + ': deve estar em outra unidade. Preencha as medidas reais e toque em “Ajustar o 3D às medidas acima”.');
       } else if (semMedidas || !difere) {
         x.dim = med; renderAdmin();
-        toast('3D enviado: ' + dimTexto(med) + '. Toque em “Salvar alterações” para publicar.');
+        toast('3D enviado: ' + dimTexto(med) + txtReducao + '. Toque em “Salvar alterações” para publicar.');
       } else {
         confirmar('O arquivo 3D mede ' + dimTexto(med) + ', mas o cadastro diz ' + dimTexto(dim) + '. Usar as medidas do arquivo?', 'Usar as do arquivo').then(function (sim) {
           if (sim) x.dim = med;
@@ -2721,6 +2743,7 @@
         ? '<div class="linha-acoes">' +
             '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
+            (x.modelo ? '<button class="btn btn--contorno btn--p" type="button" data-3d-leve>Deixar mais leve</button>' : '') +
             (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
           '</div>' +
@@ -3654,6 +3677,8 @@
       enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
       return;
     }
+    var blv = e.target.closest('[data-3d-leve]');
+    if (blv) { coletarAdmin(); var xlv = produtoDoAlvo(blv); if (xlv && xlv.modelo) deixar3dLeve(xlv, xlv.modelo, null, false); return; }
     var bcm = e.target.closest('[data-cores-movel]');
     if (bcm) { coletarAdmin(); var xcm = produtoDoAlvo(bcm); if (xcm && xcm.modelo) abrirCoresMovel(xcm); return; }
     var bpl = e.target.closest('[data-planejado]');
@@ -4152,6 +4177,8 @@
       fecharDialogo($('#dlg-3d'));
       renderAdmin();
       toast('Modelo aplicado. Toque em “Salvar alterações” para publicar.');
+      // o 3D gerado por fotos vem pesado: reduz em seguida (abre bem mais rápido no 4G)
+      if (x._tam) deixar3dLeve(x._prod, g3d.resultado.url, x._tam.id, true); else deixar3dLeve(x, g3d.resultado.url, null, true);
     }
   });
   $('#dlg-3d').addEventListener('close', function () { clearTimeout(g3d.timer); });
