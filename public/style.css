@@ -1106,3 +1106,31 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .palco-cor i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); font: 700 11px var(--fonte); font-style: normal; color: #1B1D1A; background: #E7E4DE; }
 .palco-cor[aria-pressed="true"] i { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1B1D1A; }
 .palco-cores__nome { flex: none; padding-left: 4px; font: 700 13px var(--fonte); color: #1B1D1A; white-space: nowrap; }
+
+/* ---- Ver numa foto da casa ---- */
+.foto-amb-btn { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 4px; text-align: left; }
+.foto-amb-btn svg { width: 24px; height: 24px; flex: none; }
+.foto-amb-btn span { display: grid; line-height: 1.2; }
+.foto-amb-btn small { font-weight: 500; font-size: 12px; opacity: .8; }
+.casa-passos { margin: 8px 0 16px; }
+.casa-btn-arq { margin-bottom: 10px; cursor: pointer; }
+.casa-palco { position: relative; margin: 0 -4px; border-radius: 14px; overflow: hidden; background: #111; touch-action: none; user-select: none; -webkit-user-select: none; }
+.casa-palco > img:first-child { display: block; width: 100%; height: auto; pointer-events: none; }
+.casa-ref { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: pointer; }
+.casa-medida { margin-top: 12px; }
+.casa-cm { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.casa-cm input { max-width: 140px; }
+.casa-sugestoes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: var(--tinta-2); }
+.casa-sugestoes .chip { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--linha); background: var(--superficie); color: var(--tinta); font: 600 13px var(--fonte); cursor: pointer; }
+.casa-movel { position: absolute; cursor: grab; touch-action: none; filter: drop-shadow(0 2px 2px rgba(0,0,0,.25)); }
+.casa-sombra { position: absolute; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.42), rgba(0,0,0,.16) 60%, transparent); pointer-events: none; }
+.casa-carregando { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(0,0,0,.25); color: #fff; }
+.casa-carregando[hidden] { display: none; }
+.casa-dica { margin: 8px 0; }
+.casa-ctrl { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 10px; }
+.casa-slider { display: grid; gap: 2px; margin: 6px 0; }
+.casa-slider small { color: var(--tinta-2); font-weight: 500; }
+.casa-slider input[type="range"] { width: 100%; }
+/* área de desenho invisível: precisa caber inteira na tela, senão o 3D sai cortado */
+.casa-render { position: fixed; left: 0; top: 0; width: min(92vw, 92vh, 560px); height: min(92vw, 92vh, 560px); opacity: 0; pointer-events: none; z-index: -1; }
+.casa-render model-viewer { width: 100%; height: 100%; background: transparent; --poster-color: transparent; }

@@ -697,7 +697,7 @@
       caixa.hidden = true;
     } else {
       caixa.hidden = false;
-      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>Continue explorando em 3D na aba ao lado.' +
+      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.' +
         '<ul>' + motivoSemAR().map(function (m) { return '<li>' + m + '</li>'; }).join('') + '</ul>';
     }
   }
@@ -848,6 +848,7 @@
       return;
     }
     $('#aba-ar').disabled = !ef.modelo;
+    $('#btn-foto-amb').hidden = !ef.modelo;
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
@@ -1119,6 +1120,240 @@
       $('#viewer-dim-modelo').textContent = '—';
     }
   }
+
+  // ===================================================================
+  // Ver numa foto da casa: funciona em qualquer celular (mesmo sem RA).
+  // O cliente tira/escolhe uma foto, marca uma medida conhecida (parede,
+  // porta, piso) e o móvel aparece na foto na escala certa. Depois gira,
+  // posiciona e compartilha a imagem.
+  // ===================================================================
+  var fa = null;   // { p, ef, variante, foto: {img, w, h, url}, ref: {x1,y1,x2,y2,cm}, sprite, pos, theta, phi, ajuste, luz, etapa }
+  function abrirFotoAmbiente() {
+    var mvV = palco.querySelector('model-viewer');
+    if (!produtoAtual || !mvV) return;
+    var ef = produtoAtual.combo ? { modelo: produtoAtual.modelo } : efetivo(produtoAtual, tamAtual);
+    fa = { p: produtoAtual, modelo: ef.modelo, variante: mvV.variantName || '', etapa: 'foto', theta: -20, phi: 76, ajuste: 1, luz: 1 };
+    // o 3D baixa a resolução sozinho quando o aparelho fica lento, e a captura sairia cortada: trava em 100% enquanto a tela está aberta
+    var MV = customElements.get('model-viewer');
+    if (MV && fa.escalaAntes == null) { fa.escalaAntes = MV.minimumRenderScale; MV.minimumRenderScale = 1; }
+    renderFoto();
+    abrirDialogo($('#dlg-casa'));
+  }
+  function renderFoto() {
+    var corpo = $('#casa-corpo'), rod = $('#casa-rodape');
+    if (fa.etapa === 'foto') {
+      corpo.innerHTML =
+        '<p style="margin-top:0">Veja <strong>' + esc(fa.p.nome) + '</strong> numa foto do lugar onde ele vai ficar, no tamanho certo.</p>' +
+        '<ol class="passos casa-passos"><li>Fique de frente para o lugar, com o celular na altura do peito.</li><li>Mostre o chão e a parede onde o móvel vai ficar.</li><li>Tire a foto com o lugar bem iluminado.</li></ol>' +
+        '<label class="btn btn--primario btn--bloco casa-btn-arq">Tirar foto agora<input type="file" accept="image/*" capture="environment" data-casa-arq hidden></label>' +
+        '<label class="btn btn--contorno btn--bloco casa-btn-arq">Escolher foto da galeria<input type="file" accept="image/*" data-casa-arq hidden></label>';
+      rod.innerHTML = '';
+      return;
+    }
+    if (fa.etapa === 'ref') {
+      corpo.innerHTML =
+        '<p style="margin-top:0"><strong>Marque algo que você sabe a medida</strong>, no lugar onde o móvel vai ficar: a largura da parede, uma porta, um piso. Arraste as duas bolinhas até as pontas.</p>' +
+        '<div class="casa-palco" id="casa-palco"><img src="' + fa.foto.url + '" alt="Sua foto" draggable="false">' +
+          '<svg class="casa-ref" id="casa-ref" viewBox="0 0 ' + fa.foto.w + ' ' + fa.foto.h + '" preserveAspectRatio="none"></svg></div>' +
+        '<div class="casa-medida">' + campo('Quanto mede essa linha?', '<span class="casa-cm"><input id="casa-cm" type="text" inputmode="decimal" placeholder="ex.: 240" autocomplete="off"> cm</span>') + '</div>' +
+        '<div class="casa-sugestoes"><span>Dica:</span><button type="button" class="chip" data-casa-cm="80">Porta: 80 cm</button><button type="button" class="chip" data-casa-cm="60">Piso: 60 cm</button><button type="button" class="chip" data-casa-cm="210">Altura da porta: 210 cm</button></div>';
+      rod.innerHTML = '<div class="linha-acoes plan-rod"><button class="btn btn--fantasma btn--p" type="button" data-casa-pular>Não sei medir</button><button class="btn btn--primario" type="button" data-casa-continuar>Continuar</button></div>';
+      desenharRef(); ligarRef();
+      return;
+    }
+    // etapa 'mover'
+    corpo.innerHTML =
+      '<div class="casa-palco" id="casa-palco"><img src="' + fa.foto.url + '" alt="Sua foto com o móvel" draggable="false">' +
+        '<div class="casa-sombra" id="casa-sombra"></div><img class="casa-movel" id="casa-movel" alt="' + esc(fa.p.nome) + '" draggable="false" hidden>' +
+        '<div class="casa-carregando" id="casa-carregando"><div class="spinner" aria-hidden="true"></div></div></div>' +
+      '<p class="mini casa-dica">' + (fa.ref.aprox ? '⚠ Tamanho aproximado (sem medida de referência). ' : '') + 'Arraste o móvel para posicionar.</p>' +
+      '<div class="casa-ctrl">' +
+        '<button type="button" class="btn btn--sec btn--p" data-casa-girar="-30" aria-label="Girar para a esquerda">↺ Girar</button>' +
+        '<button type="button" class="btn btn--sec btn--p" data-casa-girar="30" aria-label="Girar para a direita">Girar ↻</button>' +
+        '<button type="button" class="btn btn--fantasma btn--p" data-casa-refazer>Refazer medida</button>' +
+      '</div>' +
+      '<label class="campo casa-slider"><span>Ângulo da foto <small>(de frente ↔ de cima)</small></span><input type="range" id="casa-phi" min="60" max="88" value="' + (148 - fa.phi) + '"></label>' +
+      '<label class="campo casa-slider"><span>Ajuste do tamanho <small>(se o móvel ficar mais à frente ou ao fundo)</small></span><input type="range" id="casa-ajuste" min="70" max="130" value="' + Math.round(fa.ajuste * 100) + '"></label>' +
+      '<label class="campo casa-slider"><span>Luz</span><input type="range" id="casa-luz" min="60" max="140" value="' + Math.round(fa.luz * 100) + '"></label>' +
+      '<div class="casa-render" aria-hidden="true"><model-viewer id="casa-mv" src="' + esc(urlModelo(fa.modelo)) + '" loading="eager" interaction-prompt="none" environment-image="' + esc(ESTUDIO()) + '" tone-mapping="neutral" shadow-intensity="0" field-of-view="18deg" camera-orbit="' + fa.theta + 'deg ' + fa.phi + 'deg auto" style="background:transparent"></model-viewer></div>';
+    rod.innerHTML = '<div class="linha-acoes plan-rod"><button class="btn btn--contorno btn--p" type="button" data-casa-baixar>Baixar imagem</button><button class="btn btn--primario" type="button" data-casa-compartilhar>Compartilhar</button></div>';
+    var mv = $('#casa-mv');
+    mv.addEventListener('load', function () {
+      if (fa && fa.variante && (mv.availableVariants || []).indexOf(fa.variante) > -1) mv.variantName = fa.variante;
+      try { var d = mv.getDimensions(); fa.dimM = { x: d.x * 100, y: d.y * 100, z: d.z * 100 }; } catch (e) { fa.dimM = null; }
+      setTimeout(renderizarMovel, 250);
+    }, { once: true });
+    ligarMover();
+  }
+  // ----- etapa da medida de referência
+  function desenharRef() {
+    var r = fa.ref, svg = $('#casa-ref'); if (!svg) return;
+    var k = fa.foto.w / ($('#casa-palco').clientWidth || fa.foto.w), raio = 16 * k, esp = 4 * k;
+    svg.innerHTML = '<line x1="' + r.x1 + '" y1="' + r.y1 + '" x2="' + r.x2 + '" y2="' + r.y2 + '" stroke="#FFD23F" stroke-width="' + esp + '" stroke-dasharray="' + (esp * 3) + ' ' + (esp * 2) + '"/>' +
+      [[r.x1, r.y1, 1], [r.x2, r.y2, 2]].map(function (q) { return '<circle cx="' + q[0] + '" cy="' + q[1] + '" r="' + raio + '" fill="rgba(255,210,63,.35)" stroke="#FFD23F" stroke-width="' + esp + '" data-ponta="' + q[2] + '"/>'; }).join('') +
+      (r.cm ? '<text x="' + (r.x1 + r.x2) / 2 + '" y="' + ((r.y1 + r.y2) / 2 - raio * 1.4) + '" font-size="' + raio * 1.6 + '" font-weight="800" fill="#FFD23F" stroke="#000" stroke-width="' + k * 3 + '" paint-order="stroke" text-anchor="middle">' + num(r.cm) + ' cm</text>' : '');
+  }
+  function pontoNaFoto(e) {
+    var b = $('#casa-palco').getBoundingClientRect();
+    return { x: Math.max(0, Math.min(fa.foto.w, (e.clientX - b.left) / b.width * fa.foto.w)), y: Math.max(0, Math.min(fa.foto.h, (e.clientY - b.top) / b.height * fa.foto.h)) };
+  }
+  function ligarRef() {
+    var svg = $('#casa-ref'), arr = null;
+    svg.addEventListener('pointerdown', function (e) {
+      var q = pontoNaFoto(e), r = fa.ref;
+      var d1 = Math.hypot(q.x - r.x1, q.y - r.y1), d2 = Math.hypot(q.x - r.x2, q.y - r.y2);
+      arr = d1 < d2 ? 1 : 2;
+      try { svg.setPointerCapture(e.pointerId); } catch (er) { /* ok */ }
+      mover(e); e.preventDefault();
+    });
+    function mover(e) { if (!arr) return; var q = pontoNaFoto(e); fa.ref['x' + arr] = q.x; fa.ref['y' + arr] = q.y; desenharRef(); }
+    svg.addEventListener('pointermove', mover);
+    svg.addEventListener('pointerup', function () { arr = null; });
+    svg.addEventListener('pointercancel', function () { arr = null; });
+  }
+  // ----- etapa do móvel na foto
+  function renderizarMovel(tentativa) {
+    tentativa = tentativa || 0;
+    var mv = $('#casa-mv'); if (!mv || !fa) return;
+    var car = $('#casa-carregando'); if (car) car.hidden = false;
+    mv.cameraOrbit = fa.theta + 'deg ' + fa.phi + 'deg auto';
+    mv.jumpCameraToGoal();
+    requestAnimationFrame(function () { requestAnimationFrame(function () { setTimeout(function () {
+      if (!fa) return;
+      mv.toBlob({ mimeType: 'image/png', idealAspect: false }).then(function (blob) { return createImageBitmap(blob); }).then(function (bmp) {
+        // recorta o que é transparente em volta do móvel
+        var c = document.createElement('canvas'); c.width = bmp.width; c.height = bmp.height;
+        var g = c.getContext('2d', { willReadFrequently: true }); g.drawImage(bmp, 0, 0);
+        var d = g.getImageData(0, 0, c.width, c.height).data, x0 = c.width, y0 = c.height, x1 = -1, y1 = -1;
+        for (var y = 0; y < c.height; y++) for (var x = 0; x < c.width; x++) if (d[(y * c.width + x) * 4 + 3] > 12) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        if (x1 < 0) throw new Error('vazio');
+        // encostou na borda = captura ainda na resolução errada: espera e tenta de novo
+        if ((x0 === 0 || y0 === 0 || x1 === c.width - 1 || y1 === c.height - 1) && tentativa < 3) { setTimeout(function () { renderizarMovel(tentativa + 1); }, 450); return; }
+        var w = x1 - x0 + 1, h = y1 - y0 + 1, cc = document.createElement('canvas'); cc.width = w; cc.height = h;
+        cc.getContext('2d').drawImage(c, x0, y0, w, h, 0, 0, w, h);
+        // largura real do que aparece (vista de cima, ignorando a perspectiva): L·|cos θ| + P·|sen θ|
+        var t = fa.theta * Math.PI / 180, dm = fa.dimM || { x: 100, z: 50 };
+        fa.sprite = { canvas: cc, url: cc.toDataURL('image/png'), larguraCm: dm.x * Math.abs(Math.cos(t)) + dm.z * Math.abs(Math.sin(t)), proporcao: h / w };
+        if (!fa.pos) fa.pos = { x: (fa.ref.x1 + fa.ref.x2) / 2, y: Math.max(fa.ref.y1, fa.ref.y2) + fa.foto.h * 0.04 };
+        posicionarMovel();
+        var im = $('#casa-movel'); im.src = fa.sprite.url; im.hidden = false;
+        if (car) car.hidden = true;
+        if (!fa.registrado) { fa.registrado = true; registrar('ar', fa.p.id); }
+      }).catch(function () { if (car) car.innerHTML = '<p>Não deu para mostrar o móvel. Tente de novo.</p>'; });
+    }, 120); }); });
+  }
+  function tamanhoNaFoto() {   // largura do móvel em pixels da foto
+    var pxCm = Math.hypot(fa.ref.x2 - fa.ref.x1, fa.ref.y2 - fa.ref.y1) / fa.ref.cm;
+    var w = fa.sprite.larguraCm * pxCm * fa.ajuste;
+    return { w: w, h: w * fa.sprite.proporcao };
+  }
+  function posicionarMovel() {
+    var im = $('#casa-movel'), sb = $('#casa-sombra'), pl = $('#casa-palco');
+    if (!im || !fa.sprite || !pl) return;
+    var k = pl.clientWidth / fa.foto.w, t = tamanhoNaFoto();
+    im.style.width = t.w * k + 'px'; im.style.left = (fa.pos.x - t.w / 2) * k + 'px'; im.style.top = (fa.pos.y - t.h) * k + 'px';
+    im.style.filter = 'brightness(' + fa.luz + ')';
+    sb.style.width = t.w * 1.02 * k + 'px'; sb.style.height = Math.max(6, t.w * 0.09) * k + 'px';
+    sb.style.left = (fa.pos.x - t.w * 0.51) * k + 'px'; sb.style.top = (fa.pos.y - Math.max(6, t.w * 0.09) * 0.55) * k + 'px';
+  }
+  function ligarMover() {
+    var pl = $('#casa-palco'), arr = null;
+    pl.addEventListener('pointerdown', function (e) {
+      if (!fa.sprite || !e.target.closest('#casa-movel')) return;
+      var q = pontoNaFoto(e); arr = { dx: fa.pos.x - q.x, dy: fa.pos.y - q.y };
+      try { pl.setPointerCapture(e.pointerId); } catch (er) { /* ok */ }
+      e.preventDefault();
+    });
+    pl.addEventListener('pointermove', function (e) {
+      if (!arr) return;
+      var q = pontoNaFoto(e); fa.pos.x = q.x + arr.dx; fa.pos.y = Math.max(10, q.y + arr.dy); posicionarMovel();
+    });
+    pl.addEventListener('pointerup', function () { arr = null; });
+    pl.addEventListener('pointercancel', function () { arr = null; });
+  }
+  function montarImagemFinal() {
+    var t = tamanhoNaFoto(), c = document.createElement('canvas'); c.width = fa.foto.w; c.height = fa.foto.h;
+    var g = c.getContext('2d');
+    g.drawImage(fa.foto.img, 0, 0, fa.foto.w, fa.foto.h);
+    // sombra de contato no chão
+    var sw = t.w * 1.02, sh = Math.max(6, t.w * 0.09);
+    g.save(); g.translate(fa.pos.x, fa.pos.y - sh * 0.05); g.scale(1, sh / sw);
+    var gr = g.createRadialGradient(0, 0, 0, 0, 0, sw / 2); gr.addColorStop(0, 'rgba(0,0,0,0.42)'); gr.addColorStop(0.6, 'rgba(0,0,0,0.18)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, 0, sw / 2, 0, Math.PI * 2); g.fill(); g.restore();
+    if ('filter' in g) g.filter = 'brightness(' + fa.luz + ')';
+    g.drawImage(fa.sprite.canvas, fa.pos.x - t.w / 2, fa.pos.y - t.h, t.w, t.h);
+    g.filter = 'none';
+    // etiqueta discreta com o produto e a loja
+    var txt = fa.p.nome + ' · ' + (dados.padaria.nome || ''), fs = Math.round(c.width * 0.024);
+    g.font = '700 ' + fs + 'px system-ui, sans-serif';
+    var tw = g.measureText(txt).width;
+    g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(fs * 0.6, c.height - fs * 2.2, tw + fs * 1.2, fs * 1.6);
+    g.fillStyle = '#fff'; g.fillText(txt, fs * 1.2, c.height - fs * 0.95);
+    return new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.9); });
+  }
+  function carregarFotoAmbiente(arq) {
+    var url = URL.createObjectURL(arq), img = new Image();
+    img.onload = function () {
+      var k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      var c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      fa.foto = { img: c, w: c.width, h: c.height, url: c.toDataURL('image/jpeg', 0.9) };
+      fa.ref = { x1: c.width * 0.3, y1: c.height * 0.72, x2: c.width * 0.7, y2: c.height * 0.72, cm: 0 };
+      fa.pos = null; fa.etapa = 'ref'; renderFoto();
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); toast('Não deu para abrir essa foto.'); };
+    img.src = url;
+  }
+  $('#btn-foto-amb').addEventListener('click', abrirFotoAmbiente);
+  $('#dlg-casa').addEventListener('close', function () {
+    var MV = customElements.get('model-viewer');
+    if (fa && MV && fa.escalaAntes != null) MV.minimumRenderScale = fa.escalaAntes;
+    fa = null;
+  });
+  document.addEventListener('change', function (e) {
+    if (!fa || !e.target.closest('#dlg-casa')) return;
+    if (e.target.matches('[data-casa-arq]') && e.target.files && e.target.files[0]) carregarFotoAmbiente(e.target.files[0]);
+  });
+  document.addEventListener('input', function (e) {
+    if (!fa || !e.target.closest('#dlg-casa')) return;
+    if (e.target.id === 'casa-cm') { fa.ref.cm = Number(String(e.target.value).replace(',', '.')) || 0; desenharRef(); }
+    if (e.target.id === 'casa-ajuste') { fa.ajuste = Number(e.target.value) / 100; posicionarMovel(); }
+    if (e.target.id === 'casa-luz') { fa.luz = Number(e.target.value) / 100; posicionarMovel(); }
+  });
+  document.addEventListener('change', function (e) {
+    if (fa && e.target.id === 'casa-phi') { fa.phi = 148 - Number(e.target.value); renderizarMovel(); }
+  });
+  document.addEventListener('click', function (e) {
+    if (!fa || !e.target.closest('#dlg-casa')) return;
+    var b;
+    if ((b = e.target.closest('[data-casa-cm]'))) { $('#casa-cm').value = b.getAttribute('data-casa-cm'); fa.ref.cm = Number(b.getAttribute('data-casa-cm')); desenharRef(); return; }
+    if (e.target.closest('[data-casa-continuar]')) {
+      if (!(fa.ref.cm > 5)) { toast('Digite quanto mede a linha, em centímetros.'); $('#casa-cm').focus(); return; }
+      if (Math.hypot(fa.ref.x2 - fa.ref.x1, fa.ref.y2 - fa.ref.y1) < fa.foto.w * 0.05) { toast('Afaste mais as duas bolinhas.'); return; }
+      fa.ref.aprox = false; fa.etapa = 'mover'; renderFoto(); return;
+    }
+    if (e.target.closest('[data-casa-pular]')) {   // sem referência: supõe que a largura da foto, na altura da linha, tem ~3,5 m
+      fa.ref = { x1: 0, y1: fa.ref.y1, x2: fa.foto.w, y2: fa.ref.y1, cm: 350, aprox: true };
+      fa.etapa = 'mover'; renderFoto(); return;
+    }
+    if (e.target.closest('[data-casa-refazer]')) { fa.etapa = 'ref'; fa.sprite = null; if (fa.ref.aprox) fa.ref = { x1: fa.foto.w * 0.3, y1: fa.foto.h * 0.72, x2: fa.foto.w * 0.7, y2: fa.foto.h * 0.72, cm: 0 }; renderFoto(); return; }
+    if ((b = e.target.closest('[data-casa-girar]'))) { fa.theta = ((fa.theta + Number(b.getAttribute('data-casa-girar')) + 540) % 360) - 180; renderizarMovel(); return; }
+    var baixar = e.target.closest('[data-casa-baixar]'), comp = e.target.closest('[data-casa-compartilhar]');
+    if ((baixar || comp) && fa.sprite) {
+      montarImagemFinal().then(function (blob) {
+        var nome = slug(fa.p.nome) + '-na-minha-casa.jpg', arq = new File([blob], nome, { type: 'image/jpeg' });
+        if (comp && navigator.canShare && navigator.canShare({ files: [arq] })) {
+          navigator.share({ files: [arq], title: fa.p.nome, text: 'Olha como fica o ' + fa.p.nome + ' aqui em casa! ' + enderecoLoja() + '?p=' + encodeURIComponent(fa.p.id) }).catch(function () { /* cancelado */ });
+          return;
+        }
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+        if (comp) toast('Imagem salva. Agora é só mandar no WhatsApp.');
+      });
+    }
+  });
+  window.addEventListener('resize', function () { if (fa && fa.etapa === 'mover') posicionarMovel(); if (fa && fa.etapa === 'ref') desenharRef(); });
 
   $('#aba-3d').addEventListener('click', function () { trocarAba('3d'); });
   $('#aba-ar').addEventListener('click', function () { trocarAba('ar'); });

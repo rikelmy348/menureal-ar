@@ -212,6 +212,10 @@
           <button class="aba" role="tab" id="aba-3d" aria-selected="true" aria-controls="painel-3d" type="button">Ver em 3D</button>
           <button class="aba" role="tab" id="aba-ar" aria-selected="false" aria-controls="painel-ar" type="button">Ver em tamanho real</button>
         </div>
+        <button class="btn btn--sec btn--bloco foto-amb-btn" type="button" id="btn-foto-amb" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12.5" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          <span>Ver numa foto da minha casa<small>Funciona em qualquer celular</small></span>
+        </button>
 
         <div id="painel-3d" role="tabpanel" aria-labelledby="aba-3d">
           <p class="dica">Arraste para girar · pinça ou roda do mouse para zoom · toque duplo para recentralizar.</p>
@@ -324,6 +328,20 @@
       </div>
       <div class="painel__corpo" id="pontos-corpo"></div>
       <div class="painel__rodape" id="pontos-rodape"></div>
+    </div>
+  </dialog>
+
+  <!-- ================= Ver numa foto do ambiente ================= -->
+  <dialog class="folha folha--admin" id="dlg-casa" aria-labelledby="casa-titulo">
+    <div class="painel">
+      <div class="painel__topo">
+        <h2 id="casa-titulo">Ver na foto da sua casa</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="painel__corpo" id="casa-corpo"></div>
+      <div class="painel__rodape" id="casa-rodape"></div>
     </div>
   </dialog>
 
