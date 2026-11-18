@@ -922,6 +922,7 @@
       estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando visualizador 3D…</span></div>');
     }
     // cores do tecido/acabamento que vêm no próprio arquivo (KHR_materials_variants)
+    var pcAntigo = $('#palco-cores'); if (pcAntigo) pcAntigo.remove();
     mv.addEventListener('load', function () { mostrarVariantes(mv); }, { once: true });
   }
 
@@ -950,7 +951,17 @@
     var alvo = $('#viewer-cores');
     var lista = (mv.availableVariants || []).slice(0, 12);
     alvo.hidden = lista.length < 2;
+    var pcV = $('#palco-cores'); if (pcV) pcV.remove();
     if (lista.length < 2) { alvo.innerHTML = ''; return; }
+    // bolinhas de cor em cima do 3D: o cliente troca enquanto gira o móvel
+    var bar = document.createElement('div');
+    bar.id = 'palco-cores'; bar.className = 'palco-cores'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Cores');
+    bar.innerHTML = lista.map(function (v) {
+      var hx = PALETA_CORES[nomeCor(v)];
+      return '<button type="button" class="palco-cor" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '" aria-label="' + esc(nomeCor(v)) + '" title="' + esc(nomeCor(v)) + '">' +
+        (hx ? '<i style="background:' + hx + '"></i>' : '<i class="sem-cor">' + esc(nomeCor(v).slice(0, 2)) + '</i>') + '</button>';
+    }).join('') + '<span class="palco-cores__nome" aria-live="polite">' + esc(nomeCor(mv.variantName || lista[0])) + '</span>';
+    palco.appendChild(bar);
     alvo.innerHTML = '<legend>Cor <small>' + lista.length + ' opções</small></legend><div class="cores">' + lista.map(function (v, i) {
       var hx = PALETA_CORES[nomeCor(v)];
       return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '">' + (hx ? '<i class="cor-bola" style="background:' + hx + '" aria-hidden="true"></i>' : '') + esc(nomeCor(v)) + '</button>';
@@ -966,13 +977,17 @@
     Object.defineProperty(mv, 'src', { configurable: true, get: function () { return url; }, set: function (v) { delete mv.src; mv.src = v; } });
     setTimeout(function () { delete mv.src; }, 1500);
   }, true);
-  $('#viewer-cores').addEventListener('click', function (e) {
+  function escolherCor(e) {
     var b = e.target.closest('[data-variante]');
     var mv = palco.querySelector('model-viewer');
     if (!b || !mv) return;
-    mv.variantName = b.getAttribute('data-variante');
-    $$('#viewer-cores [data-variante]').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
-  });
+    var v = b.getAttribute('data-variante');
+    mv.variantName = v;
+    $$('#viewer-cores [data-variante], #palco-cores [data-variante]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-variante') === v)); });
+    var nm = $('#palco-cores .palco-cores__nome'); if (nm) nm.textContent = nomeCor(v);
+  }
+  $('#viewer-cores').addEventListener('click', escolherCor);
+  palco.addEventListener('click', function (e) { if (e.target.closest('#palco-cores')) escolherCor(e); });
 
   // ---------------------------------------------------------------------
   // Medidas no modelo (largura, altura, profundidade) — 3D e câmera (WebXR)
