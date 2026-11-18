@@ -366,3 +366,18 @@ export function gerarForma(op) {
   json.buffers[0].byteLength = tam;
   return escreverGlb(json, bin);
 }
+
+/** Cor escolhida pelo cliente (KHR_materials_variants) vira a cor padrão do arquivo.
+ *  Usado para a câmera do Android (Scene Viewer), que sempre abre a cor padrão. Só mexe no JSON. */
+export function escolherVariante(buf, nome) {
+  const { json, bin } = lerGlb(buf);
+  const lista = (json.extensions && json.extensions.KHR_materials_variants && json.extensions.KHR_materials_variants.variants) || [];
+  const vi = lista.findIndex((v) => v && v.name === nome);
+  if (vi < 0) return null;
+  for (const m of json.meshes || []) for (const p of m.primitives || []) {
+    const maps = p.extensions && p.extensions.KHR_materials_variants && p.extensions.KHR_materials_variants.mappings;
+    const alvo = (maps || []).find((x) => (x.variants || []).includes(vi));
+    if (alvo) p.material = alvo.material;
+  }
+  return escreverGlb(json, bin);
+}

@@ -1080,3 +1080,21 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .btn-mini:disabled { opacity: .35; cursor: default; }
 .btn-mini--rem { color: var(--perigo); }
 .plan-rod { justify-content: space-between; width: 100%; }
+
+/* ---- Cores do móvel ---- */
+.cores-h { margin: 14px 0 8px; font-size: 16px; }
+.cores-partes, .cores-lista, .cores-paleta { display: flex; flex-wrap: wrap; gap: 8px; }
+.cores-parte { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 6px 14px 6px 6px; border-radius: 999px; border: 2px solid var(--linha); background: var(--superficie); color: var(--tinta); font: 700 14px var(--fonte); cursor: pointer; }
+.cores-parte i, .cores-chip i, .cores-add i { width: 30px; height: 30px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); flex: none; }
+.cores-parte[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 2px var(--limao); }
+.cores-chip { display: inline-flex; align-items: center; border-radius: 999px; border: 2px solid var(--linha); background: var(--superficie); }
+.cores-chip.sel { border-color: var(--tinta); }
+.cores-chip > button { display: inline-flex; align-items: center; gap: 8px; min-height: 42px; padding: 4px 12px 4px 5px; border: 0; background: none; color: var(--tinta); font: 700 14px var(--fonte); cursor: pointer; }
+.cores-chip small { font-weight: 500; color: var(--tinta-2); }
+.cores-tirar { width: 36px; height: 36px; margin-right: 3px; border: 0; border-radius: 50%; background: none; color: var(--perigo); font-size: 15px; cursor: pointer; }
+.cores-add { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 4px 12px 4px 5px; border-radius: 999px; border: 1px solid var(--linha); background: var(--superficie); color: var(--tinta); font: 600 13px var(--fonte); cursor: pointer; }
+.cores-add i { width: 26px; height: 26px; }
+.cores-outra { display: flex; gap: 8px; align-items: center; margin: 12px 0 4px; }
+.cores-outra input[type="color"] { width: 48px; height: 44px; padding: 2px; border: 1px solid var(--linha); border-radius: 10px; background: var(--superficie); flex: none; }
+.cores-outra input:not([type]) { flex: 1; min-width: 0; min-height: 44px; }
+.cor-bola { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 50%; vertical-align: -2px; box-shadow: inset 0 0 0 1px rgba(0,0,0,.2); }

@@ -940,15 +940,32 @@
   var CORES_PT = { champagne: 'Champanhe', navy: 'Azul-marinho', gray: 'Cinza', grey: 'Cinza', black: 'Preto', white: 'Branco', 'pale pink': 'Rosa-claro',
     pink: 'Rosa', red: 'Vermelho', green: 'Verde', blue: 'Azul', yellow: 'Amarelo', brown: 'Marrom', beige: 'Bege', 'mango velvet': 'Veludo manga', 'peacock velvet': 'Veludo pavão' };
   function nomeCor(v) { return CORES_PT[String(v).toLowerCase()] || v; }
+  // Cores prontas para o lojista (tecidos, laca e madeiras mais vendidos)
+  var PALETA_CORES = {
+    'Off-white': '#ECE6DA', 'Areia': '#D9C9AE', 'Bege': '#C9B392', 'Linho': '#B9A98E', 'Fendi': '#A39684', 'Cinza-claro': '#B7B7B3', 'Cinza': '#8E8E8B', 'Grafite': '#4A4B4D', 'Preto': '#232323',
+    'Caramelo': '#A8723D', 'Terracota': '#B5653E', 'Mostarda': '#C99A2E', 'Rosé': '#D4A5A0', 'Vinho': '#6E2A35', 'Verde-musgo': '#6B7350', 'Verde': '#4F6E58', 'Azul': '#4F6F8F', 'Azul-marinho': '#2E3B55',
+    'Branco': '#EEEEEA', 'Freijó': '#A6754A', 'Nogueira': '#6A4A33', 'Carvalho': '#C8A77C', 'Marrom': '#5C3E2E'
+  };
   function mostrarVariantes(mv) {
     var alvo = $('#viewer-cores');
     var lista = (mv.availableVariants || []).slice(0, 12);
     alvo.hidden = lista.length < 2;
     if (lista.length < 2) { alvo.innerHTML = ''; return; }
     alvo.innerHTML = '<legend>Cor <small>' + lista.length + ' opções</small></legend><div class="cores">' + lista.map(function (v, i) {
-      return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '">' + esc(nomeCor(v)) + '</button>';
+      var hx = PALETA_CORES[nomeCor(v)];
+      return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '">' + (hx ? '<i class="cor-bola" style="background:' + hx + '" aria-hidden="true"></i>' : '') + esc(nomeCor(v)) + '</button>';
     }).join('') + '</div>';
   }
+  // Câmera do Android (Scene Viewer) sempre abre a cor padrão do arquivo: entrega a cópia na cor escolhida (?cor=)
+  palco.addEventListener('click', function (e) {
+    if (!e.target.closest('.botao-ar')) return;
+    var mv = palco.querySelector('model-viewer'), lista = mv ? mv.availableVariants || [] : [];
+    if (!mv || lista.length < 2 || !mv.variantName || mv.variantName === lista[0]) return;
+    var u = new URL(mv.getAttribute('src'), document.baseURI); u.searchParams.set('cor', mv.variantName);
+    var url = u.toString();
+    Object.defineProperty(mv, 'src', { configurable: true, get: function () { return url; }, set: function (v) { delete mv.src; mv.src = v; } });
+    setTimeout(function () { delete mv.src; }, 1500);
+  }, true);
   $('#viewer-cores').addEventListener('click', function (e) {
     var b = e.target.closest('[data-variante]');
     var mv = palco.querySelector('model-viewer');
@@ -2435,6 +2452,8 @@
           (!ehAlimento(rascunho) ? '<small><strong>Móvel planejado</strong> (cozinha, guarda-roupa, painel, banheiro, escritório)? Use “Montar planejado”: envie a planta e a IA monta o 3D com as medidas do projeto, ou comece de um modelo pronto.</small>' : '') +
           '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
         : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
+      (servidor && x.modelo && !ehAlimento(rascunho) ? '<div class="pontos-admin"><div><strong>Cores do móvel</strong><small>Escolha a parte (tecido, portas…) e as cores. O cliente troca no catálogo e vê na câmera.</small></div>' +
+        '<button class="btn btn--sec btn--p" type="button" data-cores-movel>' + ICONES.mais + 'Escolher cores</button></div>' : '') +
       (servidor && x.modelo && !ehAlimento(rascunho) ? htmlPontosAdmin(x) : '') +
       (servidor ? htmlFormaAdmin(x) : '') +
       '<details class="conta-det"><summary>Endereço do arquivo (avançado)</summary>' +
@@ -2522,6 +2541,131 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && e.target.id === 'pontos-texto') { e.preventDefault(); var b = $('#pontos-add'); if (b) b.click(); }
+  });
+
+  // ----- Cores do móvel: pinta a parte escolhida e grava as cores dentro do 3D -----
+  var cm = null;   // { x, M (módulo), analise, parte (índice), variantes: [{nome, hex}], sens, sel, previa }
+  function abrirCoresMovel(x) {
+    cm = { x: x, carregando: true, variantes: [], sens: 50, sel: 0, parte: 0 };
+    $('#cores-corpo').innerHTML = '<div class="carregando plan-lendo"><div class="spinner" aria-hidden="true"></div><p>Analisando as cores do 3D…</p></div>';
+    $('#cores-rodape').innerHTML = '';
+    abrirDialogo($('#dlg-cores'));
+    Promise.all([import(new URL('cores.mjs', document.baseURI).href), fetch(urlModelo(x.modelo)).then(function (r) { if (!r.ok) throw new Error('Não deu para baixar o 3D.'); return r.arrayBuffer(); })])
+      .then(function (r) { cm.M = r[0]; return r[0].analisarCores(new Uint8Array(r[1])); })
+      .then(function (an) {
+        if (!cm) return;
+        cm.analise = an; cm.carregando = false;
+        if (!an.partes.length) { $('#cores-corpo').innerHTML = '<p>Não encontrei cores para trocar neste 3D.</p>'; return; }
+        var p0 = an.partes[0];
+        cm.variantes = [{ nome: corMaisProxima(p0.rgb), hex: null }];
+        renderCoresMovel();
+      })
+      .catch(function (e) { if (cm) $('#cores-corpo').innerHTML = '<p>' + esc(e.message || 'Erro ao abrir o 3D.') + '</p>'; });
+  }
+  function corMaisProxima(rgb) {
+    var melhor = 'Original', md = Infinity;
+    Object.keys(PALETA_CORES).forEach(function (n) {
+      var c = cm.M.hexParaRgb(PALETA_CORES[n]), d = Math.hypot(c[0] - rgb[0], c[1] - rgb[1], c[2] - rgb[2]);
+      if (d < md) { md = d; melhor = n; }
+    });
+    return md < 60 ? melhor : 'Original';
+  }
+  function renderCoresMovel() {
+    var an = cm.analise, P = PALETA_CORES, usadas = cm.variantes.map(function (v) { return v.nome; });
+    var parte = an.partes[cm.parte];
+    $('#cores-corpo').innerHTML =
+      '<div class="plan-palco"><model-viewer id="cores-mv" src="' + esc(urlModelo(cm.x.modelo)) + '" camera-controls touch-action="pan-y" loading="eager" interaction-prompt="none" environment-image="' + esc(ESTUDIO()) + '" tone-mapping="neutral" shadow-intensity="1" alt="Prévia das cores"></model-viewer>' +
+        '<span class="plan-medidas" id="cores-status">' + esc(cm.variantes[cm.sel].nome) + '</span></div>' +
+      '<h3 class="cores-h">1. Toque na parte que muda de cor</h3>' +
+      '<div class="cores-partes">' + an.partes.map(function (p, i) {
+        return '<button type="button" class="cores-parte" data-cm-parte="' + i + '" aria-pressed="' + (i === cm.parte) + '"><i style="background:' + cm.M.rgbParaHex(p.rgb) + '"></i>' + Math.max(1, Math.round(p.pct * 100)) + '%</button>';
+      }).join('') + '</div>' +
+      (parte.tipo === 'textura' ? '<label class="campo"><span>Quanto da cor pegar <small>(aumente se sobrar mancha da cor antiga; diminua se pintar o que não devia)</small></span><input type="range" id="cm-sens" min="0" max="100" value="' + cm.sens + '"></label>' : '') +
+      '<h3 class="cores-h">2. Cores para o cliente escolher</h3>' +
+      '<div class="cores-lista">' + cm.variantes.map(function (v, i) {
+        return '<span class="cores-chip' + (i === cm.sel ? ' sel' : '') + '"><button type="button" data-cm-ver="' + i + '"><i style="background:' + (v.hex || cm.M.rgbParaHex(parte.rgb)) + '"></i>' + esc(v.nome) + (i ? '' : ' <small>(atual)</small>') + '</button>' +
+          (i ? '<button type="button" class="cores-tirar" data-cm-tirar="' + i + '" aria-label="Tirar ' + esc(v.nome) + '">✕</button>' : '') + '</span>';
+      }).join('') + '</div>' +
+      campo('Nome da cor atual', '<input id="cm-nome0" maxlength="24" value="' + esc(cm.variantes[0].nome) + '">') +
+      '<p class="plan-sub">Toque para adicionar</p><div class="cores-paleta">' + Object.keys(P).filter(function (n) { return usadas.indexOf(n) < 0; }).map(function (n) {
+        return '<button type="button" class="cores-add" data-cm-add="' + esc(n) + '"><i style="background:' + P[n] + '"></i>' + esc(n) + '</button>';
+      }).join('') + '</div>' +
+      '<div class="cores-outra"><input type="color" id="cm-hex" value="#7a5c46" aria-label="Escolher outra cor"><input id="cm-outra" maxlength="24" placeholder="Nome (ex.: Veludo vinho)"><button class="btn btn--contorno btn--p" type="button" id="cm-add-outra">Adicionar</button></div>';
+    $('#cores-rodape').innerHTML = '<button class="btn btn--primario btn--bloco" type="button" id="cm-salvar"' + (cm.variantes.length < 2 ? ' disabled' : '') + '>' +
+      (cm.variantes.length < 2 ? 'Adicione pelo menos 1 cor' : 'Salvar ' + cm.variantes.length + ' cores no 3D') + '</button>';
+    var mv = $('#cores-mv');
+    mv.addEventListener('load', function () { previaCor(); }, { once: true });
+  }
+  var cmTimer = null;
+  function previaCor() {
+    clearTimeout(cmTimer);
+    cmTimer = setTimeout(function () {
+      var mv = $('#cores-mv'); if (!mv || !mv.model || !cm) return;
+      var parte = cm.analise.partes[cm.parte], v = cm.variantes[cm.sel], st = $('#cores-status');
+      var alvos = parte.materiais.map(function (i) { return mv.model.materials[i]; }).filter(Boolean);
+      if (st) st.textContent = v.nome;
+      if (parte.tipo === 'lisa') {
+        var lin = v.hex ? cm.M.corLisa(v.hex) : null;
+        alvos.forEach(function (m) {
+          var orig = cm.analise.json.materials[parte.materiais[0]].pbrMetallicRoughness || {}, fc = orig.baseColorFactor || [1, 1, 1, 1];
+          m.pbrMetallicRoughness.setBaseColorFactor(lin ? [lin[0], lin[1], lin[2], fc[3] == null ? 1 : fc[3]] : fc);
+        });
+        return;
+      }
+      var cv = v.hex ? cm.M.recolorir(parte.canvas, parte.lab, v.hex, cm.sens, 1024) : parte.canvas;
+      var orig = cm.analise.json.materials[parte.materiais[0]], ex = orig.extensions || {};
+      mv.createTexture(cv.toDataURL('image/jpeg', 0.85)).then(function (t) {
+        alvos.forEach(function (m) {
+          m.pbrMetallicRoughness.baseColorTexture.setTexture(t);
+          var fc = (orig.pbrMetallicRoughness || {}).baseColorFactor || [1, 1, 1, 1];
+          m.pbrMetallicRoughness.setBaseColorFactor([1, 1, 1, fc[3]]);   // a cor base já vai na textura
+          if (ex.KHR_materials_sheen && m.sheen && typeof m.sheen.setSheenColorFactor === 'function') {   // veludo na cor escolhida
+            var lin = v.hex ? cm.M.corLisa(v.hex).map(function (c) { return Math.min(1, c * 0.8 + 0.04); }) : ex.KHR_materials_sheen.sheenColorFactor || [0, 0, 0];
+            m.sheen.setSheenColorFactor(lin);
+          }
+          if (ex.KHR_materials_specular && m.specular && typeof m.specular.setSpecularColorFactor === 'function') m.specular.setSpecularColorFactor(v.hex ? [1, 1, 1] : ex.KHR_materials_specular.specularColorFactor || [1, 1, 1]);
+        });
+      });
+    }, 120);
+  }
+  function salvarCoresMovel(b) {
+    var x = cm.x, parte = cm.analise.partes[cm.parte];
+    var nome0 = ($('#cm-nome0') || {}).value; if (nome0) cm.variantes[0].nome = nome0.trim().slice(0, 24) || 'Original';
+    b.disabled = true; b.textContent = 'Pintando as cores… (pode levar alguns segundos)';
+    setTimeout(function () {
+      var tam0 = cm.analise.bin.length, lado = tam0 > 12e6 ? 1024 : 2048;
+      cm.M.gravarCores(cm.analise, parte, cm.variantes, cm.sens, lado).then(function (glb) {
+        if (glb.length > 24 * 1024 * 1024) throw new Error('Com tantas cores o 3D passaria de 25 MB. Tire algumas cores e tente de novo.');
+        var arq = new File([glb], slug(x.nome || 'movel') + '-cores.glb', { type: 'model/gltf-binary' });
+        fecharDialogo($('#dlg-cores')); cm = null;
+        enviar3d(arq, x);
+      }).catch(function (e) { toast(e.message || 'Não deu para salvar as cores.'); b.disabled = false; b.textContent = 'Tentar de novo'; });
+    }, 50);
+  }
+  document.addEventListener('click', function (e) {
+    if (!cm || cm.carregando || !e.target.closest('#dlg-cores')) return;
+    var b;
+    if ((b = e.target.closest('[data-cm-parte]'))) {
+      cm.parte = Number(b.getAttribute('data-cm-parte')); cm.variantes[0].nome = corMaisProxima(cm.analise.partes[cm.parte].rgb); cm.sel = 0;
+      var mv0 = $('#cores-mv'); renderCoresMovel(); return;
+    }
+    if ((b = e.target.closest('[data-cm-ver]'))) { cm.sel = Number(b.getAttribute('data-cm-ver')); $$('#dlg-cores .cores-chip').forEach(function (c, i) { c.classList.toggle('sel', i === cm.sel); }); previaCor(); return; }
+    if ((b = e.target.closest('[data-cm-tirar]'))) { cm.variantes.splice(Number(b.getAttribute('data-cm-tirar')), 1); cm.sel = 0; renderCoresMovel(); return; }
+    if ((b = e.target.closest('[data-cm-add]'))) {
+      if (cm.variantes.length >= 10) { toast('Máximo de 10 cores.'); return; }
+      var n = b.getAttribute('data-cm-add'); cm.variantes.push({ nome: n, hex: PALETA_CORES[n] }); cm.sel = cm.variantes.length - 1; renderCoresMovel(); return;
+    }
+    if (e.target.closest('#cm-add-outra')) {
+      var nome = $('#cm-outra').value.trim().slice(0, 24);
+      if (!nome) { toast('Dê um nome para a cor.'); $('#cm-outra').focus(); return; }
+      if (cm.variantes.some(function (v) { return v.nome.toLowerCase() === nome.toLowerCase(); })) { toast('Já existe uma cor com esse nome.'); return; }
+      if (cm.variantes.length >= 10) { toast('Máximo de 10 cores.'); return; }
+      cm.variantes.push({ nome: nome, hex: $('#cm-hex').value }); cm.sel = cm.variantes.length - 1; renderCoresMovel(); return;
+    }
+    if ((b = e.target.closest('#cm-salvar'))) salvarCoresMovel(b);
+  });
+  document.addEventListener('input', function (e) {
+    if (cm && e.target.id === 'cm-sens') { cm.sens = Number(e.target.value); if (cm.sel === 0 && cm.variantes.length > 1) { cm.sel = cm.variantes.length - 1; $$('#dlg-cores .cores-chip').forEach(function (c, i) { c.classList.toggle('sel', i === cm.sel); }); } previaCor(); }
   });
 
   // ----- Montador de planejados: a "ficha" (trechos e módulos com medidas) vira um 3D leve e fiel -----
@@ -3234,6 +3378,8 @@
       enviar3d(new File([su.glb], slug(xu.nome || 'produto') + '.glb', { type: 'model/gltf-binary' }), xu);
       return;
     }
+    var bcm = e.target.closest('[data-cores-movel]');
+    if (bcm) { coletarAdmin(); var xcm = produtoDoAlvo(bcm); if (xcm && xcm.modelo) abrirCoresMovel(xcm); return; }
     var bpl = e.target.closest('[data-planejado]');
     if (bpl) { coletarAdmin(); var xpl = produtoDoAlvo(bpl); if (xpl) abrirPlanejado(xpl); return; }
     var bpt = e.target.closest('[data-pontos]');
