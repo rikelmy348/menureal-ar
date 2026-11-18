@@ -2397,7 +2397,8 @@
     if (!moduloGlb) moduloGlb = import(new URL('glb.mjs', document.baseURI).href);
     return moduloGlb;
   }
-  function enviar3d(arquivo, x, tamId) {
+  function enviar3d(arquivo, x, tamId, opcoesEnvio) {
+    opcoesEnvio = opcoesEnvio || {};
     if (!credenciais()) { toast(LOJA ? 'Entre na conta da loja' : 'Preencha o código de acesso'); return; }
     if (!/\.glb$/i.test(arquivo.name)) { toast('Envie o arquivo em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).'); return; }
     if (arquivo.size > 25 * 1024 * 1024) { toast('Arquivo grande demais (máximo 25 MB). Peça uma versão mais leve à fábrica ou reduza as texturas.'); return; }
@@ -2431,6 +2432,11 @@
       }
       x.modelo = res.url;
       x.ilustrativo = false;
+      if (opcoesEnvio.manterMedidas) {   // mesmo móvel, só mudou a cor: medidas e ajuste continuam como estavam
+        abertoNoAdmin = x.id; renderAdmin();
+        toast(opcoesEnvio.aviso || '3D atualizado. Toque em “Salvar alterações” para publicar.');
+        return;
+      }
       var med = res.med, dim = x.dim;
       var estranho = Math.max(med.largura, med.altura, med.profundidade) > 1500 || Math.max(med.largura, med.altura, med.profundidade) < 2;
       var difere = ['largura', 'profundidade', 'altura'].some(function (k) { return Math.abs(med[k] - dim[k]) / Math.max(dim[k], 0.1) > 0.05; });
@@ -2652,8 +2658,9 @@
       cm.M.gravarCores(cm.analise, parte, cm.variantes, cm.sens, lado).then(function (glb) {
         if (glb.length > 24 * 1024 * 1024) throw new Error('Com tantas cores o 3D passaria de 25 MB. Tire algumas cores e tente de novo.');
         var arq = new File([glb], slug(x.nome || 'movel') + '-cores.glb', { type: 'model/gltf-binary' });
+        var n = cm.variantes.length;
         fecharDialogo($('#dlg-cores')); cm = null;
-        enviar3d(arq, x);
+        enviar3d(arq, x, null, { manterMedidas: true, aviso: n + ' cores gravadas no 3D. Toque em “Salvar alterações” para publicar.' });
       }).catch(function (e) { toast(e.message || 'Não deu para salvar as cores.'); b.disabled = false; b.textContent = 'Tentar de novo'; });
     }, 50);
   }
