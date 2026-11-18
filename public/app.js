@@ -298,6 +298,24 @@
       ':root[data-theme="dark"]{' + bloco(escuro) + '}';
   }
 
+  // Na página da loja o cliente nunca sai para a página do MenuReal:
+  // o logo/nome volta ao começo do catálogo (fecha o que estiver aberto) e links "#" ficam na própria página.
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('a[href]');
+    if (!a || !LOJA || e.ctrlKey || e.metaKey) return;
+    if (a.id === 'logo') {
+      e.preventDefault();
+      $$('dialog[open]').forEach(function (d) { try { fecharDialogo(d); } catch (er) { d.close(); } });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    var h = a.getAttribute('href');
+    if (h && h.charAt(0) === '#') {   // por causa do <base href="/">, "#algo" iria para a página inicial
+      e.preventDefault();
+      var alvo = h.length > 1 ? document.getElementById(h.slice(1)) : null;
+      if (alvo) { alvo.setAttribute('tabindex', '-1'); alvo.focus({ preventScroll: true }); alvo.scrollIntoView({ behavior: 'smooth' }); }
+    }
+  });
   function aplicarVisual(p) {
     p = p || dados.padaria;
     var v = p.visual || validarVisual(null);
@@ -309,6 +327,7 @@
     // Topo: na página de uma loja aparece a marca dela, não a do MenuReal
     var logo = $('#logo');
     if (LOJA && logo) {
+      logo.setAttribute('href', '/' + LOJA);   // dentro da loja, o logo volta para o começo da própria loja
       logo.setAttribute('aria-label', p.nome + ', início');
       logo.innerHTML = v.logo ? '<img class="logo__img" src="' + esc(v.logo) + '" alt="' + esc(p.nome) + '">' : '<span class="logo__loja">' + esc(p.nome) + '</span>';
     }
@@ -329,7 +348,7 @@
     var rod = $('#rodape');
     if (rod && LOJA) {
       rod.hidden = !v.marca;
-      rod.innerHTML = '<p>' + (ehAlimento({ padaria: p }) ? 'Cardápio' : 'Catálogo') + ' em 3D por <a href="/">MenuReal</a></p>';
+      rod.innerHTML = '<p>' + (ehAlimento({ padaria: p }) ? 'Cardápio' : 'Catálogo') + ' em 3D por MenuReal</p>';
     }
   }
 
