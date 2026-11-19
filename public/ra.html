@@ -201,7 +201,23 @@
       new THREE.MeshBasicMaterial({ map: texturaSombra(), transparent: true, depthWrite: false }));
     const suporte = new THREE.Group(); // posição e giro no chão
     suporte.add(sombra); cena.add(suporte); suporte.visible = false;
-    let modelo = null, tamanho = null;
+    let modelo = null, tamanho = null, grande = false, rotUser = 0;
+    // contorno: enquanto escolhe o lugar, mostra só a "pegada" no chão e as arestas do móvel (dá para ver o chão e a parede)
+    const contorno = new THREE.Group(); suporte.add(contorno);
+    function criarContorno(sx, sy, sz) {
+      contorno.clear();
+      const branco = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.95, depthWrite: false });
+      const rosa = new THREE.MeshBasicMaterial({ color: 0xFF3D8B, depthWrite: false });
+      const faixa = (w, d, x, z, m) => { const f = new THREE.Mesh(new THREE.BoxGeometry(w, 0.003, d), m); f.position.set(x, 0.006, z); f.renderOrder = 3; contorno.add(f); };
+      const e = Math.max(0.02, Math.min(0.04, Math.max(sx, sz) / 60));
+      faixa(sx, e, 0, -sz / 2, branco);                 // fundo (encosta na parede)
+      faixa(e, sz, -sx / 2, 0, branco); faixa(e, sz, sx / 2, 0, branco);
+      faixa(sx, e * 1.6, 0, sz / 2, rosa);              // frente do móvel
+      const fundo = new THREE.Mesh(new THREE.PlaneGeometry(sx, sz).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, depthWrite: false }));
+      fundo.position.y = 0.004; contorno.add(fundo);
+      const arestas = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(sx, sy, sz)), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75 }));
+      arestas.position.y = sy / 2; contorno.add(arestas);
+    }
 
     async function carregarModelo() {
       $('carregando').hidden = false;
@@ -224,7 +240,10 @@
         sombra.position.y = 0.002;
         $('nome-prod').textContent = produto.nome;
         $('medidas-prod').textContent = cm(tamanho.x) + ' × ' + cm(tamanho.z) + ' × ' + cm(tamanho.y) + ' cm (L × P × A)';
-        anel.scale.setScalar(Math.max(0.6, Math.min(2.4, Math.max(tamanho.x, tamanho.z) / 0.6)));
+        // móvel grande (guarda-roupa, cozinha, sofá…): o fundo dele fica no ponto mirado (normalmente a parede)
+        grande = tamanho.x > 1.2 || tamanho.y > 1.5;
+        criarContorno(tamanho.x, tamanho.y, tamanho.z);
+        mudarEstado(estado);
       } catch (e) {
         console.error(e);
         $('dica').textContent = 'Não consegui carregar o móvel. Verifique a internet e tente de novo.';
@@ -437,8 +456,10 @@
       $('congelar').hidden = mirando || congelado; $('aovivo').hidden = !congelado;
       if (congelado) $('mover').hidden = true;
       $('selo-parado').hidden = !congelado; $('sinal').hidden = congelado;
-      anel.visible = mirando;
-      fantasma(mirando);
+      anel.visible = false;
+      contorno.visible = mirando;
+      if (modelo) modelo.visible = !mirando;
+      sombra.visible = !mirando;
       $('dica').textContent = textoDica();
     }
 
@@ -457,7 +478,7 @@
       } else if (dedos.size === 2 && (estado === 'mirando' || !temSensor || congelado)) {
         arrasto = null;
         const [a, b] = [...dedos.values()];
-        giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y };
+        giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y, rotUser };
       }
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -465,7 +486,8 @@
       dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (dedos.size === 2 && giro) {
         const [a, b] = [...dedos.values()];
-        suporte.rotation.y = giro.rot - (Math.atan2(b.y - a.y, b.x - a.x) - giro.ang);
+        const d = Math.atan2(b.y - a.y, b.x - a.x) - giro.ang;
+        if (estado === 'mirando') rotUser = giro.rotUser - d; else suporte.rotation.y = giro.rot - d;
       } else if (dedos.size === 1 && arrasto) {
         const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
         if (p) suporte.position.copy(p.add(arrasto));
@@ -477,12 +499,12 @@
 
     let jaGuiou = false;
     $('colocar').onclick = () => {
-      suporte.position.copy(ultimoPonto); mudarEstado('colocado');
+      mudarEstado('colocado');
       if (!jaGuiou) { jaGuiou = true; $('guia').hidden = false; }
     };
     $('guia-ok').onclick = () => { $('guia').hidden = true; };
     $('mover').onclick = () => { if (congelado) $('aovivo').onclick(); mudarEstado('mirando'); };
-    $('girar').onclick = () => { suporte.rotation.y += Math.PI / 4; };
+    $('girar').onclick = () => { if (estado === 'mirando') rotUser += Math.PI / 4; else suporte.rotation.y += Math.PI / 4; };
     $('btn-ajuste').onclick = () => { $('ajuste').hidden = !$('ajuste').hidden; };
     function mostrarAltura() { $('ajuste-valor').textContent = alturaCel.toFixed(2).replace('.', ',') + ' m'; $('ajuste-h').value = alturaCel; }
     $('ajuste-h').oninput = (e) => {
@@ -796,21 +818,38 @@
         const ok = bons >= 4, fraco = bons >= 2;
         s.className = ok ? 'bom' : fraco ? '' : 'ruim';
         s.lastElementChild.textContent = ok ? 'Acompanhando bem' : fraco ? 'Acompanhando' : (temGiro ? 'Só pelo sensor — aponte para o chão' : 'Aponte para o chão com desenho');
-        if (estado === 'colocado') $('dica').textContent = perdido > 30 && !temGiro ? 'Aponte para o chão perto do móvel para ele não se perder' : textoDica();
+        const perto = pertoDemais();
+        if (perto && !congelado) $('dica').textContent = estado === 'mirando' ? 'Muito perto para um móvel deste tamanho: dê uns passos para trás antes de fixar' : 'Você está muito perto: dê uns passos para trás para ver o móvel inteiro';
+        else if (estado === 'colocado') $('dica').textContent = perdido > 30 && !temGiro ? 'Aponte para o chão perto do móvel para ele não se perder' : textoDica();
+        else $('dica').textContent = textoDica();
         if (DEPURAR) $('medidas-prod').textContent = 'fps' + fps + ' atr' + Math.round(atrasoCamera) + ' v' + video.videoWidth + 'x' + video.videoHeight + ' ' + (temGiro ? 'giro' + Math.round(giroMax) : giroRuim ? 'giroRuim' : 'semgiro') + (calib.pronto ? ' m' + calib.mapa + 'x' + calib.escala.toFixed(2) : ' cal' + Math.round(calib.somaO * 57)) + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
           ' psi' + Math.round(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) + ' fov' + Math.round(camera.fov);
       }
       if (estado === 'mirando') {
         const p = temSensor ? noChao(0, -0.15) : null;
         if (p) ultimoPonto.copy(p);
-        anel.position.copy(ultimoPonto); anel.position.y = 0.005;
-        suporte.position.copy(ultimoPonto);
+        // a frente do móvel vira para a pessoa; o móvel grande encosta o fundo no ponto mirado
+        const yaw = Math.atan2(camera.position.x - ultimoPonto.x, camera.position.z - ultimoPonto.z) + rotUser;
+        const recuo = grande && tamanho ? tamanho.z / 2 : 0;
+        suporte.rotation.y = yaw;
+        suporte.position.set(ultimoPonto.x + Math.sin(yaw) * recuo, 0, ultimoPonto.z + Math.cos(yaw) * recuo);
         suporte.visible = !!modelo;
       }
       renderer.render(cena, camera);
       requestAnimationFrame(quadro);
     }
 
+    // a câmera está dentro do móvel ou a menos de 50 cm da frente dele?
+    function pertoDemais() {
+      if (!tamanho || !suporte.visible) return false;
+      const dx = camera.position.x - suporte.position.x, dz = camera.position.z - suporte.position.z, a = -suporte.rotation.y;
+      const lx = dx * Math.cos(a) + dz * Math.sin(a), lz = -dx * Math.sin(a) + dz * Math.cos(a);
+      if (Math.abs(lx) < tamanho.x / 2 + 0.2 && lz < tamanho.z / 2 + 0.5 && lz > -tamanho.z / 2 - 0.2) return true;
+      // longe o bastante para o móvel caber na tela? (com uma folga: não precisa caber inteiro)
+      const tv = Math.tan(camera.fov * Math.PI / 360), th = tv * camera.aspect;
+      const precisa = Math.max(tamanho.y / (2 * tv), tamanho.x / (2 * th)) * 0.55;
+      return lz > 0 && lz - tamanho.z / 2 < precisa && Math.abs(lx) < tamanho.x;
+    }
     function avisar(t) { const a = $('aviso-erro'); a.textContent = t; a.hidden = !t; }
 
     // ----- começar -----
@@ -841,7 +880,6 @@
       if (temRVFC) video.requestVideoFrameCallback(aoQuadroVideo);
       mudarEstado('mirando');
       await carregarModelo();
-      fantasma(estado === 'mirando');
       setTimeout(() => mudarEstado(estado), 1200); // a essa altura já se sabe se tem sensor
     };
 
