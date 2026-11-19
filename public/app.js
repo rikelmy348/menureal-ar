@@ -697,7 +697,7 @@
       caixa.hidden = true;
     } else {
       caixa.hidden = false;
-      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.' +
+      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>' + (aoVivoServe() ? 'Use “Ver ao vivo pela câmera” ou “Ver numa foto da minha casa”: funcionam em qualquer celular.' : 'Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.') +
         '<ul>' + motivoSemAR().map(function (m) { return '<li>' + m + '</li>'; }).join('') + '</ul>';
     }
   }
@@ -849,6 +849,7 @@
     }
     $('#aba-ar').disabled = !ef.modelo;
     $('#btn-foto-amb').hidden = !ef.modelo;
+    $('#btn-ao-vivo').hidden = !ef.modelo || !aoVivoServe();
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
@@ -1127,6 +1128,25 @@
   // porta, piso) e o móvel aparece na foto na escala certa. Depois gira,
   // posiciona e compartilha a imagem.
   // ===================================================================
+  // Ver ao vivo (beta): a nossa própria câmera com sensores (ra.html), para
+  // celulares sem RA do Google. iPhone sempre tem a RA da Apple, então não aparece.
+  function aoVivoServe() {
+    var ua = navigator.userAgent || '';
+    var ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return !ios && !MODELOS_EMBUTIDOS && (navigator.maxTouchPoints > 0 || /Android/i.test(ua)) && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  }
+  function abrirAoVivo() {
+    var mv = palco.querySelector('model-viewer');
+    if (!produtoAtual || !mv) return;
+    var ef = produtoAtual.combo ? { modelo: produtoAtual.modelo } : efetivo(produtoAtual, tamAtual);
+    var lista = mv.availableVariants || [];
+    var q = new URLSearchParams({ m: ef.modelo, n: produtoAtual.nome || 'Móvel' });
+    if (lista.length > 1 && mv.variantName && mv.variantName !== lista[0]) q.set('cor', mv.variantName);
+    if (LOJA) q.set('v', '/' + LOJA);
+    registrar('ar', produtoAtual.id);
+    location.href = 'ra?' + q.toString();
+  }
+
   var fa = null;   // { p, ef, variante, foto: {img, w, h, url}, ref: {x1,y1,x2,y2,cm}, sprite, pos, theta, phi, ajuste, luz, etapa }
   function abrirFotoAmbiente() {
     var mvV = palco.querySelector('model-viewer');
@@ -1306,6 +1326,7 @@
     img.src = url;
   }
   $('#btn-foto-amb').addEventListener('click', abrirFotoAmbiente);
+  $('#btn-ao-vivo').addEventListener('click', abrirAoVivo);
   $('#dlg-casa').addEventListener('close', function () {
     var MV = customElements.get('model-viewer');
     if (fa && MV && fa.escalaAntes != null) MV.minimumRenderScale = fa.escalaAntes;

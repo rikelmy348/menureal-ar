@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>Ver ao vivo — MenuReal</title>
+  <meta name="description" content="Veja o móvel ao vivo na sua casa, pela câmera do celular, mesmo sem realidade aumentada no aparelho.">
+  <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#1D0F2E">
+  <style>
+    @font-face { font-family: "Bricolage Grotesque"; src: url("vendor/fontes/bricolage-grotesque.woff2") format("woff2"); font-weight: 200 800; font-display: swap; }
+    :root { --rosa: #FF3D8B; --vidro: rgba(20, 10, 32, .62); color-scheme: dark; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font: 500 16px/1.4 "Bricolage Grotesque", system-ui, sans-serif; overscroll-behavior: none; }
+    button { font: inherit; cursor: pointer; }
+    #video, #cena { position: fixed; inset: 0; width: 100%; height: 100%; }
+    #video { object-fit: cover; background: #111; }
+    #cena { touch-action: none; }
+    [hidden] { display: none !important; }
+
+    /* tela inicial */
+    #inicio { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: radial-gradient(120% 80% at 80% 0%, #FF3D8B44, transparent 60%), linear-gradient(160deg, #3B0D6E, #1D0F2E 70%); padding: max(18px, env(safe-area-inset-top)) 16px 32px; }
+    .cartao { max-width: 460px; margin: 0 auto; }
+    .topo-ini { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+    .selo { display: inline-block; font-size: 12px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; background: #FFC24B; color: #2A1640; padding: 4px 10px; border-radius: 999px; }
+    h1 { font-size: clamp(28px, 8vw, 38px); line-height: 1.04; letter-spacing: -.02em; margin: 0 0 6px; }
+    .produto { color: #E4D9F2; margin: 0 0 18px; font-weight: 650; }
+    ol.passos { list-style: none; padding: 0; margin: 0 0 20px; display: grid; gap: 10px; counter-reset: p; }
+    ol.passos li { counter-increment: p; display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; background: #ffffff10; border: 1px solid #ffffff1c; border-radius: 14px; padding: 12px; }
+    ol.passos li::before { content: counter(p); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--rosa); font-weight: 800; }
+    ol.passos b { display: block; }
+    ol.passos span { color: #DCCFEC; font-size: 15px; }
+    label.campo { display: block; font-weight: 650; margin-bottom: 18px; }
+    label.campo select { display: block; width: 100%; margin-top: 6px; padding: 12px; border-radius: 12px; border: 2px solid #ffffff2e; background: #2A1640; color: #fff; font: inherit; }
+    label.campo small { display: block; font-weight: 500; color: #CDBFE0; margin-top: 4px; }
+    .grande { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-weight: 800; font-size: 19px; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); box-shadow: 0 10px 30px #FF3D8B55; }
+    .grande:disabled { opacity: .6; }
+    .aviso { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: #FFC24B22; border: 1px solid #FFC24B66; color: #FFE6B0; font-size: 15px; }
+    .nota { margin: 16px 0 0; font-size: 14px; color: #CDBFE0; }
+
+    /* durante a câmera */
+    .barra { position: fixed; left: 0; right: 0; z-index: 3; display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+    #topo { top: 0; padding-top: max(10px, env(safe-area-inset-top)); background: linear-gradient(#000a, transparent); }
+    #topo .nome { flex: 1; min-width: 0; }
+    #topo .nome b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #topo .nome span { font-size: 14px; color: #E4D9F2; }
+    .redondo { flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--vidro); color: #fff; font-size: 20px; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    #baixo { bottom: 0; flex-direction: column; align-items: stretch; padding-bottom: max(14px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, #000b); }
+    #dica { align-self: center; text-align: center; background: var(--vidro); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); padding: 9px 14px; border-radius: 14px; font-size: 15px; max-width: 420px; }
+    #sinal { align-self: center; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #E4D9F2; }
+    #sinal i { width: 9px; height: 9px; border-radius: 50%; background: #FFC24B; }
+    #sinal.bom i { background: #3DDC84; }
+    #sinal.ruim i { background: #FF5A5A; }
+    .acoes { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    .acoes button { border: 0; border-radius: 14px; padding: 13px 16px; font-weight: 750; color: #fff; background: var(--vidro); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    .acoes button.forte { background: linear-gradient(135deg, var(--rosa), #FF7A45); padding-left: 26px; padding-right: 26px; }
+    #ajuste { position: fixed; z-index: 4; left: 12px; right: 12px; bottom: max(170px, calc(env(safe-area-inset-bottom) + 170px)); max-width: 440px; margin: 0 auto; background: #1D0F2Ef0; border: 1px solid #ffffff22; border-radius: 18px; padding: 14px 16px; font-size: 15px; }
+    #ajuste input { width: 100%; accent-color: var(--rosa); }
+    #ajuste p { margin: 0 0 8px; color: #E4D9F2; }
+    #ajuste .linha { display: flex; justify-content: space-between; font-weight: 750; }
+    #carregando { position: fixed; z-index: 3; left: 50%; top: 50%; transform: translate(-50%, -50%); background: var(--vidro); padding: 12px 18px; border-radius: 14px; }
+    #guia { position: fixed; z-index: 4; inset: 0; display: grid; place-items: center; padding: 24px; background: #000a; }
+    #guia > div { max-width: 360px; background: #1D0F2Ef2; border: 1px solid #ffffff22; border-radius: 20px; padding: 20px; text-align: center; }
+    #guia .ic { font-size: 40px; line-height: 1; margin-bottom: 8px; }
+    #guia p { margin: 8px 0 16px; color: #E4D9F2; }
+    #guia button { border: 0; border-radius: 14px; padding: 13px 22px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); }
+    #flash { position: fixed; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
+  </style>
+  <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
+</head>
+<body>
+  <video id="video" playsinline muted autoplay hidden></video>
+  <canvas id="cena" hidden></canvas>
+
+  <section id="inicio">
+    <div class="cartao">
+      <div class="topo-ini">
+        <button class="redondo" id="sair" aria-label="Voltar ao catálogo">←</button>
+        <span class="selo">Beta</span>
+      </div>
+      <h1>Ver o móvel ao vivo na sua casa</h1>
+      <p class="produto" id="nome-ini"></p>
+      <ol class="passos">
+        <li><div><b>Fique parado no lugar</b><span>Escolha um ponto de onde dá para ver o lugar do móvel. Não precisa andar.</span></div></li>
+        <li><div><b>Aponte para o chão e toque em “Colocar aqui”</b><span>Um chão com desenho (piso, rejunte, tapete) ajuda a câmera a acompanhar.</span></div></li>
+        <li><div><b>Mova só o celular, devagar</b><span>Gire o corpo e incline o celular para olhar o móvel de vários lados.</span></div></li>
+      </ol>
+      <label class="campo">Sua altura
+        <select id="altura"></select>
+        <small>Serve para acertar o tamanho do móvel na tela.</small>
+      </label>
+      <button class="grande" id="comecar">Abrir a câmera</button>
+      <p class="aviso" id="aviso-app" hidden>Você abriu o link dentro de um aplicativo. Se a câmera não abrir, toque nos <b>⋮</b> ou <b>…</b> e escolha <b>“Abrir no navegador”</b>.</p>
+      <p class="aviso" id="aviso-erro" hidden></p>
+      <p class="nota">Este modo funciona em qualquer celular com câmera, mas é uma versão de teste: o tamanho é aproximado. Para conferir as medidas, use as medidas do produto no catálogo.</p>
+    </div>
+  </section>
+
+  <div class="camera" hidden>
+    <div class="barra" id="topo">
+      <button class="redondo" id="voltar" aria-label="Fechar a câmera">←</button>
+      <div class="nome"><b id="nome-prod"></b><span id="medidas-prod"></span></div>
+      <button class="redondo" id="btn-ajuste" aria-label="Ajustar tamanho">⚙</button>
+    </div>
+    <div class="barra" id="baixo">
+      <div id="sinal"><i></i><span>Procurando o chão…</span></div>
+      <div id="dica">Fique parado e aponte o celular para o chão onde quer o móvel</div>
+      <div class="acoes">
+        <button id="colocar" class="forte">Colocar aqui</button>
+        <button id="girar" hidden>↻ Girar</button>
+        <button id="mover" hidden>Mudar de lugar</button>
+        <button id="foto" hidden>📷 Foto</button>
+      </div>
+    </div>
+    <div id="ajuste" hidden>
+      <p>Se o móvel parecer maior ou menor do que deveria, ajuste a altura em que você está segurando o celular:</p>
+      <div class="linha"><span>Altura do celular</span><span id="ajuste-valor"></span></div>
+      <input type="range" id="ajuste-h" min="0.7" max="1.8" step="0.01">
+      <p style="margin-top:10px">Dica: compare com algo que você conhece. Uma porta tem cerca de 2,10 m de altura e 80 cm de largura.</p>
+    </div>
+    <div id="guia" hidden><div>
+      <div class="ic" aria-hidden="true">🧍‍♂️📱</div>
+      <b>Pronto! Agora fique parado</b>
+      <p>Não ande. Mova só o celular, devagar, para olhar o móvel de vários ângulos. Se ele sair do lugar, toque em “Mudar de lugar”.</p>
+      <button id="guia-ok" type="button">Entendi</button>
+    </div></div>
+    <div id="carregando" hidden>Carregando o móvel…</div>
+  </div>
+  <div id="flash"></div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from './vendor/three/addons/GLTFLoader.js';
+    import { RoomEnvironment } from './vendor/three/addons/RoomEnvironment.js';
+
+    const $ = (id) => document.getElementById(id);
+    const cm = (m) => (m * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+    const ler = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const gravar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+    const DEPURAR = /[?&]depurar=1/.test(location.search);
+
+    // ----- produto: ?m=arquivo.glb&n=Nome&cor=Variante&v=/loja -----
+    const qs = new URLSearchParams(location.search);
+    const arqOk = /^(assets\/|api\/arquivo\/)[\w\/.-]+\.glb$/.test(qs.get('m') || '');
+    const cor = (qs.get('cor') || '').slice(0, 60);
+    const produto = {
+      nome: (qs.get('n') || 'Móvel').slice(0, 80),
+      arq: arqOk ? qs.get('m') + (cor && qs.get('m').startsWith('api/') ? '?cor=' + encodeURIComponent(cor) : '') : ''
+    };
+    const volta = /^\/[\w-]{0,40}$/.test(qs.get('v') || '') ? qs.get('v') : '/';
+    $('nome-ini').textContent = produto.nome + (cor ? ' · ' + cor : '');
+    $('sair').onclick = () => { if (history.length > 1 && document.referrer.indexOf(location.origin) === 0) history.back(); else location.href = volta; };
+
+    // altura da pessoa → altura do celular (segurado na frente do peito)
+    for (let a = 1.40; a <= 2.001; a += 0.05) {
+      const o = document.createElement('option'); o.value = a.toFixed(2); o.textContent = a.toFixed(2).replace('.', ',') + ' m';
+      $('altura').appendChild(o);
+    }
+    $('altura').value = ler('mr-altura') || '1.65';
+    if (!produto.arq) { $('comecar').disabled = true; $('aviso-erro').hidden = false; $('aviso-erro').textContent = 'Link incompleto: volte ao catálogo e toque em “Ver ao vivo” no produto.'; }
+    const DENTRO_DE_APP = /Instagram|FBAN|FBAV|FB_IAB|Line\/|musical_ly|BytedanceWebview|TikTok|Snapchat/i.test(navigator.userAgent);
+    $('aviso-app').hidden = !DENTRO_DE_APP;
+
+    // ----- three.js -----
+    const canvas = $('cena');
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.05;
+    const cena = new THREE.Scene();
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    cena.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    cena.add(new THREE.HemisphereLight(0xffffff, 0x8a7f74, 0.5));
+    const sol = new THREE.DirectionalLight(0xffffff, 1.1); sol.position.set(1, 3, 2); cena.add(sol);
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.05, 50);
+    let alturaCel = 1.25;
+
+    // anel no chão que mostra onde o móvel vai ficar
+    const anel = new THREE.Mesh(new THREE.RingGeometry(0.235, 0.25, 64).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85, depthWrite: false }));
+    anel.renderOrder = 2; cena.add(anel);
+
+    // sombra de contato (mancha escura e suave embaixo do móvel)
+    function texturaSombra() {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d'); const gr = g.createRadialGradient(64, 64, 8, 64, 64, 64);
+      gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(0.55, 'rgba(0,0,0,.45)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+    }
+    const sombra = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ map: texturaSombra(), transparent: true, depthWrite: false }));
+    const suporte = new THREE.Group(); // posição e giro no chão
+    suporte.add(sombra); cena.add(suporte); suporte.visible = false;
+    let modelo = null, tamanho = null;
+
+    async function carregarModelo() {
+      $('carregando').hidden = false;
+      try {
+        const gltf = await new GLTFLoader().loadAsync(produto.arq);
+        modelo = gltf.scene;
+        modelo.traverse((o) => {
+          if (o.isLight) o.visible = false;
+          if (o.isMesh) (Array.isArray(o.material) ? o.material : [o.material]).forEach((mt) => {
+            // vidro: a câmera fica atrás do 3D, então simula a transparência
+            if (mt.transmission > 0) { mt.transmission = 0; mt.transparent = true; mt.opacity = 0.35; mt.depthWrite = false; }
+          });
+        });
+        const caixa = new THREE.Box3().setFromObject(modelo);
+        tamanho = caixa.getSize(new THREE.Vector3());
+        const centro = caixa.getCenter(new THREE.Vector3());
+        modelo.position.set(-centro.x, -caixa.min.y, -centro.z);
+        suporte.add(modelo);
+        sombra.scale.set(tamanho.x * 1.25, 1, tamanho.z * 1.25);
+        sombra.position.y = 0.002;
+        $('nome-prod').textContent = produto.nome;
+        $('medidas-prod').textContent = cm(tamanho.x) + ' × ' + cm(tamanho.z) + ' × ' + cm(tamanho.y) + ' cm (L × P × A)';
+        anel.scale.setScalar(Math.max(0.6, Math.min(2.4, Math.max(tamanho.x, tamanho.z) / 0.6)));
+      } catch (e) {
+        console.error(e);
+        $('dica').textContent = 'Não consegui carregar o móvel. Verifique a internet e tente de novo.';
+      } finally { $('carregando').hidden = true; }
+    }
+
+    // =====================================================================
+    // Orientação do celular
+    // Giroscópio (quando tem): segue o giro sem atraso. Acelerômetro: corrige
+    // a inclinação aos poucos, para o giroscópio não "escorregar".
+    // Sem giroscópio: inclinação só pela gravidade e o giro sai da imagem.
+    // =====================================================================
+    const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
+    const qDev = new THREE.Quaternion();            // celular → mundo (o giro em volta do eixo vertical é livre)
+    let iniciado = false, temSensor = false, temGiro = false, sinal = 1, ultT = 0;
+    let cima = null, forcaG = 9.81;
+    const historico = []; // orientações recentes: a imagem da câmera chega um pouco atrasada em relação ao sensor                  // "para cima" medido, nas coordenadas do celular
+    const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), qId = new THREE.Quaternion();
+    const anguloTela = () => ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
+
+    function aoMover(ev) {
+      const g = ev.accelerationIncludingGravity, r = ev.rotationRate;
+      const t = performance.now(); const dt = ultT ? Math.min((t - ultT) / 1000, 0.1) : 0; ultT = t;
+      if (g && g.x != null) {
+        // com o celular em pé, Y aponta para cima; se vier negativo, o aparelho usa o sinal invertido
+        if (!iniciado && Math.abs(g.y) > 4) sinal = g.y > 0 ? 1 : -1;
+        const v = new THREE.Vector3(g.x, g.y, g.z).multiplyScalar(sinal);
+        forcaG = v.length();
+        if (forcaG > 1) {
+          v.divideScalar(forcaG);
+          cima = cima ? cima.lerp(v, temGiro ? 1 : 0.35).normalize() : v;
+        }
+      }
+      if (!cima) return;
+      if (!iniciado) { qDev.setFromUnitVectors(cima, Y); iniciado = true; temSensor = true; return; }
+      if (r && r.alpha != null && dt > 0) {
+        if (Math.abs(r.alpha) + Math.abs(r.beta) + Math.abs(r.gamma) > 0.02) temGiro = true;
+        if (temGiro) {
+          tmpV.set(r.beta, r.gamma, r.alpha).multiplyScalar(Math.PI / 180 * dt);
+          const ang = tmpV.length();
+          if (ang > 1e-6) qDev.multiply(tmpQ.setFromAxisAngle(tmpV.divideScalar(ang), ang));
+        }
+      }
+      // corrige a inclinação na direção da gravidade (mais forte quando o celular está quieto)
+      const previsto = tmpV.copy(Y).applyQuaternion(tmpQ.copy(qDev).invert());
+      const corr = new THREE.Quaternion().setFromUnitVectors(previsto, cima);
+      const quieto = Math.abs(forcaG - 9.81) < 0.8;
+      const k = !temGiro ? 1 : quieto ? 0.035 : 0.006;
+      qDev.multiply(qId.identity().slerp(corr, k).invert()).normalize();
+      historico.push({ t, q: qDev.clone() });
+      while (historico.length > 2 && t - historico[0].t > 600) historico.shift();
+    }
+    async function ligarSensores() {
+      try { if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') await DeviceMotionEvent.requestPermission(); } catch (e) {}
+      window.addEventListener('devicemotion', aoMover);
+    }
+
+    // orientação da câmera = giro no eixo vertical (psi) × inclinação (qInc)
+    const qCamSensor = new THREE.Quaternion(), qTwist = new THREE.Quaternion();
+    const qInc = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -35 * Math.PI / 180); // sem sensor: inclinado para o chão
+    let yawSensorAnt = null, taxaYaw = 0, ultLeitura = 0; // taxaYaw em rad/ms
+    // orientação do celular no instante em que o quadro da câmera foi tirado
+    function orientacaoEm(tq, saida) {
+      const h = historico;
+      if (!h.length || tq >= h[h.length - 1].t) return saida.copy(qDev);
+      for (let i = h.length - 1; i > 0; i--) {
+        if (h[i - 1].t <= tq) { const a = h[i - 1], b = h[i]; return saida.copy(a.q).slerp(b.q, (tq - a.t) / Math.max(1, b.t - a.t)); }
+      }
+      return saida.copy(h[0].q);
+    }
+    function lerSensor() {
+      if (!iniciado) return 0;
+      orientacaoEm(performance.now() - atrasoCamera, qCamSensor).multiply(tmpQ.setFromAxisAngle(Z, -anguloTela()));
+      // separa o giro em volta do eixo vertical (twist) da inclinação (swing)
+      qTwist.set(0, qCamSensor.y, 0, qCamSensor.w).normalize();
+      const yaw = 2 * Math.atan2(qTwist.y, qTwist.w);
+      const swing = tmpQ.copy(qTwist).invert().multiply(qCamSensor);
+      qInc.slerp(swing, temGiro ? 1 : 0.5);
+      let d = 0;
+      if (temGiro && yawSensorAnt != null) d = Math.atan2(Math.sin(yaw - yawSensorAnt), Math.cos(yaw - yawSensorAnt));
+      const tAgora = performance.now();
+      if (ultLeitura) taxaYaw = taxaYaw * 0.5 + 0.5 * d / Math.max(1, tAgora - ultLeitura);
+      ultLeitura = tAgora;
+      yawSensorAnt = yaw;
+      return d;
+    }
+
+    // ----- câmera de verdade -----
+    const video = $('video');
+    let fluxo = null;
+    const FOV_LADO_MAIOR = 67; // graus — câmera principal típica de celular
+    function ajustarTamanho() {
+      const W = window.innerWidth, H = window.innerHeight;
+      renderer.setSize(W, H, false);
+      camera.aspect = W / H;
+      const vw = video.videoWidth || W, vh = video.videoHeight || H;
+      const f = (Math.max(vw, vh) / 2) / Math.tan(FOV_LADO_MAIOR * Math.PI / 360); // foco em pixels do vídeo
+      const s = Math.max(W / vw, H / vh); // o vídeo cobre a tela (object-fit: cover)
+      camera.fov = 2 * Math.atan((H / 2) / (f * s)) * 180 / Math.PI;
+      camera.updateProjectionMatrix();
+      pw = 0; // refaz o processamento no novo tamanho
+    }
+    window.addEventListener('resize', () => { ajustarTamanho(); pontos = []; });
+
+    async function abrirCamera() {
+      if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) throw new Error('sem-camera');
+      fluxo = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      // sem zoom e com foco contínuo, quando o aparelho deixa
+      try {
+        const tr = fluxo.getVideoTracks()[0], cap = tr.getCapabilities ? tr.getCapabilities() : {};
+        const adv = {};
+        if (cap.zoom) adv.zoom = Math.max(cap.zoom.min, Math.min(cap.zoom.max, 1));
+        if (cap.focusMode && cap.focusMode.indexOf('continuous') > -1) adv.focusMode = 'continuous';
+        if (Object.keys(adv).length) await tr.applyConstraints({ advanced: [adv] });
+      } catch (e) {}
+      video.srcObject = fluxo;
+      video.hidden = false;
+      await video.play().catch(() => {});
+      await new Promise((r) => { if (video.videoWidth) r(); else video.addEventListener('loadedmetadata', r, { once: true }); setTimeout(r, 2500); });
+    }
+
+    // ----- colocar no chão -----
+    const raio = new THREE.Raycaster();
+    const chao = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const ponto = new THREE.Vector3();
+    let estado = 'mirando';
+    const ultimoPonto = new THREE.Vector3(0, 0, -2);
+    function noChao(nx, ny) {
+      raio.setFromCamera({ x: nx, y: ny }, camera);
+      if (raio.ray.direction.y > -0.05) return null; // olhando para cima: não acerta o chão
+      if (!raio.ray.intersectPlane(chao, ponto)) return null;
+      if (Math.hypot(ponto.x - camera.position.x, ponto.z - camera.position.z) > 6) return null;
+      return ponto.clone();
+    }
+    // enquanto mira, o móvel fica meio transparente para dar para ver o chão
+    function fantasma(sim) {
+      if (!modelo) return;
+      modelo.traverse((o) => {
+        if (!o.isMesh) return;
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach((mt) => {
+          if (!mt.userData.orig) mt.userData.orig = { transparent: mt.transparent, opacity: mt.opacity, depthWrite: mt.depthWrite };
+          const o0 = mt.userData.orig;
+          mt.transparent = sim || o0.transparent; mt.opacity = sim ? o0.opacity * 0.45 : o0.opacity; mt.depthWrite = sim ? false : o0.depthWrite;
+          mt.needsUpdate = true;
+        });
+      });
+    }
+    function textoDica() {
+      if (estado === 'mirando') return temSensor ? 'Fique parado e aponte o celular para o chão onde quer o móvel' : 'Arraste o móvel com o dedo até o lugar';
+      return 'Mova só o celular, devagar · arraste para ajustar · gire com dois dedos';
+    }
+    function mudarEstado(e) {
+      estado = e;
+      const mirando = e === 'mirando';
+      $('colocar').hidden = !mirando;
+      $('girar').hidden = $('mover').hidden = $('foto').hidden = mirando;
+      anel.visible = mirando;
+      fantasma(mirando);
+      $('dica').textContent = textoDica();
+    }
+
+    // ----- toque: arrastar e girar -----
+    const dedos = new Map();
+    let arrasto = null, giro = null;
+    const ndc = (x, y) => ({ x: (x / window.innerWidth) * 2 - 1, y: -(y / window.innerHeight) * 2 + 1 });
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId);
+      dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (dedos.size === 1) {
+        const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
+        if (estado === 'mirando' && !temSensor) mudarEstado('colocado');
+        if (estado === 'colocado' && p) arrasto = suporte.position.clone().sub(p);
+      } else if (dedos.size === 2) {
+        arrasto = null;
+        const [a, b] = [...dedos.values()];
+        giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y };
+      }
+    });
+    canvas.addEventListener('pointermove', (e) => {
+      if (!dedos.has(e.pointerId)) return;
+      dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (dedos.size === 2 && giro) {
+        const [a, b] = [...dedos.values()];
+        suporte.rotation.y = giro.rot - (Math.atan2(b.y - a.y, b.x - a.x) - giro.ang);
+      } else if (dedos.size === 1 && arrasto) {
+        const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
+        if (p) suporte.position.copy(p.add(arrasto));
+      }
+    });
+    const soltar = (e) => { dedos.delete(e.pointerId); if (dedos.size < 2) giro = null; if (!dedos.size) arrasto = null; };
+    canvas.addEventListener('pointerup', soltar);
+    canvas.addEventListener('pointercancel', soltar);
+
+    let jaGuiou = false;
+    $('colocar').onclick = () => {
+      suporte.position.copy(ultimoPonto); mudarEstado('colocado');
+      if (!jaGuiou) { jaGuiou = true; $('guia').hidden = false; }
+    };
+    $('guia-ok').onclick = () => { $('guia').hidden = true; };
+    $('mover').onclick = () => mudarEstado('mirando');
+    $('girar').onclick = () => { suporte.rotation.y += Math.PI / 4; };
+    $('btn-ajuste').onclick = () => { $('ajuste').hidden = !$('ajuste').hidden; };
+    function mostrarAltura() { $('ajuste-valor').textContent = alturaCel.toFixed(2).replace('.', ',') + ' m'; $('ajuste-h').value = alturaCel; }
+    $('ajuste-h').oninput = (e) => {
+      // mantém o móvel no mesmo ponto da tela: as distâncias mudam junto com a altura
+      const k = parseFloat(e.target.value) / alturaCel;
+      alturaCel = parseFloat(e.target.value);
+      suporte.position.x *= k; suporte.position.z *= k; ultimoPonto.multiplyScalar(k);
+      pose.cx *= k; pose.cz *= k;
+      pontos.forEach((p) => { p.W.x *= k; p.W.z *= k; });
+      guardados.forEach((p) => { p.W.x *= k; p.W.z *= k; });
+      mostrarAltura();
+    };
+
+    // ----- foto (câmera + móvel numa imagem só) -----
+    $('foto').onclick = async () => {
+      const W = canvas.width, H = canvas.height;
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d');
+      const vw = video.videoWidth, vh = video.videoHeight;
+      if (vw) { const s = Math.max(W / vw, H / vh); g.drawImage(video, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); }
+      renderer.render(cena, camera);
+      g.drawImage(canvas, 0, 0);
+      g.font = '600 ' + Math.round(W / 34) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.85)';
+      g.fillText(produto.nome, Math.round(W / 30), H - Math.round(W / 24));
+      $('flash').style.opacity = 0.8; setTimeout(() => { $('flash').style.opacity = 0; }, 120);
+      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.88));
+      const arq = new File([blob], 'movel-na-minha-casa.jpg', { type: 'image/jpeg' });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [arq] })) { await navigator.share({ files: [arq], title: 'Olha como ficaria aqui em casa' }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = arq.name; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    };
+
+    // =====================================================================
+    // Rastreio pela imagem: pontos do chão seguidos de um quadro para o outro.
+    // O giroscópio prevê para onde cada ponto vai; a busca procura em volta
+    // da previsão. A posição do celular e a correção do giro saem de como os
+    // pontos do chão se mexem. Pontos que somem ficam guardados e são
+    // reencontrados quando a câmera volta a olhar para eles (o móvel não "anda").
+    // =====================================================================
+    const LARG_PROC = 160, P = 5, LADO = 2 * P + 1, MAX_PONTOS = 14, MAX_GUARDADOS = 80;
+    const proc = document.createElement('canvas');
+    const pctx = proc.getContext('2d', { willReadFrequently: true });
+    let pw = 0, ph = 0, cinza = null, focoV = 1;
+    let pontos = [];      // { x, y, tpl, tpl0, W: {x,z}, falhas, L }
+    let guardados = [];   // { tpl0, W }
+    const pose = { psi: 0, cx: 0, cz: 0 };
+    const qYaw = new THREE.Quaternion();
+    let perdido = 0, contaQuadro = 0, bons = 0;
+
+    function prepararProc() {
+      const vw = video.videoWidth, vh = video.videoHeight; if (!vw) return false;
+      const kProc = LARG_PROC / Math.min(vw, vh);
+      pw = Math.round(vw * kProc); ph = Math.round(vh * kProc);
+      proc.width = pw; proc.height = ph; cinza = new Float32Array(pw * ph);
+      focoV = (Math.max(vw, vh) / 2) / Math.tan(FOV_LADO_MAIOR * Math.PI / 360) * kProc; // foco em pixels da imagem pequena
+      return true;
+    }
+    function lerQuadro() {
+      if (!pw && !prepararProc()) return false;
+      pctx.drawImage(video, 0, 0, pw, ph);
+      const d = pctx.getImageData(0, 0, pw, ph).data;
+      for (let i = 0, j = 0; i < cinza.length; i++, j += 4) cinza[i] = d[j] * 0.3 + d[j + 1] * 0.59 + d[j + 2] * 0.11;
+      return true;
+    }
+    const vDir = new THREE.Vector3(), qIncInv = new THREE.Quaternion();
+    // pixel da imagem pequena → ponto no chão relativo ao celular (sem o giro), em metros
+    function pixelNoChao(x, y) {
+      vDir.set((x - pw / 2) / focoV, -(y - ph / 2) / focoV, -1).applyQuaternion(qInc);
+      if (vDir.y > -0.1) return null;
+      const t = alturaCel / -vDir.y;
+      const L = { x: vDir.x * t, z: vDir.z * t };
+      return Math.hypot(L.x, L.z) > 4.5 ? null : L;
+    }
+    function girarXZ(v, a) { const c = Math.cos(a), s = Math.sin(a); return { x: v.x * c + v.z * s, z: -v.x * s + v.z * c }; }
+    function paraMundo(L) { const r = girarXZ(L, pose.psi); return { x: r.x + pose.cx, z: r.z + pose.cz }; }
+    // ponto do chão (mundo) → pixel previsto na imagem pequena
+    function projetar(W) {
+      const L = girarXZ({ x: W.x - pose.cx, z: W.z - pose.cz }, -pose.psi);
+      vDir.set(L.x, -alturaCel, L.z).applyQuaternion(qIncInv);
+      if (vDir.z > -0.05) return null;
+      return { x: pw / 2 + (vDir.x / -vDir.z) * focoV, y: ph / 2 - (vDir.y / -vDir.z) * focoV };
+    }
+    function recorte(cx, cy) {
+      const t = new Float32Array(LADO * LADO); let m = 0, k = 0;
+      for (let y = -P; y <= P; y++) for (let x = -P; x <= P; x++) { const v = cinza[(cy + y) * pw + cx + x]; t[k++] = v; m += v; }
+      m /= t.length; for (let i = 0; i < t.length; i++) t[i] -= m;
+      return t;
+    }
+    function nota(cx, cy) { // quanto o ponto tem "cantos" (dá para seguir nas duas direções)
+      let a = 0, b = 0, c = 0;
+      for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) {
+        const i = (cy + y) * pw + cx + x;
+        const gx = (cinza[i + 1] - cinza[i - 1]) / 2, gy = (cinza[i + pw] - cinza[i - pw]) / 2;
+        a += gx * gx; b += gx * gy; c += gy * gy;
+      }
+      return (a + c) / 2 - Math.sqrt(((a - c) / 2) ** 2 + b * b);
+    }
+    const perto = (x, y, d) => pontos.some((p) => Math.abs(p.x - x) < d && Math.abs(p.y - y) < d);
+    function acharPontos() {
+      const borda = P + 12, cand = [];
+      for (let y = borda; y < ph - borda; y += 3) for (let x = borda; x < pw - borda; x += 3) {
+        if (perto(x, y, 12)) continue;
+        const n = nota(x, y); if (n < 220) continue;
+        if (!pixelNoChao(x, y)) continue;
+        cand.push({ x, y, n });
+      }
+      cand.sort((u, v) => v.n - u.n);
+      for (const c of cand) {
+        if (pontos.length >= MAX_PONTOS) break;
+        if (perto(c.x, c.y, 12)) continue;
+        const L = pixelNoChao(c.x, c.y); if (!L) continue;
+        const tpl = recorte(c.x, c.y);
+        pontos.push({ x: c.x, y: c.y, tpl, tpl0: tpl.slice(), W: paraMundo(L), falhas: 0, idade: 0, L });
+      }
+    }
+    // procura o recorte em volta de (px, py); devolve a posição com ajuste entre pixels
+    function buscar(tpl, px, py, raioB, limite) {
+      const x0 = Math.round(px), y0 = Math.round(py), borda = P + 1;
+      let melhor = Infinity, bx = 0, by = 0; const custos = new Map();
+      for (let dy = -raioB; dy <= raioB; dy++) for (let dx = -raioB; dx <= raioB; dx++) {
+        const cx = x0 + dx, cy = y0 + dy;
+        if (cx < borda || cy < borda || cx >= pw - borda || cy >= ph - borda) continue;
+        let m = 0;
+        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) m += cinza[o + x]; }
+        m /= LADO * LADO;
+        let sad = 0, k = 0;
+        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) sad += Math.abs(cinza[o + x] - m - tpl[k++]); }
+        custos.set(dx * 1000 + dy, sad);
+        if (sad < melhor) { melhor = sad; bx = dx; by = dy; }
+      }
+      if (!(melhor / (LADO * LADO) <= limite)) return null;
+      // o melhor precisa ser bem melhor que o resto (evita confundir em piso repetido)
+      let segundo = Infinity;
+      custos.forEach((v, kk) => { const dx = Math.round(kk / 1000), dy = kk - dx * 1000; if (Math.abs(dx - bx) > 2 || Math.abs(dy - by) > 2) segundo = Math.min(segundo, v); });
+      if (segundo < melhor * 1.15) return null;
+      const c0 = melhor, g = (dx, dy) => custos.get((bx + dx) * 1000 + by + dy);
+      const cl = g(-1, 0), cr = g(1, 0), cu = g(0, -1), cd = g(0, 1);
+      let sx = 0, sy = 0;
+      if (cl != null && cr != null && cl + cr - 2 * c0 > 0) sx = 0.5 * (cl - cr) / (cl + cr - 2 * c0);
+      if (cu != null && cd != null && cu + cd - 2 * c0 > 0) sy = 0.5 * (cu - cd) / (cu + cd - 2 * c0);
+      return { x: x0 + bx + Math.max(-0.5, Math.min(0.5, sx)), y: y0 + by + Math.max(-0.5, Math.min(0.5, sy)), ix: x0 + bx, iy: y0 + by };
+    }
+    function seguir(p) {
+      // com giroscópio, procura onde o ponto deve estar agora; sem, em volta de onde estava
+      const prev = temGiro ? projetar(p.W) : null;
+      const alvo = prev && prev.x > 0 && prev.y > 0 && prev.x < pw && prev.y < ph ? prev : p;
+      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 7 : 11, 16);
+      if (!r) return false;
+      p.x = r.x; p.y = r.y;
+      const novo = recorte(r.ix, r.iy);
+      for (let i = 0; i < novo.length; i++) p.tpl[i] = p.tpl[i] * 0.85 + novo[i] * 0.15;
+      return true;
+    }
+    function guardar(p) {
+      if (p.idade >= 8) guardados.push({ tpl0: p.tpl0, W: p.W, idade: p.idade });
+      if (guardados.length > MAX_GUARDADOS) guardados.shift();
+    }
+    // reencontra pontos antigos que voltaram para a imagem (com a posição de antes)
+    function reencontrar() {
+      const borda = P + 8;
+      for (let i = guardados.length - 1; i >= 0 && pontos.length < MAX_PONTOS; i--) {
+        const gq = guardados[i], pr = projetar(gq.W);
+        if (!pr || pr.x < borda || pr.y < borda || pr.x > pw - borda || pr.y > ph - borda) continue;
+        if (perto(pr.x, pr.y, 10)) continue;
+        const r = buscar(gq.tpl0, pr.x, pr.y, 8, 11);
+        if (!r || !pixelNoChao(r.x, r.y)) continue;
+        guardados.splice(i, 1);
+        pontos.push({ x: r.x, y: r.y, tpl: gq.tpl0.slice(), tpl0: gq.tpl0, W: gq.W, falhas: 0, idade: gq.idade, antigo: true });
+      }
+    }
+    const peso = (q) => q.idade < 8 ? 0.15 : Math.min(8, 1 + q.idade / 15);
+    function resolverPose(pares) {
+      const n = pares.length;
+      let lx = 0, lz = 0, wx = 0, wz = 0;
+      // pontos antigos pesam mais: a posição deles vem de quando o móvel foi colocado (menos erro acumulado)
+      let sw = 0;
+      pares.forEach((q) => { const w = peso(q); sw += w; lx += w * q.L.x; lz += w * q.L.z; wx += w * q.W.x; wz += w * q.W.z; });
+      lx /= sw; lz /= sw; wx /= sw; wz /= sw;
+      let S = 0, C = 0;
+      pares.forEach((q) => { const w = peso(q), a = q.L.x - lx, b = q.L.z - lz, c = q.W.x - wx, d = q.W.z - wz; S += w * (c * b - d * a); C += w * (c * a + d * b); });
+      const psi = n >= 2 ? Math.atan2(S, C) : pose.psi;
+      return { psi, lx, lz, wx, wz };
+    }
+    const resto = (q, psi, cx, cz) => { const r = girarXZ(q.L, psi); return Math.hypot(r.x + cx - q.W.x, r.z + cz - q.W.z); };
+    function rastrear() {
+      if (!lerQuadro()) return;
+      qIncInv.copy(qInc).invert();
+      const pares = [];
+      pontos = pontos.filter((p) => {
+        if (!seguir(p)) { if (++p.falhas < 3) return true; guardar(p); return false; }
+        const L = pixelNoChao(p.x, p.y);
+        if (!L) { guardar(p); return false; }
+        p.falhas = 0; p.L = L; p.idade++; pares.push(p);
+        return true;
+      });
+      let usados = pares;
+      bons = 0;
+      if (usados.length >= 2) {
+        let est = resolverPose(usados);
+        const centro = (e, psi) => { const r = girarXZ({ x: e.lx, z: e.lz }, psi); return { cx: e.wx - r.x, cz: e.wz - r.z }; };
+        // tira os pontos que não combinam com os outros (algo que não é chão, reflexo, gente passando…)
+        for (let volta = 0; volta < 4 && usados.length >= 3; volta++) {
+          const c = centro(est, est.psi);
+          const res = usados.map((q) => resto(q, est.psi, c.cx, c.cz));
+          const pior = res.indexOf(Math.max(...res));
+          if (res[pior] < 0.08) break;
+          usados[pior].falhas = 3; usados = usados.filter((_, i) => i !== pior);
+          est = resolverPose(usados);
+        }
+        pontos = pontos.filter((p) => p.falhas < 3);
+        bons = usados.length;
+        // giro: o giroscópio manda no curto prazo; a imagem corrige o escorregão aos poucos
+        let dpsi = est.psi - pose.psi; dpsi = Math.atan2(Math.sin(dpsi), Math.cos(dpsi));
+        // atraso da câmera: se a imagem "fica para trás" do sensor sempre que o celular gira, aumenta o atraso (e vice-versa)
+        if (temGiro && usados.length >= 4 && Math.abs(taxaYaw) > 0.0002 && Math.abs(dpsi) < 0.1) {
+          somaRR = somaRR * 0.985 + taxaYaw * taxaYaw; somaRE = somaRE * 0.985 + taxaYaw * dpsi;
+          if (somaRR > 2e-6) atrasoCamera = Math.max(0, Math.min(250, atrasoCamera - 0.08 * somaRE / somaRR));
+        }
+        const kGiro = temGiro ? (usados.length >= 6 ? 0.2 : usados.length >= 4 ? 0.08 : 0.02) : (usados.length >= 3 ? 0.7 : 0.3);
+        if (Math.abs(dpsi) < 0.35) pose.psi += dpsi * kGiro;
+        // posição: só com pontos suficientes e sem pulos impossíveis (a pessoa está parada)
+        if (usados.length >= 3) {
+          const c = centro(est, pose.psi);
+          const salto = Math.hypot(c.cx - pose.cx, c.cz - pose.cz);
+          if (salto < 0.25) { const kp = salto < 0.01 ? 0.35 : 0.75; pose.cx += (c.cx - pose.cx) * kp; pose.cz += (c.cz - pose.cz) * kp; }
+        }
+        perdido = 0;
+      } else perdido++;
+      // pontos novos: a posição no chão vira a média do que foi visto nos primeiros quadros
+      pontos.forEach((p) => {
+        if (p.idade >= 1 && p.idade < 20 && p.L && p.falhas === 0) {
+          const m = paraMundo(p.L), k = 1 / (p.idade + 1);
+          p.W = { x: p.W.x + (m.x - p.W.x) * k, z: p.W.z + (m.z - p.W.z) * k };
+        }
+      });
+      if (pontos.length < MAX_PONTOS && contaQuadro % 3 === 0) { reencontrar(); if (pontos.length < 8) acharPontos(); }
+    }
+
+    // ----- quadros da câmera: processa cada um uma vez e mede o atraso da imagem -----
+    let atrasoCamera = 70, quadroNovo = false, somaRR = 0, somaRE = 0; // ms (padrão típico de celular)
+    const temRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
+    function aoQuadroVideo(agora, meta) {
+      quadroNovo = true;
+      if (meta && meta.captureTime > 0) {
+        const a = Math.max(0, Math.min(250, performance.now() - meta.captureTime));
+        atrasoCamera = atrasoCamera * 0.95 + a * 0.05;
+      }
+      if (rodando) video.requestVideoFrameCallback(aoQuadroVideo);
+    }
+
+    // ----- laço de desenho -----
+    let rodando = false;
+    function quadro() {
+      if (!rodando) return;
+      contaQuadro++;
+      pose.psi += lerSensor();
+      try { if (video.videoWidth && (quadroNovo || !temRVFC)) { quadroNovo = false; rastrear(); } } catch (e) { console.error(e); }
+      qYaw.setFromAxisAngle(Y, pose.psi);
+      camera.quaternion.copy(qYaw).multiply(qInc);
+      camera.position.set(pose.cx, alturaCel, pose.cz);
+      if (contaQuadro % 10 === 0) {
+        const s = $('sinal');
+        const ok = bons >= 4, fraco = bons >= 2;
+        s.className = ok ? 'bom' : fraco ? '' : 'ruim';
+        s.lastElementChild.textContent = ok ? 'Acompanhando bem' : fraco ? 'Acompanhando' : (temGiro ? 'Só pelo sensor — aponte para o chão' : 'Aponte para o chão com desenho');
+        if (estado === 'colocado') $('dica').textContent = perdido > 30 && !temGiro ? 'Aponte para o chão perto do móvel para ele não se perder' : textoDica();
+        if (DEPURAR) $('medidas-prod').textContent = (temGiro ? 'giro' : 'grav') + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
+          ' psi' + Math.round(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) + ' fov' + Math.round(camera.fov);
+      }
+      if (estado === 'mirando') {
+        const p = temSensor ? noChao(0, -0.15) : null;
+        if (p) ultimoPonto.copy(p);
+        anel.position.copy(ultimoPonto); anel.position.y = 0.005;
+        suporte.position.copy(ultimoPonto);
+        suporte.visible = !!modelo;
+      }
+      renderer.render(cena, camera);
+      requestAnimationFrame(quadro);
+    }
+
+    function avisar(t) { const a = $('aviso-erro'); a.textContent = t; a.hidden = !t; }
+
+    // ----- começar -----
+    $('comecar').onclick = async () => {
+      avisar('');
+      $('comecar').disabled = true; $('comecar').textContent = 'Abrindo…';
+      gravar('mr-altura', $('altura').value);
+      alturaCel = Math.round(parseFloat($('altura').value) * 0.76 * 100) / 100; // celular na altura do peito
+      mostrarAltura();
+      const sensores = ligarSensores(); // precisa ser no toque (iPhone)
+      try {
+        await abrirCamera();
+      } catch (e) {
+        console.error(e);
+        $('comecar').disabled = false; $('comecar').textContent = 'Abrir a câmera';
+        avisar(e && e.name === 'NotAllowedError'
+          ? 'A câmera foi bloqueada. Toque no cadeado ao lado do endereço do site, permita a câmera e tente de novo.'
+          : DENTRO_DE_APP ? 'Este aplicativo não deixa abrir a câmera. Abra o link no navegador (Chrome ou Safari).'
+          : 'Não consegui abrir a câmera deste celular.');
+        return;
+      }
+      await sensores;
+      $('inicio').hidden = true;
+      document.querySelector('.camera').hidden = false;
+      canvas.hidden = false;
+      ajustarTamanho();
+      rodando = true; requestAnimationFrame(quadro);
+      if (temRVFC) video.requestVideoFrameCallback(aoQuadroVideo);
+      mudarEstado('mirando');
+      await carregarModelo();
+      fantasma(estado === 'mirando');
+      setTimeout(() => mudarEstado(estado), 1200); // a essa altura já se sabe se tem sensor
+    };
+
+    if (DEPURAR) window.__ra = { pose, suporte, camera, info: () => ({ atraso: Math.round(atrasoCamera), quadros: contaQuadro, estado, bons, pontos: pontos.length, guardados: guardados.length, temGiro, temSensor }) };
+
+    $('voltar').onclick = () => {
+      rodando = false;
+      pontos = []; guardados = []; pose.psi = pose.cx = pose.cz = 0; pw = 0; yawSensorAnt = null;
+      if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
+      video.hidden = true; canvas.hidden = true;
+      document.querySelector('.camera').hidden = true;
+      $('ajuste').hidden = true; $('guia').hidden = true;
+      $('inicio').hidden = false;
+      $('comecar').disabled = false; $('comecar').textContent = 'Abrir a câmera';
+    };
+  </script>
+</body>
+</html>

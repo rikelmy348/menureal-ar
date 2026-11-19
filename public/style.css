@@ -1111,6 +1111,8 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .foto-amb-btn { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 4px; text-align: left; }
 .foto-amb-btn svg { width: 24px; height: 24px; flex: none; }
 .foto-amb-btn span { display: grid; line-height: 1.2; }
+.foto-amb-btn .t-ao-vivo { font-style: normal; }
+.foto-amb-btn .selo-beta { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #FFC24B; color: #2A1640; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; vertical-align: 1px; }
 .foto-amb-btn small { font-weight: 500; font-size: 12px; opacity: .8; }
 .casa-passos { margin: 8px 0 16px; }
 .casa-btn-arq { margin-bottom: 10px; cursor: pointer; }
