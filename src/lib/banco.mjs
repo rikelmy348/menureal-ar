@@ -179,8 +179,23 @@ export function limparPedido(v) {
     pix: { tipo: TIPOS_PIX.includes(pix.tipo) ? pix.tipo : 'cpf', chave: texto(pix.chave, 77).trim(),
       nome: texto(pix.nome, 25).trim(), cidade: texto(pix.cidade, 15).trim() },
     foraDoHorario: v.foraDoHorario === 'agendar' ? 'agendar' : 'bloquear',
-    pausado: v.pausado === true
+    pausado: v.pausado === true,
+    parcelas: limparParcelas(v.parcelas),
+    cidades: limparCidades(v.cidades),
+    foraEntrega: texto(v.foraEntrega, 160)
   };
+}
+/** Parcelamento mostrado embaixo do preço: até 24×, com ou sem juros, parcela mínima. */
+function limparParcelas(v) {
+  v = v && typeof v === 'object' ? v : {};
+  return { vezes: Math.max(1, Math.min(24, Math.round(Number(v.vezes) || 1))), semJuros: v.semJuros !== false, minimo: reais(v.minimo, 9999) };
+}
+/** Cidades onde a loja entrega (o cliente confere pelo CEP): nome, UF, prazo em dias e frete. */
+function limparCidades(lista) {
+  return (Array.isArray(lista) ? lista : []).slice(0, 100).map((c) => ({
+    nome: texto(c && c.nome, 60).trim(), uf: texto(c && c.uf, 2).toUpperCase().replace(/[^A-Z]/g, ''),
+    prazo: texto(c && c.prazo, 40).trim(), frete: reais(c && c.frete, 99999), gratisAcima: reais(c && c.gratisAcima, 9999999)
+  })).filter((c) => c.nome);
 }
 
 /** Foto do produto (para quem ainda não tem o 3D): só imagens da pasta da própria loja. */
@@ -250,7 +265,8 @@ export async function lerCardapio(env, slug) {
       versao: String(lerJson(p.opcoes, {}).versao || ''),
       pontos: limparPontos(lerJson(p.opcoes, {}).pontos),
       pontosDe: String(lerJson(p.opcoes, {}).pontosDe || ''),
-      planejado: lerJson(p.opcoes, {}).planejado || null
+      planejado: lerJson(p.opcoes, {}).planejado || null,
+      precoDe: reais(lerJson(p.opcoes, {}).precoDe, 1000000)
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -307,7 +323,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

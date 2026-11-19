@@ -230,7 +230,8 @@
         foto: /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(x.foto || '')) ? String(x.foto) : '',   // produto ainda sem 3D
         pontos: lerPontos(x.pontos),            // pontos de informação no 3D (ex.: "tecido impermeável")
         pontosDe: String(x.pontosDe || ''),      // o 3D em que os pontos foram marcados
-        planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null   // ficha do montador de planejados
+        planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null,   // ficha do montador de planejados
+        precoDe: Math.min(1000000, Math.max(0, Math.round((Number(x.precoDe) || 0) * 100) / 100))   // preço antigo (oferta: "de R$ X por R$ Y")
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -392,7 +393,13 @@
       pix: { tipo: TIPOS_PIX.some(function (t) { return t[0] === px.tipo; }) ? px.tipo : 'cpf', chave: String(px.chave || '').trim().slice(0, 77),
         nome: String(px.nome || '').trim().slice(0, 25), cidade: String(px.cidade || '').trim().slice(0, 15) },
       foraDoHorario: v.foraDoHorario === 'agendar' ? 'agendar' : 'bloquear',
-      pausado: v.pausado === true
+      pausado: v.pausado === true,
+      parcelas: (function (x) { x = x || {}; return { vezes: Math.max(1, Math.min(24, Math.round(Number(x.vezes) || 1))), semJuros: x.semJuros !== false, minimo: reais(x.minimo, 9999) }; })(v.parcelas),
+      cidades: (Array.isArray(v.cidades) ? v.cidades : []).slice(0, 100).map(function (c) {
+        c = c || {};
+        return { nome: String(c.nome || '').trim().slice(0, 60), uf: String(c.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), prazo: String(c.prazo || '').trim().slice(0, 40), frete: reais(c.frete, 99999), gratisAcima: reais(c.gratisAcima, 9999999) };
+      }).filter(function (c) { return c.nome; }),
+      foraEntrega: String(v.foraEntrega || '').slice(0, 160)
     };
   }
   function adicionaisDe(p, sel) {
@@ -555,6 +562,17 @@
     });
   }
 
+  // Parcelamento e oferta
+  function parcelaTexto(valor) {
+    var pc = dados.padaria.pedido && dados.padaria.pedido.parcelas;
+    if (!pc || pc.vezes < 2 || !(valor > 0) || ehAlimento()) return '';
+    var n = pc.vezes;
+    if (pc.minimo > 0) n = Math.min(n, Math.floor(valor / pc.minimo));
+    if (n < 2) return '';
+    return 'ou ' + n + 'x de ' + brl(Math.ceil(valor / n * 100) / 100) + (pc.semJuros ? ' sem juros' : '');
+  }
+  function emOferta(p) { return !ehAlimento() && p.precoDe > p.preco && !(p.tamanhos && p.tamanhos.length); }
+  function descontoTexto(p) { return Math.round((1 - p.preco / p.precoDe) * 100); }
   function reguaTexto(d) { return num(d.largura) + ' × ' + num(d.altura) + ' cm'; }
 
   function htmlCard(p) {
@@ -575,7 +593,7 @@
     var mostraRegua = temModelo || !(p.dim.largura <= 5 && p.dim.altura <= 5 && p.dim.profundidade <= 5);
     return '<article class="card' + (temModelo || p.foto ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
       '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>'
-        : '') +
+        : emOferta(p) ? '<span class="selo-oferta">Oferta −' + descontoTexto(p) + '%</span>' : '') +
         (mostraRegua ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
           ? num(Math.min.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' a ' + num(Math.max.apply(null, p.tamanhos.map(function (t) { return t.dim.largura; }))) + ' cm'
           : reguaTexto(p.dim)) + '</span></span>' : '') +
@@ -586,11 +604,12 @@
         (temTams ? '<p class="card__info">' + p.tamanhos.length + ' tamanhos</p>' : '') +
         (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg">Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
         '<div class="card__rodape">' +
-          '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + (editando && !temTams ? '<span class="card__preco-ed" contenteditable="true" inputmode="decimal" data-ph="Preço">' + brl(p.preco) + '</span>' : brl(precoMinimo(p))) + '</span>' +
+          '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + (emOferta(p) ? '<s class="preco-de">' + brl(p.precoDe) + '</s>' : '') + (editando && !temTams ? '<span class="card__preco-ed" contenteditable="true" inputmode="decimal" data-ph="Preço">' + brl(p.preco) + '</span>' : brl(precoMinimo(p))) + '</span>' +
           (p.esgotado ? '<span class="card__esgotado">Esgotado</span>' :
           '<button class="card__add" type="button" data-acao="' + (temOpcoes ? 'escolher' : 'add') + '" aria-label="' +
             (temOpcoes ? 'Escolher opções de ' : 'Adicionar ao pedido: ') + esc(p.nome) + '">' + ICONES.mais + '</button>') +
         '</div>' +
+        (parcelaTexto(precoMinimo(p)) ? '<p class="card__parcela">' + parcelaTexto(precoMinimo(p)) + '</p>' : '') +
       '</div>' +
     '</article>';
   }
@@ -733,7 +752,7 @@
     var ef = p.combo ? { preco: p.preco, dim: p.dim } : efetivo(p, tamAtual);
     $('#viewer-cat').textContent = p.categoria + (p.ilustrativo && p.modelo ? ' · modelo ilustrativo' : '');
     $('#viewer-nome').textContent = p.nome;
-    $('#viewer-preco').textContent = brl(ef.preco);
+    mostrarPrecoViewer(p, ef.preco);
     $('#viewer-dim').textContent = p.combo ? (p.ambiente ? 'como você arrumou' : 'itens lado a lado') : dimTexto(ef.dim);
     $('#viewer-desc').textContent = p.descricao;
     var tams = $('#viewer-tamanhos');
@@ -814,10 +833,62 @@
     if (el) el.addEventListener('input', function () { espacoCliente[k] = el.value; atualizarCabe(); });
   });
 
+  function mostrarPrecoViewer(p, preco) {
+    var de = !p.combo && emOferta(p) && preco === p.preco;
+    $('#viewer-preco').innerHTML = (de ? '<s class="preco-de">' + brl(p.precoDe) + '</s> ' : '') + brl(preco) + (de ? ' <span class="selo-oferta selo-oferta--txt">−' + descontoTexto(p) + '%</span>' : '');
+    var pa = $('#viewer-parcela'); if (pa) { var t = p.combo ? '' : parcelaTexto(preco); pa.textContent = t; pa.hidden = !t; }
+    renderEntrega(p);
+  }
+  // ---- Entrega por CEP: o cliente digita o CEP, a cidade vem do ViaCEP e é comparada com as cidades da loja
+  var CHAVE_CEP = 'menureal:cep';
+  var entregaAtual = null;   // { cep, cidade, uf, ok, cfg }
+  try { entregaAtual = JSON.parse(localStorage.getItem(CHAVE_CEP) || 'null'); } catch (e) { entregaAtual = null; }
+  function cidadesEntrega() { var c = dados.padaria.pedido; return (c && c.cidades) || []; }
+  function acharCidade(nome, uf) {
+    var n = semAcento(nome).toLowerCase().trim();
+    return cidadesEntrega().filter(function (c) { return semAcento(c.nome).toLowerCase().trim() === n && (!c.uf || !uf || c.uf === uf); })[0] || null;
+  }
+  function textoEntrega(r, valor) {
+    if (!r) return '';
+    if (!r.ok) {
+      var fora = dados.padaria.pedido.foraEntrega || 'Fale com a loja pelo WhatsApp para combinar.';
+      return '<p class="entrega__nao"><b>Ainda não entregamos em ' + esc(r.cidade) + '/' + esc(r.uf) + '.</b> ' + esc(fora) + '</p>';
+    }
+    var c = acharCidade(r.cidade, r.uf) || r.cfg || {};
+    var gratis = !c.frete || (c.gratisAcima && valor >= c.gratisAcima);
+    return '<p class="entrega__sim"><b>✓ Entregamos em ' + esc(r.cidade) + '/' + esc(r.uf) + '</b></p>' +
+      '<ul class="entrega__det"><li>Frete: <b>' + (gratis ? 'grátis' : brl(c.frete)) + '</b>' + (!gratis && c.gratisAcima ? ' <small>(grátis acima de ' + brl(c.gratisAcima) + ')</small>' : '') + '</li>' +
+      (c.prazo ? '<li>Prazo: <b>' + esc(c.prazo) + '</b></li>' : '') + '</ul>';
+  }
+  function renderEntrega(p) {
+    var box = $('#viewer-entrega'); if (!box) return;
+    box.hidden = ehAlimento() || !cidadesEntrega().length || !!(p && p.combo);
+    if (box.hidden) return;
+    var cep = $('#entrega-cep');
+    if (entregaAtual && !cep.value) cep.value = entregaAtual.cep;
+    var r = entregaAtual && entregaAtual.cidade ? { cidade: entregaAtual.cidade, uf: entregaAtual.uf, ok: !!acharCidade(entregaAtual.cidade, entregaAtual.uf) } : null;
+    $('#entrega-res').innerHTML = textoEntrega(r, p ? precoMontado(p, tamAtual, adicSel) : 0);
+  }
+  $('#entrega-cep').addEventListener('input', function (e) {
+    var d = e.target.value.replace(/\D/g, '').slice(0, 8);
+    e.target.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d;
+  });
+  $('#entrega-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var cep = $('#entrega-cep').value.replace(/\D/g, ''), res = $('#entrega-res');
+    if (cep.length !== 8) { res.innerHTML = '<p class="entrega__nao">Digite os 8 números do CEP.</p>'; return; }
+    res.innerHTML = '<p class="mini">Procurando o CEP…</p>';
+    fetch('https://viacep.com.br/ws/' + cep + '/json/').then(function (r) { return r.json(); }).then(function (j) {
+      if (!j || j.erro || !j.localidade) { res.innerHTML = '<p class="entrega__nao">CEP não encontrado. Confira os números.</p>'; return; }
+      entregaAtual = { cep: cep.slice(0, 5) + '-' + cep.slice(5), cidade: j.localidade, uf: j.uf, bairro: j.bairro || '' };
+      try { localStorage.setItem(CHAVE_CEP, JSON.stringify(entregaAtual)); } catch (er) { /* ok */ }
+      renderEntrega(produtoAtual);
+    }).catch(function () { res.innerHTML = '<p class="entrega__nao">Não consegui consultar o CEP agora. Tente de novo.</p>'; });
+  });
   function atualizarPrecoViewer(p) {
     atualizarCabe();
     var preco = p.combo ? p.preco : precoMontado(p, tamAtual, adicSel);
-    $('#viewer-preco').textContent = brl(preco);
+    mostrarPrecoViewer(p, preco);
     var add = $('#viewer-add');
     add.hidden = !!p.combo;
     add.classList.remove('feito');
@@ -1840,6 +1911,11 @@
     L.push('');
     if (modo === 'entrega') { L.push('Subtotal: ' + brl(totalCarrinho())); L.push('Entrega: ' + (taxa ? brl(taxa) : 'grátis')); }
     L.push(b + 'Total: ' + brl(totalFinal()) + b);
+    var pt = parcelaTexto(totalFinal()); if (pt) L.push('(' + pt + ')');
+    if (!ehAlimento() && entregaAtual && entregaAtual.cidade && cidadesEntrega().length) {
+      var ce = acharCidade(entregaAtual.cidade, entregaAtual.uf);
+      L.push('Entrega para ' + entregaAtual.cidade + '/' + entregaAtual.uf + ' (CEP ' + entregaAtual.cep + ')' + (ce ? ': frete ' + (!ce.frete || (ce.gratisAcima && totalFinal() >= ce.gratisAcima) ? 'grátis' : brl(ce.frete)) + (ce.prazo ? ', ' + ce.prazo : '') : ': cidade fora da lista de entrega'));
+    }
     var pag = pagAtual();
     if (pag) {
       var tr = pag === 'dinheiro' && cliente.troco.trim() ? lerPreco(cliente.troco) : 0;
@@ -2238,6 +2314,21 @@
           '<option value="agendar"' + (c.foraDoHorario === 'agendar' ? ' selected' : '') + '>Aceitar para quando abrir</option></select>') +
       '</div>' +
       campo('Endereço para retirada', '<input data-ped="endereco" maxlength="160" placeholder="Rua, número — bairro" value="' + esc(c.endereco) + '">') +
+      (ehAlimento(rascunho) ? '' :
+      '<fieldset class="campo tams-admin"><legend>Parcelamento (aparece embaixo do preço)</legend><div class="campos campos--2">' +
+        campo('Em até', '<select data-ped="parc-vezes">' + [1, 2, 3, 4, 5, 6, 8, 10, 12, 15, 18, 24].map(function (n) { return '<option value="' + n + '"' + (n === c.parcelas.vezes ? ' selected' : '') + '>' + (n === 1 ? 'Não mostrar' : n + 'x') + '</option>'; }).join('') + '</select>') +
+        campo('Parcela mínima (R$)', '<input data-ped="parc-minimo" inputmode="decimal" placeholder="Ex.: 50,00" value="' + din(c.parcelas.minimo) + '">') +
+      '</div>' + chk('parc-semjuros', 'Sem juros', c.parcelas.semJuros) + '<small>Ex.: “ou 10x de R$ 199,00 sem juros”. Produtos baratos mostram menos parcelas para não ficar abaixo da parcela mínima.</small></fieldset>' +
+      '<fieldset class="campo tams-admin"><legend>Entrega por CEP</legend>' +
+        campo('Cidades que vocês atendem', '<textarea data-ped="cidades" rows="5" maxlength="6000" placeholder="Campinas/SP; 80; 5 dias úteis\nValinhos/SP; 120; 7 dias úteis\nSão Paulo/SP; 0; 3 dias úteis">' +
+          esc(c.cidades.map(function (x) { return x.nome + (x.uf ? '/' + x.uf : '') + '; ' + (x.frete ? din(x.frete) : '0') + (x.prazo ? '; ' + x.prazo : ''); }).join('\n')) + '</textarea>',
+          'Uma cidade por linha: <b>Cidade/UF; frete; prazo</b>. Frete 0 = grátis. O cliente digita o CEP na página do produto e vê se vocês entregam.') +
+        '<div class="campos campos--2">' +
+          campo('Frete grátis acima de (R$)', '<input data-ped="gratis-acima" inputmode="decimal" placeholder="Opcional" value="' + din(c.cidades[0] && c.cidades[0].gratisAcima) + '">') +
+          campo('Mensagem para outras cidades', '<input data-ped="fora-entrega" maxlength="160" placeholder="Ex.: Consulte pelo WhatsApp" value="' + esc(c.foraEntrega) + '">') +
+        '</div>' +
+        (c._cidadesErro ? '<p class="erro-campo">' + esc(c._cidadesErro) + '</p>' : '') +
+      '</fieldset>') +
       '<fieldset class="campo"><legend>Formas de pagamento</legend><div class="linha-acoes">' +
         chk('pg-pix', 'Pix', c.pagamento.pix) + chk('pg-cartao', 'Cartão', c.pagamento.cartao) + chk('pg-dinheiro', 'Dinheiro', c.pagamento.dinheiro) +
       '</div></fieldset>' +
@@ -2272,6 +2363,20 @@
     });
     c.tempo = q('tempo').value.trim(); c.foraDoHorario = q('foraDoHorario').value; c.endereco = q('endereco').value.trim();
     c.pagamento = { pix: q('pg-pix').checked, cartao: q('pg-cartao').checked, dinheiro: q('pg-dinheiro').checked };
+    if (q('parc-vezes')) {
+      c.parcelas = { vezes: Number(q('parc-vezes').value) || 1, semJuros: q('parc-semjuros').checked, minimo: q('parc-minimo').value.trim() ? (lerPreco(q('parc-minimo').value) || 0) : 0 };
+      var gratis = q('gratis-acima').value.trim() ? (lerPreco(q('gratis-acima').value) || 0) : 0;
+      c._cidadesErro = ''; c.cidades = [];
+      q('cidades').value.split('\n').forEach(function (l, i) {
+        l = l.trim(); if (!l) return;
+        var partes = l.split(/\s*[;|]\s*/), lugar = partes[0].split('/');
+        var nome = lugar[0].trim(), uf = (lugar[1] || '').trim().toUpperCase().slice(0, 2);
+        var frete = partes[1] ? lerPreco(partes[1].replace(/gr[aá]tis/i, '0')) : 0;
+        if (!nome || !isFinite(frete)) { if (!c._cidadesErro) c._cidadesErro = 'Linha ' + (i + 1) + ': use “Cidade/UF; frete; prazo”.'; return; }
+        c.cidades.push({ nome: nome.slice(0, 60), uf: uf, frete: frete, prazo: (partes[2] || '').slice(0, 40), gratisAcima: gratis });
+      });
+      c.foraEntrega = q('fora-entrega').value.trim();
+    }
     c.pix = { tipo: q('pix-tipo').value, chave: q('pix-chave').value.trim(), nome: q('pix-nome').value.trim(), cidade: q('pix-cidade').value.trim() };
   }
   function erroChavePix(px) {
@@ -3397,6 +3502,7 @@
             return '<option' + (c === x.categoria ? ' selected' : '') + '>' + c + '</option>';
           }).join('') + '</select>') +
         '</div>' +
+        (ehAlimento(rascunho) ? '' : campo('Preço antes da promoção (R$)', '<input data-f="precoDe" inputmode="decimal" placeholder="Só se estiver em oferta" value="' + (x.precoDe ? esc(x.precoDe.toFixed(2).replace('.', ',')) : '') + '">', 'Aparece riscado ao lado do preço, com o selo “Oferta”. Deixe vazio quando acabar a promoção.')) +
         campo('Descrição', '<textarea data-f="descricao" maxlength="240">' + esc(x.descricao) + '</textarea>') +
         (ehAlimento(rascunho)
           ? campo('Ingredientes', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: farinha de trigo, frango, requeijão, cebola">' + esc(x.ingredientes) + '</textarea>') +
@@ -3486,6 +3592,7 @@
       x.nome = g('nome').value.trim();
       x._preco = g('preco').value;
       x.preco = lerPreco(g('preco').value);
+      var gDe = g('precoDe'); if (gDe) { var de = gDe.value.trim() ? lerPreco(gDe.value) : 0; x.precoDe = isFinite(de) && de > x.preco ? de : 0; }
       x.categoria = g('categoria').value;
       x.descricao = g('descricao').value.trim();
       x.dim = { largura: Number(g('largura').value), profundidade: Number(g('profundidade').value), altura: Number(g('altura').value) };
@@ -5103,7 +5210,7 @@
       .catch(function (e) { b.disabled = false; b.textContent = 'Publicar'; toast('Não publicou: ' + (/failed to fetch|network/i.test(e.message) ? 'sem conexão' : e.message)); });
   }
   // preço digitado ("R$ 2.490,00", "2490", "2.490,5") → número
-  function lerPreco(t) { var s = String(t || '').replace(/[^\d,.]/g, ''); if (s.indexOf(',') > -1) s = s.replace(/\./g, '').replace(',', '.'); else if (/\.\d{3}$/.test(s)) s = s.replace(/\./g, ''); var n = parseFloat(s); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; }
+  function lerPrecoDigitado(t) { var s = String(t || '').replace(/[^\d,.]/g, ''); if (s.indexOf(',') > -1) s = s.replace(/\./g, '').replace(',', '.'); else if (/\.\d{3}$/.test(s)) s = s.replace(/\./g, ''); var n = parseFloat(s); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; }
 
   // textos: hero, produtos e seções
   document.addEventListener('input', function (e) {
@@ -5130,7 +5237,7 @@
   document.addEventListener('focusout', function (e) {
     if (!editando || !e.target.classList || !e.target.classList.contains('card__preco-ed')) return;
     var p = dados.produtos.filter(function (x) { return x.id === e.target.closest('.card').getAttribute('data-id'); })[0]; if (!p) return;
-    var n = lerPreco(e.target.innerText);
+    var n = lerPrecoDigitado(e.target.innerText);
     if (n == null || n > 1000000) { toast('Preço inválido. Ex.: 2.490,00'); e.target.innerText = brl(p.preco); return; }
     if (n !== p.preco) { p.preco = n; marcarMudanca(); }
     e.target.innerText = brl(p.preco);

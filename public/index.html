@@ -195,6 +195,7 @@
           <p class="viewer__cat" id="viewer-cat"></p>
           <h2 class="viewer__nome" id="viewer-nome"></h2>
           <p class="viewer__preco" id="viewer-preco"></p>
+          <p class="viewer__parcela" id="viewer-parcela" hidden></p>
         </div>
         <button class="fechar" type="button" data-fechar aria-label="Fechar e voltar à lista de produtos">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
@@ -240,6 +241,16 @@
               <label>Altura livre<span><input id="cabe-a" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
             </div>
             <div class="cabe__res" id="cabe-res" aria-live="polite"></div>
+          </details>
+          <details class="cabe entrega" id="viewer-entrega" hidden>
+            <summary>Calcular a entrega</summary>
+            <form class="entrega__form" id="entrega-form" novalidate>
+              <label class="sr-only" for="entrega-cep">CEP</label>
+              <input id="entrega-cep" type="text" inputmode="numeric" autocomplete="postal-code" maxlength="9" placeholder="Seu CEP (ex.: 13010-000)">
+              <button class="btn btn--primario btn--p" type="submit">Calcular</button>
+            </form>
+            <div class="entrega__res" id="entrega-res" aria-live="polite"></div>
+            <a class="mini" href="https://buscacepinter.correios.com.br/app/endereco/index.php" target="_blank" rel="noopener">Não sei meu CEP</a>
           </details>
           <p class="viewer__desc" id="viewer-desc"></p>
           <dl class="viewer__info" id="viewer-info" hidden></dl>
