@@ -2688,7 +2688,18 @@
   function enviar3d(arquivo, x, tamId, opcoesEnvio) {
     opcoesEnvio = opcoesEnvio || {};
     if (!credenciais()) { toast(LOJA ? 'Entre na conta da loja' : 'Preencha o código de acesso'); return; }
-    if (!/\.glb$/i.test(arquivo.name)) { toast('Envie o arquivo em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).'); return; }
+    // confere pelo conteúdo (o celular às vezes salva o .glb com outro nome, sem extensão ou como .bin)
+    if (!opcoesEnvio.conferido) {
+      arquivo.slice(0, 4).arrayBuffer().then(function (b) {
+        var m = new Uint8Array(b);
+        if (m[0] === 0x67 && m[1] === 0x6C && m[2] === 0x54 && m[3] === 0x46) { // "glTF"
+          var nome = /\.glb$/i.test(arquivo.name) ? arquivo.name : (arquivo.name || 'movel').replace(/\.[^.]*$/, '') + '.glb';
+          opcoesEnvio.conferido = true;
+          enviar3d(nome === arquivo.name ? arquivo : new File([arquivo], nome, { type: 'model/gltf-binary' }), x, tamId, opcoesEnvio);
+        } else toast('Esse arquivo não é um 3D em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).');
+      }).catch(function () { toast('Não consegui ler esse arquivo.'); });
+      return;
+    }
     if (arquivo.size > 60 * 1024 * 1024) { toast('Arquivo grande demais (máximo 60 MB). Peça uma versão mais leve à fábrica.'); return; }
     toast('Conferindo o arquivo 3D…');
     Promise.all([carregarModuloGlb(), arquivo.arrayBuffer()]).then(function (r) {
@@ -2762,7 +2773,7 @@
       '<p class="modelo-admin__estado' + (x.modelo ? ' ok' : '') + '">' + (x.modelo ? '✓ 3D pronto' + (arq ? ' <small>(' + esc(arq) + ')</small>' : '') : 'Sem 3D: o cliente ainda não consegue ver na casa dele.') + '</p>' +
       (servidor
         ? '<div class="linha-acoes">' +
-            '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-up3d hidden></label>' +
+            '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
             (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
@@ -3376,7 +3387,7 @@
               (servidor && !ehAlimento(rascunho)
                 ? '<div class="tam-3d"><span class="modelo-admin__estado' + (t.modelo ? ' ok' : '') + '">' + (t.modelo ? '✓ Esta versão tem o próprio 3D' : 'Usa o 3D principal (ajustado às medidas)') + '</span>' +
                   '<div class="linha-acoes">' +
-                    '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar 3D (.glb)<input type="file" accept=".glb,model/gltf-binary" data-tam-up3d hidden></label>' +
+                    '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar 3D (.glb)<input type="file" data-tam-up3d hidden></label>' +
                     '<button class="btn btn--sec btn--p" type="button" data-tam-gerar>' + ICONES.camera + 'Criar com fotos</button>' +
                     (t.modelo ? '<button class="btn btn--fantasma btn--p" type="button" data-tam-limpar>Usar o 3D principal</button>' : '') +
                   '</div></div>'
