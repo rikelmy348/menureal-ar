@@ -234,11 +234,48 @@
     const Y = new THREE.Vector3(0, 1, 0), Z = new THREE.Vector3(0, 0, 1);
     const qDev = new THREE.Quaternion();            // celular → mundo (o giro em volta do eixo vertical é livre)
     let iniciado = false, temSensor = false, temGiro = false, sinal = 1, ultT = 0;
-    let cima = null, forcaG = 9.81;
+    let cima = null, cimaBruto = null, forcaG = 9.81;
     const historico = []; // orientações recentes: a imagem da câmera chega um pouco atrasada em relação ao sensor                  // "para cima" medido, nas coordenadas do celular
     const tmpV = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), qId = new THREE.Quaternion();
     const anguloTela = () => ((screen.orientation && screen.orientation.angle) || window.orientation || 0) * Math.PI / 180;
 
+    // Conferência do giroscópio: alguns aparelhos mandam o giro em outra unidade ou com os eixos trocados.
+    // Compara o giro com a gravidade enquanto o celular inclina e escolhe a leitura certa
+    // (ou desliga o giroscópio e segue só pela imagem, se nenhuma bater).
+    const MAPAS = [(r) => [r.beta, r.gamma, r.alpha], (r) => [r.alpha, r.beta, r.gamma], (r) => [-r.beta, -r.gamma, -r.alpha], (r) => [r.gamma, r.beta, r.alpha]];
+    const calib = { mapa: 0, escala: 1, pronto: false, janelas: MAPAS.map(() => new THREE.Quaternion()), gIni: null, tIni: 0, gSuave: null, somaO: 0, somaP: MAPAS.map(() => 0), somaCos: MAPAS.map(() => 0) };
+    let giroRuim = false;
+    function calibrarGiro(r, dt, t) {
+      if (calib.pronto || !cimaBruto) return;
+      calib.gSuave = calib.gSuave ? calib.gSuave.lerp(cimaBruto, 0.3).normalize() : cimaBruto.clone();
+      MAPAS.forEach((f, i) => {
+        const m = f(r); const v = new THREE.Vector3(m[0], m[1], m[2]).multiplyScalar(Math.PI / 180 * dt), a = v.length();
+        if (a > 1e-7) calib.janelas[i].multiply(new THREE.Quaternion().setFromAxisAngle(v.divideScalar(a), a));
+      });
+      if (!calib.gIni) { calib.gIni = calib.gSuave.clone(); calib.tIni = t; return; }
+      if (t - calib.tIni < 400) return;
+      const gObs = calib.gSuave, angO = calib.gIni.angleTo(gObs);
+      if (angO > 0.012 && angO < 0.8 && Math.abs(forcaG - 9.81) < 2) {
+        const dObs = gObs.clone().sub(calib.gIni).normalize();
+        calib.somaO += angO;
+        MAPAS.forEach((f, i) => {
+          const gP = calib.gIni.clone().applyQuaternion(calib.janelas[i].clone().invert());
+          const angP = calib.gIni.angleTo(gP);
+          calib.somaP[i] += angP;
+          if (angP > 1e-5) calib.somaCos[i] += angO * gP.sub(calib.gIni).normalize().dot(dObs);
+        });
+      }
+      calib.gIni = gObs.clone(); calib.tIni = t; calib.janelas.forEach((q) => q.identity());
+      if (calib.somaO > 0.35) { // uns 20° de inclinação somados
+        let melhor = 0; calib.somaCos.forEach((c, i) => { if (c > calib.somaCos[melhor]) melhor = i; });
+        const acerto = calib.somaCos[melhor] / calib.somaO;
+        calib.pronto = true;
+        if (acerto > 0.75 && calib.somaP[melhor] > 1e-4) {
+          calib.mapa = melhor; calib.escala = Math.max(0.005, Math.min(200, calib.somaO / calib.somaP[melhor]));
+          if (calib.escala > 0.6 && calib.escala < 1.6) calib.escala = 1; // dentro do normal: usa como veio
+        } else { giroRuim = true; temGiro = false; }
+      }
+    }
     function aoMover(ev) {
       const g = ev.accelerationIncludingGravity, r = ev.rotationRate;
       const t = performance.now(); const dt = ultT ? Math.min((t - ultT) / 1000, 0.1) : 0; ultT = t;
@@ -248,16 +285,18 @@
         const v = new THREE.Vector3(g.x, g.y, g.z).multiplyScalar(sinal);
         forcaG = v.length();
         if (forcaG > 1) {
-          v.divideScalar(forcaG);
+          v.divideScalar(forcaG); cimaBruto = v.clone();
           cima = cima ? cima.lerp(v, temGiro ? 1 : 0.35).normalize() : v;
         }
       }
       if (!cima) return;
       if (!iniciado) { qDev.setFromUnitVectors(cima, Y); iniciado = true; temSensor = true; return; }
       if (r && r.alpha != null && dt > 0) {
-        if (Math.abs(r.alpha) + Math.abs(r.beta) + Math.abs(r.gamma) > 0.02) temGiro = true;
+        if (!giroRuim && Math.abs(r.alpha) + Math.abs(r.beta) + Math.abs(r.gamma) > 0.02) temGiro = true;
+        calibrarGiro(r, dt, t);
         if (temGiro) {
-          tmpV.set(r.beta, r.gamma, r.alpha).multiplyScalar(Math.PI / 180 * dt);
+          const m = MAPAS[calib.mapa](r);
+          tmpV.set(m[0], m[1], m[2]).multiplyScalar(Math.PI / 180 * dt * calib.escala);
           const ang = tmpV.length();
           if (ang > 1e-6) qDev.multiply(tmpQ.setFromAxisAngle(tmpV.divideScalar(ang), ang));
         }
@@ -319,7 +358,7 @@
       const s = Math.max(W / vw, H / vh); // o vídeo cobre a tela (object-fit: cover)
       camera.fov = 2 * Math.atan((H / 2) / (f * s)) * 180 / Math.PI;
       camera.updateProjectionMatrix();
-      pw = 0; // refaz o processamento no novo tamanho
+      pw = 0; miniAnt = null; // refaz o processamento no novo tamanho
     }
     window.addEventListener('resize', () => { ajustarTamanho(); pontos = []; });
 
@@ -568,14 +607,48 @@
       let sx = 0, sy = 0;
       if (cl != null && cr != null && cl + cr - 2 * c0 > 0) sx = 0.5 * (cl - cr) / (cl + cr - 2 * c0);
       if (cu != null && cd != null && cu + cd - 2 * c0 > 0) sy = 0.5 * (cu - cd) / (cu + cd - 2 * c0);
-      return { x: x0 + bx + Math.max(-0.5, Math.min(0.5, sx)), y: y0 + by + Math.max(-0.5, Math.min(0.5, sy)), ix: x0 + bx, iy: y0 + by };
+      return { x: x0 + bx + Math.max(-0.5, Math.min(0.5, sx)), y: y0 + by + Math.max(-0.5, Math.min(0.5, sy)), ix: x0 + bx, iy: y0 + by, ncc: 1 - melhor };
+    }
+    // deslocamento geral da imagem desde o quadro anterior (numa versão bem pequena): pega o celular deslizando rápido
+    let mini = null, miniAnt = null, mw = 0, mh = 0, desloc = { x: 0, y: 0 };
+    function deslocamentoGeral() {
+      mw = pw >> 2; mh = ph >> 2;
+      if (!mini || mini.length !== mw * mh) { mini = new Float32Array(mw * mh); miniAnt = null; }
+      let soma = 0;
+      for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+        let v = 0; const o = (y * 4) * pw + x * 4;
+        for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) v += cinza[o + j * pw + i];
+        mini[y * mw + x] = v / 16; soma += v / 16;
+      }
+      const media = soma / (mw * mh); for (let i = 0; i < mini.length; i++) mini[i] -= media;
+      desloc = { x: 0, y: 0 };
+      if (miniAnt) {
+        const R = Math.round(mw * 0.3); let melhor = Infinity;
+        for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+          let sad = 0, n = 0;
+          for (let y = Math.max(0, dy) + 2; y < Math.min(mh, mh + dy) - 2; y += 2) for (let x = Math.max(0, dx) + 2; x < Math.min(mw, mw + dx) - 2; x += 2) {
+            sad += Math.abs(mini[y * mw + x] - miniAnt[(y - dy) * mw + x - dx]); n++;
+          }
+          if (n > 60 && sad / n < melhor) { melhor = sad / n; desloc = { x: dx * 4, y: dy * 4 }; }
+        }
+      }
+      const t = miniAnt || new Float32Array(mini.length); miniAnt = mini; mini = t;
     }
     function seguir(p) {
-      // com giroscópio, procura onde o ponto deve estar agora; sem, em volta de onde estava
-      const prev = temGiro ? projetar(p.W) : null;
-      const alvo = prev && prev.x > 0 && prev.y > 0 && prev.x < pw && prev.y < ph ? prev : p;
-      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 9 : 12, 0.78);
+      // tenta onde o ponto deve estar: pelo giroscópio, pelo próprio movimento dele e pelo deslocamento da imagem toda
+      const cands = [];
+      const dentro = (c) => c && c.x > 0 && c.y > 0 && c.x < pw && c.y < ph;
+      if (temGiro) { const g = projetar(p.W); if (dentro(g)) cands.push(g); }
+      cands.push({ x: p.x + (p.vx || 0), y: p.y + (p.vy || 0) });
+      if (Math.abs(desloc.x) + Math.abs(desloc.y) > 3) cands.push({ x: p.x + desloc.x, y: p.y + desloc.y });
+      let r = null;
+      for (const c of cands) {
+        if (r && Math.hypot(c.x - r.x, c.y - r.y) < 3) continue;
+        const t = buscar(p.tpl, c.x, c.y, 8, 0.78);
+        if (t && (!r || t.ncc > r.ncc)) r = t;
+      }
       if (!r) return false;
+      p.vx = (p.vx || 0) * 0.3 + (r.x - p.x) * 0.7; p.vy = (p.vy || 0) * 0.3 + (r.y - p.y) * 0.7;
       p.x = r.x; p.y = r.y;
       const novo = recorte(r.ix, r.iy);
       for (let i = 0; i < novo.length; i++) p.tpl[i] = p.tpl[i] * 0.85 + novo[i] * 0.15;
@@ -616,6 +689,7 @@
       if (!lerQuadro()) return;
       qIncInv.copy(qInc).invert();
       // o celular costuma continuar o movimento: prevê a posição antes de procurar os pontos
+      deslocamentoGeral();
       const predX = velX * 0.8, predZ = velZ * 0.8; pose.cx += predX; pose.cz += predZ;
       const pares = [];
       pontos = pontos.filter((p) => {
@@ -647,11 +721,6 @@
         if (usados.length >= 2) {
           // giro: o giroscópio manda no curto prazo; a imagem corrige o escorregão aos poucos
           let dpsi = est.psi - pose.psi; dpsi = Math.atan2(Math.sin(dpsi), Math.cos(dpsi));
-          // atraso da câmera: se a imagem "fica para trás" do sensor sempre que o celular gira, aumenta o atraso (e vice-versa)
-          if (temGiro && usados.length >= 4 && Math.abs(taxaYaw) > 0.0002 && Math.abs(dpsi) < 0.1) {
-            somaRR = somaRR * 0.985 + taxaYaw * taxaYaw; somaRE = somaRE * 0.985 + taxaYaw * dpsi;
-            if (somaRR > 2e-6) atrasoCamera = Math.max(20, Math.min(160, atrasoCamera - 0.08 * somaRE / somaRR));
-          }
           const kGiro = temGiro ? (usados.length >= 6 ? 0.2 : usados.length >= 4 ? 0.08 : 0.02) : (usados.length >= 3 ? 0.7 : 0.3);
           if (Math.abs(dpsi) < 0.35) pose.psi += dpsi * kGiro;
         }
@@ -676,7 +745,7 @@
     }
 
     // ----- quadros da câmera: processa cada um uma vez e mede o atraso da imagem -----
-    let atrasoCamera = 70, quadroNovo = false, somaRR = 0, somaRE = 0; // ms (padrão típico de celular)
+    let atrasoCamera = 70, quadroNovo = false; // ms (padrão típico de celular)
     const temRVFC = 'requestVideoFrameCallback' in HTMLVideoElement.prototype;
     function aoQuadroVideo(agora, meta) {
       quadroNovo = true;
@@ -705,7 +774,7 @@
         s.className = ok ? 'bom' : fraco ? '' : 'ruim';
         s.lastElementChild.textContent = ok ? 'Acompanhando bem' : fraco ? 'Acompanhando' : (temGiro ? 'Só pelo sensor — aponte para o chão' : 'Aponte para o chão com desenho');
         if (estado === 'colocado') $('dica').textContent = perdido > 30 && !temGiro ? 'Aponte para o chão perto do móvel para ele não se perder' : textoDica();
-        if (DEPURAR) $('medidas-prod').textContent = 'fps' + fps + ' atr' + Math.round(atrasoCamera) + ' v' + video.videoWidth + 'x' + video.videoHeight + ' ' + (temGiro ? 'giro' + Math.round(giroMax) : 'semgiro') + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
+        if (DEPURAR) $('medidas-prod').textContent = 'fps' + fps + ' atr' + Math.round(atrasoCamera) + ' v' + video.videoWidth + 'x' + video.videoHeight + ' ' + (temGiro ? 'giro' + Math.round(giroMax) : giroRuim ? 'giroRuim' : 'semgiro') + (calib.pronto ? ' m' + calib.mapa + 'x' + calib.escala.toFixed(2) : ' cal' + Math.round(calib.somaO * 57)) + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
           ' psi' + Math.round(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) + ' fov' + Math.round(camera.fov);
       }
       if (estado === 'mirando') {
@@ -769,7 +838,7 @@
     }
     let fpsT = performance.now(), fpsN = 0, fps = 0, giroMax = 0;
     window.addEventListener('devicemotion', (ev) => { const r = ev.rotationRate; if (r && r.alpha != null) giroMax = Math.max(giroMax * 0.98, Math.abs(r.alpha) + Math.abs(r.beta) + Math.abs(r.gamma)); });
-    if (DEPURAR) window.__ra = { pose, suporte, camera, info: () => ({ atraso: Math.round(atrasoCamera), quadros: contaQuadro, estado, bons, pontos: pontos.length, guardados: guardados.length, temGiro, temSensor }) };
+    if (DEPURAR) window.__ra = { pose, suporte, camera, info: () => ({ calib: calib.pronto ? calib.mapa + 'x' + calib.escala.toFixed(2) + (giroRuim ? 'ruim' : '') : 'nao', atraso: Math.round(atrasoCamera), quadros: contaQuadro, estado, bons, pontos: pontos.length, guardados: guardados.length, temGiro, temSensor }) };
 
     $('voltar').onclick = () => {
       rodando = false;
