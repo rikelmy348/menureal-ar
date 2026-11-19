@@ -22,6 +22,7 @@ import conta from './api/conta.mjs';
 import evento from './api/evento.mjs';
 import modeloArquivo from './api/modelo-arquivo.mjs';
 import planejado from './api/planejado.mjs';
+import fotoCliente, { paginaFoto, ID_FOTO } from './api/foto-cliente.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -38,7 +39,8 @@ const ROTAS = {
   '/api/conta': conta,
   '/api/evento': evento,
   '/api/modelo-arquivo': modeloArquivo,
-  '/api/planejado': planejado
+  '/api/planejado': planejado,
+  '/api/foto-cliente': fotoCliente
 };
 
 // ---------------------------------------------------------------------------
@@ -90,6 +92,11 @@ export default {
   async fetch(req, env) {
     const { pathname } = new URL(req.url);
     if (!pathname.startsWith('/api/')) {
+      // foto do cliente para o WhatsApp (/f/<id>)
+      const f = /^\/f\/([a-z0-9]+)$/.exec(pathname);
+      if (f && ID_FOTO.test(f[1]) && env.MODELOS) {
+        try { return await paginaFoto(req, env, f[1]); } catch (e) { console.error('foto', e); }
+      }
       // página inicial, /criar e /<loja>: HTML com a prévia do link; o resto são arquivos
       const caminho = decodeURIComponent(pathname).replace(/^\/+|\/+$/g, '').toLowerCase();
       if ((req.method === 'GET' || req.method === 'HEAD') && (caminho in PAGINAS_FIXAS || slugValido(caminho))) {

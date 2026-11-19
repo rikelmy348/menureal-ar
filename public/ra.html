@@ -89,6 +89,14 @@
     #guia p { margin: 8px 0 16px; color: #E4D9F2; }
     #guia button { border: 0; border-radius: 14px; padding: 13px 22px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); }
     #raiox { position: fixed; z-index: 3; right: 8px; top: calc(max(10px, env(safe-area-inset-top)) + 58px); width: 120px; border: 2px solid #fff8; border-radius: 6px; pointer-events: none; }
+    #lado { position: fixed; z-index: 3; right: 10px; top: 50%; transform: translateY(-60%); display: flex; flex-direction: column; gap: 10px; }
+    #lado button { width: 58px; border: 0; border-radius: 16px; padding: 8px 0 6px; background: var(--vidro); color: #fff; font-size: 11px; font-weight: 700; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+    #lado button i { display: block; font-style: normal; font-size: 22px; line-height: 1.1; }
+    #lado button[aria-pressed="false"] { opacity: .55; }
+    #cores { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; align-items: center; }
+    #cores button { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff6; padding: 0; box-shadow: 0 2px 8px #0006; }
+    #cores button[aria-pressed="true"] { border-color: #fff; outline: 3px solid var(--rosa); outline-offset: 1px; }
+    #cores span { font-size: 13px; font-weight: 700; background: var(--vidro); padding: 4px 10px; border-radius: 999px; }
     #flash { position: fixed; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
   </style>
   <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
@@ -172,14 +180,19 @@
     <div class="barra" id="baixo">
       <div id="sinal"><i></i><span>Procurando o chão…</span></div>
       <div id="dica">Aponte para o chão onde quer o móvel e toque em “Fixar aqui”</div>
+      <div id="cores" hidden></div>
       <div class="acoes">
         <button id="colocar" class="forte">📌 Fixar aqui</button>
-        <button id="girar" hidden>↻ Girar</button>
-        <button id="mover" hidden>Soltar e mudar de lugar</button>
-        <button id="congelar" class="forte" hidden>⏸ Congelar</button>
-        <button id="aovivo" class="forte" hidden>▶ Voltar ao vivo</button>
-        <button id="foto" hidden>📷 Foto</button>
+        <button id="enviar" class="forte" hidden>💬 Enviar para a loja</button>
+        <button id="congelar" hidden>⏸ Congelar</button>
+        <button id="aovivo" hidden>▶ Voltar ao vivo</button>
       </div>
+    </div>
+    <div id="lado">
+      <button id="girar"><i>↻</i>Girar</button>
+      <button id="btn-medidas" hidden aria-pressed="true"><i>📏</i>Medidas</button>
+      <button id="mover" hidden><i>✋</i>Mudar</button>
+      <button id="foto" hidden><i>📷</i>Foto</button>
     </div>
     <div id="ajuste" hidden>
       <p>Se o móvel parecer maior ou menor do que deveria, ajuste a altura em que você está segurando o celular:</p>
@@ -216,9 +229,11 @@
     const cor = (qs.get('cor') || '').slice(0, 60);
     const produto = {
       nome: (qs.get('n') || 'Móvel').slice(0, 80),
-      arq: arqOk ? qs.get('m') + (cor && qs.get('m').startsWith('api/') ? '?cor=' + encodeURIComponent(cor) : '') : ''
+      arq: arqOk ? qs.get('m') : ''
     };
     const volta = /^\/[\w-]{0,40}$/.test(qs.get('v') || '') ? qs.get('v') : '/';
+    const slugLoja = volta.slice(1);
+    const zapLoja = /^\d{10,15}$/.test(qs.get('w') || '') ? qs.get('w') : '';
     $('nome-ini').textContent = produto.nome + (cor ? ' · ' + cor : '');
     $('sair').onclick = () => { if (history.length > 1 && document.referrer.indexOf(location.origin) === 0) history.back(); else location.href = volta; };
 
@@ -298,6 +313,7 @@
       try {
         const gltf = await new GLTFLoader().loadAsync(produto.arq);
         modelo = gltf.scene;
+        prepararCores(gltf);
         modelo.traverse((o) => {
           if (o.isLight) o.visible = false;
           if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
@@ -324,6 +340,7 @@
         // móvel grande (guarda-roupa, cozinha, sofá…): o fundo dele fica no ponto mirado (normalmente a parede)
         grande = tamanho.x > 1.2 || tamanho.y > 1.5;
         criarContorno(tamanho.x, tamanho.y, tamanho.z);
+        criarCotas(tamanho.x, tamanho.y, tamanho.z);
         mudarEstado(estado);
       } catch (e) {
         console.error(e);
@@ -536,9 +553,11 @@
       estado = e;
       const mirando = e === 'mirando';
       $('colocar').hidden = !mirando;
-      $('girar').hidden = $('mover').hidden = $('foto').hidden = mirando;
+      $('mover').hidden = $('foto').hidden = mirando;
+      $('enviar').hidden = mirando || !zapLoja;
+      $('btn-medidas').hidden = mirando;
       $('congelar').hidden = mirando || congelado; $('aovivo').hidden = !congelado;
-      if (congelado) $('mover').hidden = true;
+      cotas.visible = !mirando && mostrarCotas;
       $('selo-parado').hidden = !congelado; $('sinal').hidden = congelado;
       anel.visible = false;
       contorno.visible = mirando;
@@ -603,18 +622,137 @@
     };
 
     // ----- foto (câmera + móvel numa imagem só) -----
-    $('foto').onclick = async () => {
-      const W = canvas.width, H = canvas.height;
-      const c = document.createElement('canvas'); c.width = W; c.height = H;
-      const g = c.getContext('2d');
+    // ----- cores do móvel (as variações que a loja cadastrou), trocadas ali mesmo na câmera -----
+    let variantes = [], malhasCor = [], corAtual = cor, parserCor = null;
+    function prepararCores(gltf) {
+      const ext = gltf.parser.json.extensions && gltf.parser.json.extensions.KHR_materials_variants;
+      variantes = ext && Array.isArray(ext.variants) ? ext.variants.map((v) => v.name) : [];
+      parserCor = gltf.parser; malhasCor = [];
+      if (variantes.length < 2) return;
+      gltf.scene.traverse((o) => {
+        if (!o.isMesh) return;
+        const a = gltf.parser.associations.get(o);
+        if (!a || a.meshes == null) return;
+        const prim = gltf.parser.json.meshes[a.meshes].primitives[a.primitives || 0];
+        const mp = prim && prim.extensions && prim.extensions.KHR_materials_variants;
+        if (mp) malhasCor.push({ o, orig: o.material, mappings: mp.mappings });
+      });
+      if (!malhasCor.length) { variantes = []; return; }
+      if (!(corAtual && variantes.indexOf(corAtual) > -1)) corAtual = '';
+      montarBolinhas().then(() => { if (corAtual) aplicarCor(corAtual); });
+    }
+    async function aplicarCor(nome) {
+      const vi = variantes.indexOf(nome);
+      for (const m of malhasCor) {
+        const mp = vi < 0 ? null : m.mappings.find((x) => x.variants.indexOf(vi) > -1);
+        const mat = mp ? await parserCor.getDependency('material', mp.material) : m.orig;
+        if (mat.transmission > 0) { mat.transmission = 0; mat.transparent = true; mat.opacity = 0.35; mat.depthWrite = false; }
+        m.o.material = mat;
+      }
+      corAtual = vi < 0 ? '' : nome;
+      document.querySelectorAll('#cores button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.cor === corAtual || (!corAtual && b.dataset.cor === variantes[0]))));
+      const n = $('cores').querySelector('span'); if (n) n.textContent = corAtual || variantes[0];
+    }
+    // cor média da variação (para a bolinha): cor do material × média da textura
+    async function corDaVariante(i) {
+      const m = malhasCor.map((x) => ({ x, mp: x.mappings.find((y) => y.variants.indexOf(i) > -1) })).find((y) => y.mp);
+      if (!m) return '#888';
+      const mat = await parserCor.getDependency('material', m.mp.material);
+      const c = mat.color ? mat.color.clone() : new THREE.Color(1, 1, 1);
+      try {
+        if (mat.map && mat.map.image) {
+          const cv = document.createElement('canvas'); cv.width = cv.height = 8; const g = cv.getContext('2d');
+          g.drawImage(mat.map.image, 0, 0, 8, 8); const d = g.getImageData(0, 0, 8, 8).data; let r = 0, gg = 0, b = 0;
+          for (let k = 0; k < d.length; k += 4) { r += d[k]; gg += d[k + 1]; b += d[k + 2]; }
+          const t = new THREE.Color().setRGB(r / 64 / 255, gg / 64 / 255, b / 64 / 255, THREE.SRGBColorSpace);
+          c.multiply(t);
+        }
+        // veludo e tecidos: o brilho (sheen) é boa parte da cor que se vê
+        if (mat.sheen > 0 && mat.sheenColor) c.lerp(mat.sheenColor, 0.55);
+      } catch (e) {}
+      return '#' + c.getHexString();
+    }
+    async function montarBolinhas() {
+      const caixa = $('cores'); caixa.innerHTML = '';
+      for (let i = 0; i < variantes.length && i < 8; i++) {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.cor = variantes[i];
+        b.setAttribute('aria-label', 'Cor ' + variantes[i]); b.setAttribute('aria-pressed', String(corAtual ? variantes[i] === corAtual : i === 0));
+        b.style.background = await corDaVariante(i);
+        b.onclick = () => aplicarCor(variantes[i]);
+        caixa.appendChild(b);
+      }
+      const nome = document.createElement('span'); nome.textContent = corAtual || variantes[0]; caixa.appendChild(nome);
+      caixa.hidden = false;
+    }
+
+    // ----- medidas em volta do móvel (largura, profundidade, altura) -----
+    const cotas = new THREE.Group(); suporte.add(cotas); cotas.visible = false;
+    let mostrarCotas = true;
+    function etiqueta(texto, alturaMundo) {
+      const c = document.createElement('canvas'); const g = c.getContext('2d');
+      g.font = '700 44px system-ui, sans-serif'; const w = Math.ceil(g.measureText(texto).width) + 40;
+      c.width = w; c.height = 72; g.font = '700 44px system-ui, sans-serif';
+      g.fillStyle = 'rgba(29,15,46,.85)'; if (g.roundRect) { g.beginPath(); g.roundRect(0, 0, w, 72, 36); g.fill(); } else g.fillRect(0, 0, w, 72);
+      g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(texto, w / 2, 38);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+      sp.scale.set(alturaMundo * w / 72, alturaMundo, 1); sp.renderOrder = 10; return sp;
+    }
+    function criarCotas(sx, sy, sz) {
+      cotas.clear();
+      const h = Math.max(0.05, Math.min(0.12, Math.max(sx, sy, sz) * 0.045)), m = 0.04;
+      const mat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.95 });
+      const linha = (a, b) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]), mat); l.renderOrder = 9; cotas.add(l); };
+      const tique = (p, d) => linha([p[0] - d[0], p[1] - d[1], p[2] - d[2]], [p[0] + d[0], p[1] + d[1], p[2] + d[2]]);
+      const t = 0.03;
+      // largura: na frente, no chão
+      linha([-sx / 2, 0.01, sz / 2 + m], [sx / 2, 0.01, sz / 2 + m]); tique([-sx / 2, 0.01, sz / 2 + m], [0, 0, t]); tique([sx / 2, 0.01, sz / 2 + m], [0, 0, t]);
+      const e1 = etiqueta(Math.round(sx * 100) + ' cm', h); e1.position.set(0, h * 0.7, sz / 2 + m); cotas.add(e1);
+      // profundidade: no lado direito, no chão
+      linha([sx / 2 + m, 0.01, -sz / 2], [sx / 2 + m, 0.01, sz / 2]); tique([sx / 2 + m, 0.01, -sz / 2], [t, 0, 0]); tique([sx / 2 + m, 0.01, sz / 2], [t, 0, 0]);
+      const e2 = etiqueta(Math.round(sz * 100) + ' cm', h); e2.position.set(sx / 2 + m + h, h * 0.7, 0); cotas.add(e2);
+      // altura: no canto da frente, à direita
+      linha([sx / 2 + m, 0, sz / 2 + m], [sx / 2 + m, sy, sz / 2 + m]); tique([sx / 2 + m, sy, sz / 2 + m], [t, 0, 0]);
+      const e3 = etiqueta(Math.round(sy * 100) + ' cm', h); e3.position.set(sx / 2 + m + h * 1.6, sy / 2, sz / 2 + m); cotas.add(e3);
+    }
+    $('btn-medidas').onclick = () => { mostrarCotas = !mostrarCotas; $('btn-medidas').setAttribute('aria-pressed', String(mostrarCotas)); cotas.visible = mostrarCotas && estado !== 'mirando'; };
+
+    // ----- foto: câmera + móvel numa imagem só -----
+    async function fazerFoto(largMax) {
+      let W = canvas.width, H = canvas.height;
+      const k = largMax && W > largMax ? largMax / W : 1;
+      const c = document.createElement('canvas'); c.width = Math.round(W * k); c.height = Math.round(H * k);
+      const g = c.getContext('2d'); g.scale(k, k);
       const vw = video.videoWidth, vh = video.videoHeight;
       if (vw) { const s = Math.max(W / vw, H / vh); g.drawImage(congelado ? $('parado') : video, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); }
       renderer.render(cena, camera);
       g.drawImage(canvas, 0, 0);
-      g.font = '600 ' + Math.round(W / 34) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.85)';
-      g.fillText(produto.nome, Math.round(W / 30), H - Math.round(W / 24));
+      g.font = '600 ' + Math.round(W / 34) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.9)';
+      g.shadowColor = 'rgba(0,0,0,.5)'; g.shadowBlur = 6;
+      g.fillText(produto.nome + (corAtual ? ' · ' + corAtual : ''), Math.round(W / 30), H - Math.round(W / 24));
       $('flash').style.opacity = 0.8; setTimeout(() => { $('flash').style.opacity = 0; }, 120);
-      const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.88));
+      return new Promise((r) => c.toBlob(r, 'image/jpeg', 0.84));
+    }
+
+    // ----- mandar a foto direto no WhatsApp da loja -----
+    $('enviar').onclick = async () => {
+      if (!zapLoja) return;
+      const b = $('enviar'); b.disabled = true; const t0 = b.textContent; b.textContent = 'Preparando…';
+      let link = '';
+      try {
+        const foto = await fazerFoto(900);
+        const r = await fetch('api/foto-cliente?loja=' + encodeURIComponent(slugLoja), { method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: foto });
+        const j = await r.json(); if (r.ok && j.url) link = location.origin + j.url;
+      } catch (e) {}
+      try { fetch('api/evento', { method: 'POST', body: JSON.stringify({ loja: slugLoja, tipo: 'pedido' }), keepalive: true }); } catch (e) {}
+      const texto = 'Olá! Tenho interesse no *' + produto.nome + '*' + (corAtual ? ' na cor *' + corAtual + '*' : '') + '.' +
+        (link ? '\nOlha como ficaria na minha casa: ' + link : '\nVi ele na minha casa pela câmera do catálogo.');
+      b.disabled = false; b.textContent = t0;
+      location.href = 'https://wa.me/' + zapLoja + '?text=' + encodeURIComponent(texto);
+    };
+
+    $('foto').onclick = async () => {
+      const blob = await fazerFoto();
       const arq = new File([blob], 'movel-na-minha-casa.jpg', { type: 'image/jpeg' });
       try {
         if (navigator.canShare && navigator.canShare({ files: [arq] })) { await navigator.share({ files: [arq], title: 'Olha como ficaria aqui em casa' }); return; }

@@ -1163,6 +1163,8 @@
     var q = new URLSearchParams({ m: ef.modelo, n: produtoAtual.nome || 'Móvel' });
     if (lista.length > 1 && mv.variantName && mv.variantName !== lista[0]) q.set('cor', mv.variantName);
     if (LOJA) q.set('v', '/' + LOJA);
+    var zap = String((dados && dados.padaria && dados.padaria.whatsapp) || '').replace(/\D/g, '');
+    if (zap.length >= 10) q.set('w', zap.length <= 11 ? '55' + zap : zap);
     registrar('ar', produtoAtual.id);
     location.href = 'ra?' + q.toString();
   }
