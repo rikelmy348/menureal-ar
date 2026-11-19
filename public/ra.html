@@ -52,6 +52,10 @@
     ol.passos span { color: #DCCFEC; font-size: 15px; }
     label.campo { display: block; font-weight: 650; margin-bottom: 18px; }
     label.campo select { display: block; width: 100%; margin-top: 6px; padding: 12px; border-radius: 12px; border: 2px solid #ffffff2e; background: #2A1640; color: #fff; font: inherit; }
+    .postura { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+    .postura button { padding: 12px; border-radius: 12px; border: 2px solid #ffffff2e; background: #2A1640; color: #fff; font-weight: 700; }
+    .postura button[aria-checked="true"] { border-color: var(--rosa); background: #FF3D8B33; }
+    div.campo { font-weight: 650; margin-bottom: 14px; } div.campo small { display: block; font-weight: 500; color: #CDBFE0; margin-top: 4px; }
     label.campo small { display: block; font-weight: 500; color: #CDBFE0; margin-top: 4px; }
     .grande { width: 100%; border: 0; border-radius: 16px; padding: 17px; font-weight: 800; font-size: 19px; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); box-shadow: 0 10px 30px #FF3D8B55; }
     .grande:disabled { opacity: .6; }
@@ -141,9 +145,15 @@
         <li><div><b>Escolha o lugar e toque em “📌 Fixar aqui”</b><span>Um chão com desenho (piso, rejunte, tapete) ajuda a câmera a acompanhar.</span></div></li>
         <li><div><b>Mova só o celular, devagar</b><span>Gire o corpo e incline o celular para olhar o móvel de vários lados. Quer ele 100% parado? Toque em “⏸ Congelar” e tire a foto.</span></div></li>
       </ol>
+      <div class="campo">Como você vai segurar o celular?
+        <div class="postura" role="radiogroup">
+          <button type="button" role="radio" data-postura="pe" aria-checked="true">🧍 Em pé</button>
+          <button type="button" role="radio" data-postura="sentado" aria-checked="false">🪑 Sentado</button>
+        </div>
+        <small>Importante para o tamanho do móvel ficar certo.</small>
+      </div>
       <label class="campo">Sua altura
         <select id="altura"></select>
-        <small>Serve para acertar o tamanho do móvel na tela.</small>
       </label>
       <button class="grande" id="comecar">Abrir a câmera</button>
       <p class="aviso" id="aviso-app" hidden>Você abriu o link dentro de um aplicativo. Se a câmera não abrir, toque nos <b>⋮</b> ou <b>…</b> e escolha <b>“Abrir no navegador”</b>.</p>
@@ -218,6 +228,10 @@
       $('altura').appendChild(o);
     }
     $('altura').value = ler('mr-altura') || '1.65';
+    let postura = ler('mr-postura') === 'sentado' ? 'sentado' : 'pe';
+    function marcarPostura() { document.querySelectorAll('[data-postura]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.postura === postura))); }
+    document.querySelectorAll('[data-postura]').forEach((b) => b.addEventListener('click', () => { postura = b.dataset.postura; marcarPostura(); }));
+    marcarPostura();
     if (!produto.arq) { $('comecar').disabled = true; $('aviso-erro').hidden = false; $('aviso-erro').textContent = 'Link incompleto: volte ao catálogo e toque em “Ver ao vivo” no produto.'; }
     const DENTRO_DE_APP = /Instagram|FBAN|FBAV|FB_IAB|Line\/|musical_ly|BytedanceWebview|TikTok|Snapchat/i.test(navigator.userAgent);
     $('aviso-app').hidden = !DENTRO_DE_APP;
@@ -367,7 +381,7 @@
         calib.pronto = true;
         if (acerto > 0.75 && calib.somaP[melhor] > 1e-4) {
           calib.mapa = melhor; calib.escala = Math.max(0.005, Math.min(200, calib.somaO / calib.somaP[melhor]));
-          if (calib.escala > 0.6 && calib.escala < 1.6) calib.escala = 1; // dentro do normal: usa como veio
+          if (calib.escala > 0.3 && calib.escala < 3) calib.escala = 1; // erro de unidade é de ~57×; perto de 1 é ruído do acelerômetro
         } else { giroRuim = true; temGiro = false; }
       }
     }
@@ -951,7 +965,9 @@
       avisar('');
       $('comecar').disabled = true; $('comecar').textContent = 'Abrindo…';
       gravar('mr-altura', $('altura').value);
-      alturaCel = Math.round(parseFloat($('altura').value) * 0.76 * 100) / 100; // celular na altura do peito
+      gravar('mr-postura', postura);
+      // celular na altura do peito: em pé ≈ 76% da altura da pessoa; sentado ≈ 55%
+      alturaCel = Math.round(parseFloat($('altura').value) * (postura === 'sentado' ? 0.55 : 0.76) * 100) / 100;
       mostrarAltura();
       const sensores = ligarSensores(); // precisa ser no toque (iPhone)
       try {
