@@ -64,6 +64,7 @@
     #guia .ic { font-size: 40px; line-height: 1; margin-bottom: 8px; }
     #guia p { margin: 8px 0 16px; color: #E4D9F2; }
     #guia button { border: 0; border-radius: 14px; padding: 13px 22px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--rosa), #FF7A45); }
+    #raiox { position: fixed; z-index: 3; right: 8px; top: calc(max(10px, env(safe-area-inset-top)) + 58px); width: 120px; border: 2px solid #fff8; border-radius: 6px; pointer-events: none; }
     #flash { position: fixed; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
   </style>
   <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
@@ -124,6 +125,7 @@
       <p>Não ande. Mova só o celular, devagar, para olhar o móvel de vários ângulos. Se quiser trocar o lugar, toque em “Soltar”.</p>
       <button id="guia-ok" type="button">Entendi</button>
     </div></div>
+    <canvas id="raiox" hidden></canvas>
     <div id="carregando" hidden>Carregando o móvel…</div>
   </div>
   <div id="flash"></div>
@@ -137,7 +139,7 @@
     const cm = (m) => (m * 100).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
     const ler = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
     const gravar = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
-    const DEPURAR = /[?&]depurar=1/.test(location.search);
+    let DEPURAR = /[?&]depurar=1/.test(location.search);
 
     // ----- produto: ?m=arquivo.glb&n=Nome&cor=Variante&v=/loja -----
     const qs = new URLSearchParams(location.search);
@@ -538,25 +540,29 @@
       }
     }
     // procura o recorte em volta de (px, py); devolve a posição com ajuste entre pixels
-    function buscar(tpl, px, py, raioB, limite) {
-      const x0 = Math.round(px), y0 = Math.round(py), borda = P + 1;
+    // correlação normalizada: aguenta a câmera clareando/escurecendo sozinha
+    function buscar(tpl, px, py, raioB, minNcc) {
+      const x0 = Math.round(px), y0 = Math.round(py), borda = P + 1, N = LADO * LADO;
+      let tn = 0; for (let k = 0; k < N; k++) tn += tpl[k] * tpl[k];
+      if (tn < N * 9) return null;
       let melhor = Infinity, bx = 0, by = 0; const custos = new Map();
       for (let dy = -raioB; dy <= raioB; dy++) for (let dx = -raioB; dx <= raioB; dx++) {
         const cx = x0 + dx, cy = y0 + dy;
         if (cx < borda || cy < borda || cx >= pw - borda || cy >= ph - borda) continue;
         let m = 0;
         for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) m += cinza[o + x]; }
-        m /= LADO * LADO;
-        let sad = 0, k = 0;
-        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) sad += Math.abs(cinza[o + x] - m - tpl[k++]); }
-        custos.set(dx * 1000 + dy, sad);
-        if (sad < melhor) { melhor = sad; bx = dx; by = dy; }
+        m /= N;
+        let num = 0, vv = 0, k = 0;
+        for (let y = -P; y <= P; y++) { const o = (cy + y) * pw + cx; for (let x = -P; x <= P; x++) { const v = cinza[o + x] - m; num += v * tpl[k++]; vv += v * v; } }
+        const custo = vv < N * 4 ? 1 : 1 - num / Math.sqrt(vv * tn);
+        custos.set(dx * 1000 + dy, custo);
+        if (custo < melhor) { melhor = custo; bx = dx; by = dy; }
       }
-      if (!(melhor / (LADO * LADO) <= limite)) return null;
+      if (!(1 - melhor >= minNcc)) return null;
       // o melhor precisa ser bem melhor que o resto (evita confundir em piso repetido)
       let segundo = Infinity;
       custos.forEach((v, kk) => { const dx = Math.round(kk / 1000), dy = kk - dx * 1000; if (Math.abs(dx - bx) > 2 || Math.abs(dy - by) > 2) segundo = Math.min(segundo, v); });
-      if (segundo < melhor * 1.15) return null;
+      if (segundo - melhor < 0.04) return null;
       const c0 = melhor, g = (dx, dy) => custos.get((bx + dx) * 1000 + by + dy);
       const cl = g(-1, 0), cr = g(1, 0), cu = g(0, -1), cd = g(0, 1);
       let sx = 0, sy = 0;
@@ -568,7 +574,7 @@
       // com giroscópio, procura onde o ponto deve estar agora; sem, em volta de onde estava
       const prev = temGiro ? projetar(p.W) : null;
       const alvo = prev && prev.x > 0 && prev.y > 0 && prev.x < pw && prev.y < ph ? prev : p;
-      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 9 : 12, 16);
+      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 9 : 12, 0.78);
       if (!r) return false;
       p.x = r.x; p.y = r.y;
       const novo = recorte(r.ix, r.iy);
@@ -586,7 +592,7 @@
         const gq = guardados[i], pr = projetar(gq.W);
         if (!pr || pr.x < borda || pr.y < borda || pr.x > pw - borda || pr.y > ph - borda) continue;
         if (perto(pr.x, pr.y, 10)) continue;
-        const r = buscar(gq.tpl0, pr.x, pr.y, 8, 11);
+        const r = buscar(gq.tpl0, pr.x, pr.y, 8, 0.85);
         if (!r || !pixelNoChao(r.x, r.y)) continue;
         guardados.splice(i, 1);
         pontos.push({ x: r.x, y: r.y, tpl: gq.tpl0.slice(), tpl0: gq.tpl0, W: gq.W, falhas: 0, idade: gq.idade, antigo: true });
@@ -644,7 +650,7 @@
           // atraso da câmera: se a imagem "fica para trás" do sensor sempre que o celular gira, aumenta o atraso (e vice-versa)
           if (temGiro && usados.length >= 4 && Math.abs(taxaYaw) > 0.0002 && Math.abs(dpsi) < 0.1) {
             somaRR = somaRR * 0.985 + taxaYaw * taxaYaw; somaRE = somaRE * 0.985 + taxaYaw * dpsi;
-            if (somaRR > 2e-6) atrasoCamera = Math.max(0, Math.min(250, atrasoCamera - 0.08 * somaRE / somaRR));
+            if (somaRR > 2e-6) atrasoCamera = Math.max(20, Math.min(160, atrasoCamera - 0.08 * somaRE / somaRR));
           }
           const kGiro = temGiro ? (usados.length >= 6 ? 0.2 : usados.length >= 4 ? 0.08 : 0.02) : (usados.length >= 3 ? 0.7 : 0.3);
           if (Math.abs(dpsi) < 0.35) pose.psi += dpsi * kGiro;
@@ -686,18 +692,20 @@
     function quadro() {
       if (!rodando) return;
       contaQuadro++;
+      fpsN++; if (performance.now() - fpsT > 1000) { fps = fpsN; fpsN = 0; fpsT = performance.now(); }
       pose.psi += lerSensor();
       try { if (video.videoWidth && (quadroNovo || !temRVFC)) { quadroNovo = false; rastrear(); } } catch (e) { console.error(e); }
       qYaw.setFromAxisAngle(Y, pose.psi);
       camera.quaternion.copy(qYaw).multiply(qInc);
       camera.position.set(pose.cx, alturaCel, pose.cz);
+      if (DEPURAR && contaQuadro % 3 === 0) { $('raiox').hidden = false; desenharRaioX(); }
       if (contaQuadro % 10 === 0) {
         const s = $('sinal');
         const ok = bons >= 4, fraco = bons >= 2;
         s.className = ok ? 'bom' : fraco ? '' : 'ruim';
         s.lastElementChild.textContent = ok ? 'Acompanhando bem' : fraco ? 'Acompanhando' : (temGiro ? 'Só pelo sensor — aponte para o chão' : 'Aponte para o chão com desenho');
         if (estado === 'colocado') $('dica').textContent = perdido > 30 && !temGiro ? 'Aponte para o chão perto do móvel para ele não se perder' : textoDica();
-        if (DEPURAR) $('medidas-prod').textContent = (temGiro ? 'giro' : 'grav') + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
+        if (DEPURAR) $('medidas-prod').textContent = 'fps' + fps + ' atr' + Math.round(atrasoCamera) + ' v' + video.videoWidth + 'x' + video.videoHeight + ' ' + (temGiro ? 'giro' + Math.round(giroMax) : 'semgiro') + ' pts' + pontos.length + '/' + bons + ' g' + guardados.length +
           ' psi' + Math.round(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) + ' fov' + Math.round(camera.fov);
       }
       if (estado === 'mirando') {
@@ -745,6 +753,22 @@
       setTimeout(() => mudarEstado(estado), 1200); // a essa altura já se sabe se tem sensor
     };
 
+    // diagnóstico: 5 toques no nome do produto mostram o que a câmera está seguindo
+    let toquesNome = 0, tToque = 0;
+    $('nome-prod').parentNode.addEventListener('click', () => {
+      const t = performance.now(); toquesNome = t - tToque < 600 ? toquesNome + 1 : 1; tToque = t;
+      if (toquesNome >= 5) { DEPURAR = !DEPURAR; toquesNome = 0; $('raiox').hidden = !DEPURAR; if (!DEPURAR && tamanho) $('medidas-prod').textContent = cm(tamanho.x) + ' × ' + cm(tamanho.z) + ' × ' + cm(tamanho.y) + ' cm (L × P × A)'; }
+    });
+    function desenharRaioX() {
+      const c = $('raiox'); if (!cinza || !pw) return;
+      if (c.width !== pw) { c.width = pw; c.height = ph; }
+      const g = c.getContext('2d'), im = g.createImageData(pw, ph);
+      for (let i = 0; i < cinza.length; i++) { const v = cinza[i]; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = v; im.data[i * 4 + 3] = 255; }
+      g.putImageData(im, 0, 0);
+      pontos.forEach((p) => { g.fillStyle = p.falhas ? '#f33' : p.idade < 8 ? '#ff0' : '#3f6'; g.fillRect(p.x - 2, p.y - 2, 4, 4); });
+    }
+    let fpsT = performance.now(), fpsN = 0, fps = 0, giroMax = 0;
+    window.addEventListener('devicemotion', (ev) => { const r = ev.rotationRate; if (r && r.alpha != null) giroMax = Math.max(giroMax * 0.98, Math.abs(r.alpha) + Math.abs(r.beta) + Math.abs(r.gamma)); });
     if (DEPURAR) window.__ra = { pose, suporte, camera, info: () => ({ atraso: Math.round(atrasoCamera), quadros: contaQuadro, estado, bons, pontos: pontos.length, guardados: guardados.length, temGiro, temSensor }) };
 
     $('voltar').onclick = () => {
