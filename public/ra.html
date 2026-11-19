@@ -14,7 +14,9 @@
     html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff; font: 500 16px/1.4 "Bricolage Grotesque", system-ui, sans-serif; overscroll-behavior: none; }
     button { font: inherit; cursor: pointer; }
     #video, #cena { position: fixed; inset: 0; width: 100%; height: 100%; }
-    #video { object-fit: cover; background: #111; }
+    #video, #parado { object-fit: cover; background: #111; }
+    #parado { position: fixed; inset: 0; width: 100%; height: 100%; }
+    #selo-parado { position: fixed; z-index: 3; left: 50%; transform: translateX(-50%); top: calc(max(10px, env(safe-area-inset-top)) + 60px); background: #3DDC84; color: #08311a; font-weight: 800; font-size: 14px; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
     #cena { touch-action: none; }
     [hidden] { display: none !important; }
 
@@ -71,6 +73,7 @@
 </head>
 <body>
   <video id="video" playsinline muted autoplay hidden></video>
+  <canvas id="parado" hidden></canvas>
   <canvas id="cena" hidden></canvas>
 
   <section id="inicio">
@@ -110,6 +113,8 @@
         <button id="colocar" class="forte">📌 Fixar aqui</button>
         <button id="girar" hidden>↻ Girar</button>
         <button id="mover" hidden>Soltar e mudar de lugar</button>
+        <button id="congelar" class="forte" hidden>⏸ Congelar</button>
+        <button id="aovivo" class="forte" hidden>▶ Voltar ao vivo</button>
         <button id="foto" hidden>📷 Foto</button>
       </div>
     </div>
@@ -126,6 +131,7 @@
       <button id="guia-ok" type="button">Entendi</button>
     </div></div>
     <canvas id="raiox" hidden></canvas>
+    <div id="selo-parado" hidden>⏸ Congelado · móvel parado</div>
     <div id="carregando" hidden>Carregando o móvel…</div>
   </div>
   <div id="flash"></div>
@@ -407,13 +413,30 @@
     }
     function textoDica() {
       if (estado === 'mirando') return temSensor ? 'Aponte para o chão onde quer o móvel (gire com dois dedos) e toque em “Fixar aqui”' : 'Arraste o móvel com o dedo até o lugar';
-      return '📌 Fixado · mova só o celular, devagar, para olhar o móvel';
+      if (congelado) return 'Arraste o móvel com o dedo · gire com dois dedos · tire a foto';
+      return '📌 Fixado · mova devagar · toque em “Congelar” para deixar o móvel 100% parado';
     }
+    // ----- congelar: a imagem da câmera para e o móvel fica 100% parado em cima dela -----
+    let congelado = false;
+    $('congelar').onclick = () => {
+      const c = $('parado'); c.width = video.videoWidth || 720; c.height = video.videoHeight || 1280;
+      c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+      c.hidden = false; video.hidden = true; congelado = true;
+      mudarEstado('colocado');
+    };
+    $('aovivo').onclick = () => {
+      congelado = false; $('parado').hidden = true; video.hidden = false;
+      pontos = []; velX = velZ = 0; // a câmera recomeça a seguir o chão de onde está
+      mudarEstado('colocado');
+    };
     function mudarEstado(e) {
       estado = e;
       const mirando = e === 'mirando';
       $('colocar').hidden = !mirando;
       $('girar').hidden = $('mover').hidden = $('foto').hidden = mirando;
+      $('congelar').hidden = mirando || congelado; $('aovivo').hidden = !congelado;
+      if (congelado) $('mover').hidden = true;
+      $('selo-parado').hidden = !congelado; $('sinal').hidden = congelado;
       anel.visible = mirando;
       fantasma(mirando);
       $('dica').textContent = textoDica();
@@ -430,8 +453,8 @@
         const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
         if (estado === 'mirando' && !temSensor) mudarEstado('colocado');
         // fixado: o toque não mexe no móvel (para não sair do lugar sem querer); sem sensor, arrasta com o dedo
-        if (estado === 'colocado' && !temSensor && p) arrasto = suporte.position.clone().sub(p);
-      } else if (dedos.size === 2 && (estado === 'mirando' || !temSensor)) {
+        if (estado === 'colocado' && (!temSensor || congelado) && p) arrasto = suporte.position.clone().sub(p);
+      } else if (dedos.size === 2 && (estado === 'mirando' || !temSensor || congelado)) {
         arrasto = null;
         const [a, b] = [...dedos.values()];
         giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y };
@@ -458,7 +481,7 @@
       if (!jaGuiou) { jaGuiou = true; $('guia').hidden = false; }
     };
     $('guia-ok').onclick = () => { $('guia').hidden = true; };
-    $('mover').onclick = () => mudarEstado('mirando');
+    $('mover').onclick = () => { if (congelado) $('aovivo').onclick(); mudarEstado('mirando'); };
     $('girar').onclick = () => { suporte.rotation.y += Math.PI / 4; };
     $('btn-ajuste').onclick = () => { $('ajuste').hidden = !$('ajuste').hidden; };
     function mostrarAltura() { $('ajuste-valor').textContent = alturaCel.toFixed(2).replace('.', ',') + ' m'; $('ajuste-h').value = alturaCel; }
@@ -479,7 +502,7 @@
       const c = document.createElement('canvas'); c.width = W; c.height = H;
       const g = c.getContext('2d');
       const vw = video.videoWidth, vh = video.videoHeight;
-      if (vw) { const s = Math.max(W / vw, H / vh); g.drawImage(video, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); }
+      if (vw) { const s = Math.max(W / vw, H / vh); g.drawImage(congelado ? $('parado') : video, (W - vw * s) / 2, (H - vh * s) / 2, vw * s, vh * s); }
       renderer.render(cena, camera);
       g.drawImage(canvas, 0, 0);
       g.font = '600 ' + Math.round(W / 34) + 'px system-ui, sans-serif'; g.fillStyle = 'rgba(255,255,255,.85)';
@@ -762,8 +785,8 @@
       if (!rodando) return;
       contaQuadro++;
       fpsN++; if (performance.now() - fpsT > 1000) { fps = fpsN; fpsN = 0; fpsT = performance.now(); }
-      pose.psi += lerSensor();
-      try { if (video.videoWidth && (quadroNovo || !temRVFC)) { quadroNovo = false; rastrear(); } } catch (e) { console.error(e); }
+      if (!congelado) pose.psi += lerSensor();
+      try { if (!congelado && video.videoWidth && (quadroNovo || !temRVFC)) { quadroNovo = false; rastrear(); } } catch (e) { console.error(e); }
       qYaw.setFromAxisAngle(Y, pose.psi);
       camera.quaternion.copy(qYaw).multiply(qInc);
       camera.position.set(pose.cx, alturaCel, pose.cz);
@@ -841,7 +864,7 @@
     if (DEPURAR) window.__ra = { pose, suporte, camera, info: () => ({ calib: calib.pronto ? calib.mapa + 'x' + calib.escala.toFixed(2) + (giroRuim ? 'ruim' : '') : 'nao', atraso: Math.round(atrasoCamera), quadros: contaQuadro, estado, bons, pontos: pontos.length, guardados: guardados.length, temGiro, temSensor }) };
 
     $('voltar').onclick = () => {
-      rodando = false;
+      rodando = false; congelado = false; $('parado').hidden = true; $('selo-parado').hidden = true;
       pontos = []; guardados = []; pose.psi = pose.cx = pose.cz = 0; velX = velZ = 0; pw = 0; yawSensorAnt = null;
       if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
       video.hidden = true; canvas.hidden = true;
