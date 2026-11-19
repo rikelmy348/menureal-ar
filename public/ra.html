@@ -82,7 +82,7 @@
       <p class="produto" id="nome-ini"></p>
       <ol class="passos">
         <li><div><b>Fique parado no lugar</b><span>Escolha um ponto de onde dá para ver o lugar do móvel. Não precisa andar.</span></div></li>
-        <li><div><b>Aponte para o chão e toque em “Colocar aqui”</b><span>Um chão com desenho (piso, rejunte, tapete) ajuda a câmera a acompanhar.</span></div></li>
+        <li><div><b>Escolha o lugar e toque em “📌 Fixar aqui”</b><span>Um chão com desenho (piso, rejunte, tapete) ajuda a câmera a acompanhar.</span></div></li>
         <li><div><b>Mova só o celular, devagar</b><span>Gire o corpo e incline o celular para olhar o móvel de vários lados.</span></div></li>
       </ol>
       <label class="campo">Sua altura
@@ -104,11 +104,11 @@
     </div>
     <div class="barra" id="baixo">
       <div id="sinal"><i></i><span>Procurando o chão…</span></div>
-      <div id="dica">Fique parado e aponte o celular para o chão onde quer o móvel</div>
+      <div id="dica">Aponte para o chão onde quer o móvel e toque em “Fixar aqui”</div>
       <div class="acoes">
-        <button id="colocar" class="forte">Colocar aqui</button>
+        <button id="colocar" class="forte">📌 Fixar aqui</button>
         <button id="girar" hidden>↻ Girar</button>
-        <button id="mover" hidden>Mudar de lugar</button>
+        <button id="mover" hidden>Soltar e mudar de lugar</button>
         <button id="foto" hidden>📷 Foto</button>
       </div>
     </div>
@@ -120,8 +120,8 @@
     </div>
     <div id="guia" hidden><div>
       <div class="ic" aria-hidden="true">🧍‍♂️📱</div>
-      <b>Pronto! Agora fique parado</b>
-      <p>Não ande. Mova só o celular, devagar, para olhar o móvel de vários ângulos. Se ele sair do lugar, toque em “Mudar de lugar”.</p>
+      <b>📌 Fixado! Agora fique parado</b>
+      <p>Não ande. Mova só o celular, devagar, para olhar o móvel de vários ângulos. Se quiser trocar o lugar, toque em “Soltar”.</p>
       <button id="guia-ok" type="button">Entendi</button>
     </div></div>
     <div id="carregando" hidden>Carregando o móvel…</div>
@@ -365,8 +365,8 @@
       });
     }
     function textoDica() {
-      if (estado === 'mirando') return temSensor ? 'Fique parado e aponte o celular para o chão onde quer o móvel' : 'Arraste o móvel com o dedo até o lugar';
-      return 'Mova só o celular, devagar · arraste para ajustar · gire com dois dedos';
+      if (estado === 'mirando') return temSensor ? 'Aponte para o chão onde quer o móvel (gire com dois dedos) e toque em “Fixar aqui”' : 'Arraste o móvel com o dedo até o lugar';
+      return '📌 Fixado · mova só o celular, devagar, para olhar o móvel';
     }
     function mudarEstado(e) {
       estado = e;
@@ -388,8 +388,9 @@
       if (dedos.size === 1) {
         const n = ndc(e.clientX, e.clientY), p = noChao(n.x, n.y);
         if (estado === 'mirando' && !temSensor) mudarEstado('colocado');
-        if (estado === 'colocado' && p) arrasto = suporte.position.clone().sub(p);
-      } else if (dedos.size === 2) {
+        // fixado: o toque não mexe no móvel (para não sair do lugar sem querer); sem sensor, arrasta com o dedo
+        if (estado === 'colocado' && !temSensor && p) arrasto = suporte.position.clone().sub(p);
+      } else if (dedos.size === 2 && (estado === 'mirando' || !temSensor)) {
         arrasto = null;
         const [a, b] = [...dedos.values()];
         giro = { ang: Math.atan2(b.y - a.y, b.x - a.x), rot: suporte.rotation.y };
@@ -466,6 +467,7 @@
     let pontos = [];      // { x, y, tpl, tpl0, W: {x,z}, falhas, L }
     let guardados = [];   // { tpl0, W }
     const pose = { psi: 0, cx: 0, cz: 0 };
+    let velX = 0, velZ = 0;
     const qYaw = new THREE.Quaternion();
     let perdido = 0, contaQuadro = 0, bons = 0;
 
@@ -566,7 +568,7 @@
       // com giroscópio, procura onde o ponto deve estar agora; sem, em volta de onde estava
       const prev = temGiro ? projetar(p.W) : null;
       const alvo = prev && prev.x > 0 && prev.y > 0 && prev.x < pw && prev.y < ph ? prev : p;
-      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 7 : 11, 16);
+      const r = buscar(p.tpl, alvo.x, alvo.y, temGiro ? 9 : 12, 16);
       if (!r) return false;
       p.x = r.x; p.y = r.y;
       const novo = recorte(r.ix, r.iy);
@@ -607,6 +609,8 @@
     function rastrear() {
       if (!lerQuadro()) return;
       qIncInv.copy(qInc).invert();
+      // o celular costuma continuar o movimento: prevê a posição antes de procurar os pontos
+      const predX = velX * 0.8, predZ = velZ * 0.8; pose.cx += predX; pose.cz += predZ;
       const pares = [];
       pontos = pontos.filter((p) => {
         if (!seguir(p)) { if (++p.falhas < 3) return true; guardar(p); return false; }
@@ -617,13 +621,16 @@
       });
       let usados = pares;
       bons = 0;
-      if (usados.length >= 2) {
+      const centro = (e, psi) => { const r = girarXZ({ x: e.lx, z: e.lz }, psi); return { cx: e.wx - r.x, cz: e.wz - r.z }; };
+      // com giroscópio, o giro já é conhecido: 1 ponto do chão basta para saber onde o celular está
+      const minimo = temGiro ? 1 : 2;
+      if (usados.length >= minimo) {
         let est = resolverPose(usados);
-        const centro = (e, psi) => { const r = girarXZ({ x: e.lx, z: e.lz }, psi); return { cx: e.wx - r.x, cz: e.wz - r.z }; };
+        const psiRef = () => (temGiro && usados.length < 4 ? pose.psi : est.psi);
         // tira os pontos que não combinam com os outros (algo que não é chão, reflexo, gente passando…)
         for (let volta = 0; volta < 4 && usados.length >= 3; volta++) {
-          const c = centro(est, est.psi);
-          const res = usados.map((q) => resto(q, est.psi, c.cx, c.cz));
+          const c = centro(est, psiRef());
+          const res = usados.map((q) => resto(q, psiRef(), c.cx, c.cz));
           const pior = res.indexOf(Math.max(...res));
           if (res[pior] < 0.08) break;
           usados[pior].falhas = 3; usados = usados.filter((_, i) => i !== pior);
@@ -631,23 +638,27 @@
         }
         pontos = pontos.filter((p) => p.falhas < 3);
         bons = usados.length;
-        // giro: o giroscópio manda no curto prazo; a imagem corrige o escorregão aos poucos
-        let dpsi = est.psi - pose.psi; dpsi = Math.atan2(Math.sin(dpsi), Math.cos(dpsi));
-        // atraso da câmera: se a imagem "fica para trás" do sensor sempre que o celular gira, aumenta o atraso (e vice-versa)
-        if (temGiro && usados.length >= 4 && Math.abs(taxaYaw) > 0.0002 && Math.abs(dpsi) < 0.1) {
-          somaRR = somaRR * 0.985 + taxaYaw * taxaYaw; somaRE = somaRE * 0.985 + taxaYaw * dpsi;
-          if (somaRR > 2e-6) atrasoCamera = Math.max(0, Math.min(250, atrasoCamera - 0.08 * somaRE / somaRR));
+        if (usados.length >= 2) {
+          // giro: o giroscópio manda no curto prazo; a imagem corrige o escorregão aos poucos
+          let dpsi = est.psi - pose.psi; dpsi = Math.atan2(Math.sin(dpsi), Math.cos(dpsi));
+          // atraso da câmera: se a imagem "fica para trás" do sensor sempre que o celular gira, aumenta o atraso (e vice-versa)
+          if (temGiro && usados.length >= 4 && Math.abs(taxaYaw) > 0.0002 && Math.abs(dpsi) < 0.1) {
+            somaRR = somaRR * 0.985 + taxaYaw * taxaYaw; somaRE = somaRE * 0.985 + taxaYaw * dpsi;
+            if (somaRR > 2e-6) atrasoCamera = Math.max(0, Math.min(250, atrasoCamera - 0.08 * somaRE / somaRR));
+          }
+          const kGiro = temGiro ? (usados.length >= 6 ? 0.2 : usados.length >= 4 ? 0.08 : 0.02) : (usados.length >= 3 ? 0.7 : 0.3);
+          if (Math.abs(dpsi) < 0.35) pose.psi += dpsi * kGiro;
         }
-        const kGiro = temGiro ? (usados.length >= 6 ? 0.2 : usados.length >= 4 ? 0.08 : 0.02) : (usados.length >= 3 ? 0.7 : 0.3);
-        if (Math.abs(dpsi) < 0.35) pose.psi += dpsi * kGiro;
-        // posição: só com pontos suficientes e sem pulos impossíveis (a pessoa está parada)
-        if (usados.length >= 3) {
-          const c = centro(est, pose.psi);
-          const salto = Math.hypot(c.cx - pose.cx, c.cz - pose.cz);
-          if (salto < 0.25) { const kp = salto < 0.01 ? 0.35 : 0.75; pose.cx += (c.cx - pose.cx) * kp; pose.cz += (c.cz - pose.cz) * kp; }
-        }
+        // posição: segue a imagem; um passo grande demais é limitado (não descartado), para nunca "travar" atrasado
+        const c = centro(est, pose.psi);
+        let dx = c.cx - pose.cx, dz = c.cz - pose.cz;
+        const salto = Math.hypot(dx, dz), maxPasso = 0.12;
+        if (salto > maxPasso) { dx *= maxPasso / salto; dz *= maxPasso / salto; }
+        const kp = usados.length >= 3 ? 0.8 : 0.5;
+        velX = velX * 0.3 + (predX + dx * kp) * 0.7; velZ = velZ * 0.3 + (predZ + dz * kp) * 0.7;
+        pose.cx += dx * kp; pose.cz += dz * kp;
         perdido = 0;
-      } else perdido++;
+      } else { perdido++; pose.cx -= predX; pose.cz -= predZ; velX *= 0.5; velZ *= 0.5; }
       // pontos novos: a posição no chão vira a média do que foi visto nos primeiros quadros
       pontos.forEach((p) => {
         if (p.idade >= 1 && p.idade < 20 && p.L && p.falhas === 0) {
@@ -738,7 +749,7 @@
 
     $('voltar').onclick = () => {
       rodando = false;
-      pontos = []; guardados = []; pose.psi = pose.cx = pose.cz = 0; pw = 0; yawSensorAnt = null;
+      pontos = []; guardados = []; pose.psi = pose.cx = pose.cz = 0; velX = velZ = 0; pw = 0; yawSensorAnt = null;
       if (fluxo) fluxo.getTracks().forEach((t) => t.stop());
       video.hidden = true; canvas.hidden = true;
       document.querySelector('.camera').hidden = true;
