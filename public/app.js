@@ -138,22 +138,19 @@
     classico: { nome: 'Clássico', css: '"Lora MR", Georgia, serif' }
   };
   var PALETAS = [
-    { nome: 'Padrão (açaí)', cor: '', destaque: '' },
-    { nome: 'Morango', cor: '#D81B60', destaque: '#FFD23F' },
-    { nome: 'Tropical', cor: '#00897B', destaque: '#FFD23F' },
-    { nome: 'Laranja', cor: '#E85D04', destaque: '#FFE066' },
-    { nome: 'Céu', cor: '#0077B6', destaque: '#FFD23F' },
-    { nome: 'Chiclete', cor: '#C2185B', destaque: '#8FF0C8' },
-    { nome: 'Vinho', cor: '#6B1E2E', destaque: '#E8B04A' },
-    { nome: 'Café', cor: '#4A2C1D', destaque: '#F2C14E' },
-    { nome: 'Oceano', cor: '#1D3B6E', destaque: '#FF8A3D' },
-    { nome: 'Confeitaria', cor: '#B83A6B', destaque: '#FFC7DA' },
+    { nome: 'Padrão (grafite)', cor: '', destaque: '' },
+    { nome: 'Nogueira', cor: '#4A3326', destaque: '#D8B78E' },
+    { nome: 'Areia', cor: '#7A6047', destaque: '#F3EADC' },
+    { nome: 'Terracota', cor: '#A9502F', destaque: '#F6D6A8' },
     { nome: 'Oliva', cor: '#4B5A2A', destaque: '#EBDDA8' },
-    { nome: 'Noite', cor: '#161616', destaque: '#FFD23F' },
-    { nome: 'Terracota', cor: '#B5502F', destaque: '#F6D6A8' },
-    { nome: 'Uva', cor: '#4B2A7B', destaque: '#8FF0C8' }
+    { nome: 'Musgo', cor: '#2F4A3A', destaque: '#D9C7A3' },
+    { nome: 'Petróleo', cor: '#1F4A57', destaque: '#E6C79C' },
+    { nome: 'Marinho', cor: '#1D3B6E', destaque: '#E6C79C' },
+    { nome: 'Vinho', cor: '#6B1E2E', destaque: '#E8B04A' },
+    { nome: 'Chumbo', cor: '#43464B', destaque: '#E2D6C2' },
+    { nome: 'Noite', cor: '#121212', destaque: '#D8B78E' }
   ];
-  var COR_PADRAO = '#6A1BB3', DESTAQUE_PADRAO = '#FFD23F';
+  var COR_PADRAO = '#1F1E1B', DESTAQUE_PADRAO = '#D8B78E';
 
   var VAZIO = { padaria: { nome: 'Carregando…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
   // Página inicial: sempre a demonstração da loja de móveis (não depende do que está salvo)

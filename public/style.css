@@ -17,28 +17,28 @@
 @font-face { font-family: "Lora MR"; src: url("vendor/fontes/lora.woff2") format("woff2"); font-weight: 400 700; font-display: swap; }
 
 :root {
-  --fundo: #F7F3FC;          /* lavanda bem clara */
+  --fundo: #F5F3EF;          /* linho: fundo quente e neutro, de showroom */
   --superficie: #FFFFFF;
-  --tinta: #1D0F2E;          /* roxo quase preto: textos */
-  --tinta-2: #5E5470;        /* textos secundários (AA sobre o fundo) */
-  --verde: #6A1BB3;          /* cor principal (nome antigo mantido): roxo açaí */
-  --verde-2: #55128F;
+  --tinta: #1A1917;          /* grafite: textos */
+  --tinta-2: #5E5A54;        /* textos secundários (AA sobre o fundo) */
+  --verde: #1A1917;          /* cor principal (nome antigo mantido): grafite */
+  --verde-2: #000000;
   --sobre-verde: #FFFFFF;
-  --limao: #FFD23F;          /* régua / destaque: amarelo */
-  --sobre-limao: #2A1600;
-  --limao-suave: #FFF1BF;
-  --rosa: #FF3D8B;           /* acento vibrante */
-  --hero: #6A1BB3;           /* faixa colorida do topo (igual no claro e no escuro) */
-  --hero-2: #FF3D8B;
+  --limao: #D8B78E;          /* régua / destaque: madeira clara */
+  --sobre-limao: #2B1D10;
+  --limao-suave: #F3EADC;
+  --rosa: #B5643B;           /* acento: terracota */
+  --hero: #1F1E1B;           /* faixa do topo */
+  --hero-2: #3A342C;
   --sobre-hero: #FFFFFF;
-  --linha: #E6DDF0;
-  --linha-forte: #D2C4E3;
+  --linha: #E6E2DA;
+  --linha-forte: #D3CDC2;
   --palco-a: #FFFFFF;
-  --palco-b: #EEE6F7;
+  --palco-b: #EEEBE5;
   --perigo: #A1361E;
-  --alerta-fundo: #FFF3D1;
+  --alerta-fundo: #FBF1DC;
   --alerta-tinta: #6B4A00;
-  --ok: #2E9E4F;
+  --ok: #2E7D4F;
 
   --fonte: "Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --fonte-titulo: var(--fonte);   /* trocada pelo estilo de letra da loja */
@@ -52,20 +52,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --fundo: #120A1C; --superficie: #1B1129; --tinta: #F2ECFA; --tinta-2: #B6A9C8;
-    --verde: #FFD23F; --verde-2: #FFE07A; --sobre-verde: #2A1600;
-    --limao: #FFD23F; --sobre-limao: #2A1600; --limao-suave: #33280C;
-    --linha: #2E2140; --linha-forte: #443258; --palco-a: #261938; --palco-b: #160D22;
-    --perigo: #F29A80; --alerta-fundo: #33290F; --alerta-tinta: #F3D98D; --ok: #6BD38A;
+    --fundo: #121211; --superficie: #1C1B19; --tinta: #F3F1EC; --tinta-2: #ADA79D;
+    --verde: #EFE6D8; --verde-2: #FFFFFF; --sobre-verde: #1A1917;
+    --limao: #D8B78E; --sobre-limao: #2B1D10; --limao-suave: #2E271E;
+    --linha: #2B2925; --linha-forte: #3E3A34; --palco-a: #24231F; --palco-b: #161513;
+    --perigo: #F29A80; --alerta-fundo: #33290F; --alerta-tinta: #F3D98D; --ok: #7CC99A;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --fundo: #120A1C; --superficie: #1B1129; --tinta: #F2ECFA; --tinta-2: #B6A9C8;
-  --verde: #FFD23F; --verde-2: #FFE07A; --sobre-verde: #2A1600;
-  --limao: #FFD23F; --sobre-limao: #2A1600; --limao-suave: #33280C;
-  --linha: #2E2140; --linha-forte: #443258; --palco-a: #261938; --palco-b: #160D22;
-  --perigo: #F29A80; --alerta-fundo: #33290F; --alerta-tinta: #F3D98D; --ok: #6BD38A;
+  --fundo: #121211; --superficie: #1C1B19; --tinta: #F3F1EC; --tinta-2: #ADA79D;
+    --verde: #EFE6D8; --verde-2: #FFFFFF; --sobre-verde: #1A1917;
+    --limao: #D8B78E; --sobre-limao: #2B1D10; --limao-suave: #2E271E;
+    --linha: #2B2925; --linha-forte: #3E3A34; --palco-a: #24231F; --palco-b: #161513;
+    --perigo: #F29A80; --alerta-fundo: #33290F; --alerta-tinta: #F3D98D; --ok: #7CC99A;
   color-scheme: dark;
 }
 
@@ -827,7 +827,7 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]):not([data-cenario="claro"]) .card__vitrine {
-    background: radial-gradient(110% 75% at 50% 25%, color-mix(in srgb, var(--hero) 35%, #2a1d3a) 0%, color-mix(in srgb, var(--hero) 22%, #120a1c) 100%);
+    background: radial-gradient(110% 75% at 50% 25%, color-mix(in srgb, var(--hero) 35%, #2a2824) 0%, color-mix(in srgb, var(--hero) 22%, #121211) 100%);
   }
 }
 /* escolha no painel */
@@ -836,7 +836,7 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .cenario-op input { position: absolute; opacity: 0; }
 .cenario-op__amostra { width: 100%; aspect-ratio: 1; border-radius: 14px; border: 2px solid var(--linha); display: grid; place-items: center; overflow: hidden;
   background: radial-gradient(90% 70% at 50% 36%, color-mix(in srgb, var(--hero) 30%, #fff), color-mix(in srgb, var(--hero) 78%, #000)); }
-.cenario-op__amostra--claro { background: radial-gradient(120% 75% at 50% 20%, #fff 30%, #EEE6F7); }
+.cenario-op__amostra--claro { background: radial-gradient(120% 75% at 50% 20%, #fff 30%, #EEEBE5); }
 .cenario-op__amostra img { width: 60%; opacity: .45; mix-blend-mode: soft-light; }
 .cenario-op__amostra b { color: #fff; opacity: .5; font-size: 13px; }
 .cenario-op input:checked + .cenario-op__amostra { border-color: var(--verde); box-shadow: 0 0 0 3px color-mix(in srgb, var(--verde) 30%, transparent); }
@@ -894,9 +894,9 @@ dialog.confirmar::backdrop { background: rgba(6, 18, 12, .5); }
 .lp-acoes .btn--vidro { background: rgba(255, 255, 255, .1); color: #fff; border-color: rgba(255, 255, 255, .3); text-decoration: none; }
 .lp-garantias { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 0; margin: 16px 0 0; font-size: 14px; color: #CDBFE0; }
 .lp-garantias li::before { content: "✓ "; color: #6BD38A; font-weight: 800; }
-.lp-palco { margin: 0; border-radius: 24px; background: linear-gradient(180deg, #FFFFFF, #EEE6F7); color: var(--tinta); overflow: hidden; }
+.lp-palco { margin: 0; border-radius: 24px; background: linear-gradient(180deg, #FFFFFF, #EEEBE5); color: var(--tinta); overflow: hidden; }
 .lp-palco model-viewer { width: 100%; height: 270px; --poster-color: transparent; background: transparent; }
-.lp-palco figcaption { padding: 2px 16px 14px; font-size: 14px; color: #5E5470; }
+.lp-palco figcaption { padding: 2px 16px 14px; font-size: 14px; color: #5E5A54; }
 .lp-palco figcaption strong { color: #1D0F2E; }
 .lp-palco figcaption span { display: block; font-size: 13px; }
 .lp-ar { position: absolute; right: 12px; bottom: 12px; border: 0; border-radius: 999px; padding: 10px 16px; font: 750 14px var(--fonte); background: #6A1BB3; color: #fff; box-shadow: 0 8px 20px -8px rgba(106, 27, 179, .8); cursor: pointer; }
@@ -1136,3 +1136,42 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 /* área de desenho invisível: precisa caber inteira na tela, senão o 3D sai cortado */
 .casa-render { position: fixed; left: 0; top: 0; width: min(92vw, 92vh, 560px); height: min(92vw, 92vh, 560px); opacity: 0; pointer-events: none; z-index: -1; }
 .casa-render model-viewer { width: 100%; height: 100%; background: transparent; --poster-color: transparent; }
+
+
+/* =========================================================================
+   Visual profissional (showroom): grafite, linho e madeira clara.
+   Sem degradês fortes nem bolhas decorativas; títulos firmes, não estreitos.
+   ========================================================================= */
+.hero { background: var(--hero); border-radius: 22px; box-shadow: 0 1px 0 rgba(0,0,0,.04), 0 18px 40px -28px rgba(0,0,0,.45); }
+.hero::before, .hero::after { display: none; }
+.hero__nome { font-weight: 700; letter-spacing: -.03em; line-height: .96; font-variation-settings: "opsz" 96, "wdth" 100; font-size: clamp(40px, 11vw, 92px); }
+.hero__slogan { opacity: .78; }
+.hero__regua { height: 8px; border-radius: 2px; opacity: .9; }
+.hero__info > span { background: rgba(255,255,255,.1); }
+.viewer__nome, .painel__topo h2, .login .login__loja, .confirmacao h3 { font-variation-settings: "opsz" 72, "wdth" 100; font-weight: 700; }
+
+.lp-hero { background: radial-gradient(70% 60% at 100% 0%, rgba(216,183,142,.16), transparent 70%), #1C1B19; border-radius: 26px; }
+.lp-etiqueta { color: #D8B78E; letter-spacing: .1em; font-weight: 700; }
+.lp-titulo { font-weight: 700; letter-spacing: -.03em; }
+.lp-titulo em { color: #D8B78E; }
+.lp-sub { color: #CFC9BF; }
+.lp-acoes .btn--sol, .lp-final .btn--sol { background: #F3EADC; color: #1A1917; box-shadow: none; }
+.lp-acoes .btn--sol:hover, .lp-final .btn--sol:hover { background: #fff; }
+.lp-garantias { color: #B9B2A7; }
+.lp-garantias li::before { color: #9FCBAE; }
+.lp-palco { background: linear-gradient(180deg, #FFFFFF, #EEEBE5); border-radius: 20px; }
+.lp-palco figcaption { color: #5E5A54; }
+.lp-palco figcaption strong { color: #1A1917; }
+.lp-ar { background: #1A1917; box-shadow: 0 8px 20px -10px rgba(0,0,0,.6); }
+.lp-plano--destaque { box-shadow: 0 16px 36px -22px rgba(0,0,0,.35); }
+.lp-final { background: #1C1B19; border-radius: 26px; }
+.lp-final p { color: #CFC9BF; }
+.lp-beneficio { border-left-color: var(--limao); }
+.numero:nth-child(1) { background: #1F1E1B; }
+.numero:nth-child(2) { background: #6B4E37; }
+.numero:nth-child(3) { background: #3F4A43; }
+.numero:nth-child(4) { background: #D8B78E; color: #2B1D10; }
+.medidor i { background: linear-gradient(90deg, #1F1E1B, #8A6A4A); }
+.top-produtos li b { background: linear-gradient(90deg, var(--verde), var(--limao)); }
+.foto-amb-btn .selo-beta { background: #D8B78E; color: #2B1D10; }
+.link-botao { color: #D8B78E; }
