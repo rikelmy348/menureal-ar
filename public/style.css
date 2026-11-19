@@ -1272,19 +1272,10 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 #dlg-secao .painel { height: auto; padding: 16px 16px 20px; gap: 12px; border-radius: 22px; }
 #dlg-secao .painel__topo { display: flex; align-items: center; justify-content: space-between; padding: 0; border: 0; }
 
-/* =================== Oferta, parcelamento e entrega por CEP =================== */
+/* =================== Oferta e parcelamento =================== */
 .selo-oferta { position: absolute; bottom: 40px; right: 8px; z-index: 2; padding: 5px 10px; border-radius: 999px; background: #B5432B; color: #fff; font-size: 12.5px; font-weight: 800; letter-spacing: .01em; box-shadow: 0 4px 12px -4px rgba(0,0,0,.4); }
 .selo-oferta--txt { position: static; display: inline-block; vertical-align: 3px; font-size: 12px; padding: 3px 8px; box-shadow: none; }
 .preco-de { display: block; font-size: 13px; font-weight: 500; color: var(--tinta-2); text-decoration-thickness: 1.5px; }
 .viewer__preco .preco-de { display: inline; font-size: .7em; margin-right: 4px; }
 .card__parcela { margin: 4px 0 0; font-size: 13.5px; color: var(--ok); font-weight: 600; }
 .viewer__parcela { margin: 2px 0 0; font-size: 15px; color: var(--ok); font-weight: 600; }
-.entrega summary::before { content: "🚚"; }
-.entrega__form { display: flex; gap: 8px; margin: 4px 0 10px; }
-.entrega__form input { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 12px; border: 1px solid var(--linha-forte); background: var(--superficie); font: 600 16px var(--fonte); letter-spacing: .03em; }
-.entrega__res p { margin: 0 0 6px; }
-.entrega__sim b { color: var(--ok); }
-.entrega__nao { color: var(--tinta-2); }
-.entrega__nao b { color: var(--tinta); }
-.entrega__det { list-style: none; padding: 0; margin: 0 0 8px; display: grid; gap: 4px; font-size: 15px; }
-.entrega .mini { display: inline-block; margin: 0 0 12px; font-size: 13px; color: var(--tinta-2); }

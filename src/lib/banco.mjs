@@ -180,22 +180,13 @@ export function limparPedido(v) {
       nome: texto(pix.nome, 25).trim(), cidade: texto(pix.cidade, 15).trim() },
     foraDoHorario: v.foraDoHorario === 'agendar' ? 'agendar' : 'bloquear',
     pausado: v.pausado === true,
-    parcelas: limparParcelas(v.parcelas),
-    cidades: limparCidades(v.cidades),
-    foraEntrega: texto(v.foraEntrega, 160)
+    parcelas: limparParcelas(v.parcelas)
   };
 }
 /** Parcelamento mostrado embaixo do preço: até 24×, com ou sem juros, parcela mínima. */
 function limparParcelas(v) {
   v = v && typeof v === 'object' ? v : {};
   return { vezes: Math.max(1, Math.min(24, Math.round(Number(v.vezes) || 1))), semJuros: v.semJuros !== false, minimo: reais(v.minimo, 9999) };
-}
-/** Cidades onde a loja entrega (o cliente confere pelo CEP): nome, UF, prazo em dias e frete. */
-function limparCidades(lista) {
-  return (Array.isArray(lista) ? lista : []).slice(0, 100).map((c) => ({
-    nome: texto(c && c.nome, 60).trim(), uf: texto(c && c.uf, 2).toUpperCase().replace(/[^A-Z]/g, ''),
-    prazo: texto(c && c.prazo, 40).trim(), frete: reais(c && c.frete, 99999), gratisAcima: reais(c && c.gratisAcima, 9999999)
-  })).filter((c) => c.nome);
 }
 
 /** Foto do produto (para quem ainda não tem o 3D): só imagens da pasta da própria loja. */
