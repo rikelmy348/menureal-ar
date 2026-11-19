@@ -87,7 +87,7 @@
       <ol class="passos">
         <li><div><b>Fique parado no lugar</b><span>Escolha um ponto de onde dá para ver o lugar do móvel. Não precisa andar.</span></div></li>
         <li><div><b>Escolha o lugar e toque em “📌 Fixar aqui”</b><span>Um chão com desenho (piso, rejunte, tapete) ajuda a câmera a acompanhar.</span></div></li>
-        <li><div><b>Mova só o celular, devagar</b><span>Gire o corpo e incline o celular para olhar o móvel de vários lados.</span></div></li>
+        <li><div><b>Mova só o celular, devagar</b><span>Gire o corpo e incline o celular para olhar o móvel de vários lados. Quer ele 100% parado? Toque em “⏸ Congelar” e tire a foto.</span></div></li>
       </ol>
       <label class="campo">Sua altura
         <select id="altura"></select>
@@ -96,6 +96,7 @@
       <button class="grande" id="comecar">Abrir a câmera</button>
       <p class="aviso" id="aviso-app" hidden>Você abriu o link dentro de um aplicativo. Se a câmera não abrir, toque nos <b>⋮</b> ou <b>…</b> e escolha <b>“Abrir no navegador”</b>.</p>
       <p class="aviso" id="aviso-erro" hidden></p>
+      <p class="nota" id="dica-arcore" hidden>Dica: muitos celulares Android podem ter a realidade aumentada do Google, que deixa o móvel firme no chão. É grátis: <a href="https://play.google.com/store/apps/details?id=com.google.ar.core" target="_blank" rel="noopener" style="color:#FFC24B;font-weight:700">instalar “Google Play Services para RA”</a>. Se a loja disser que não é compatível, use este modo mesmo.</p>
       <p class="nota">Este modo funciona em qualquer celular com câmera, mas é uma versão de teste: o tamanho é aproximado. Para conferir as medidas, use as medidas do produto no catálogo.</p>
     </div>
   </section>
@@ -168,6 +169,7 @@
     if (!produto.arq) { $('comecar').disabled = true; $('aviso-erro').hidden = false; $('aviso-erro').textContent = 'Link incompleto: volte ao catálogo e toque em “Ver ao vivo” no produto.'; }
     const DENTRO_DE_APP = /Instagram|FBAN|FBAV|FB_IAB|Line\/|musical_ly|BytedanceWebview|TikTok|Snapchat/i.test(navigator.userAgent);
     $('aviso-app').hidden = !DENTRO_DE_APP;
+    $('dica-arcore').hidden = !/Android/i.test(navigator.userAgent);
 
     // ----- three.js -----
     const canvas = $('cena');
@@ -249,6 +251,9 @@
         $('dica').textContent = 'Não consegui carregar o móvel. Verifique a internet e tente de novo.';
       } finally { $('carregando').hidden = true; }
     }
+
+    // o 3D começa a baixar enquanto a pessoa lê as instruções (a câmera abre e ele já está pronto)
+    const promessaModelo = produto.arq ? carregarModelo() : Promise.resolve();
 
     // =====================================================================
     // Orientação do celular
@@ -879,7 +884,8 @@
       rodando = true; requestAnimationFrame(quadro);
       if (temRVFC) video.requestVideoFrameCallback(aoQuadroVideo);
       mudarEstado('mirando');
-      await carregarModelo();
+      $('carregando').hidden = !!modelo;
+      await promessaModelo;
       setTimeout(() => mudarEstado(estado), 1200); // a essa altura já se sabe se tem sensor
     };
 

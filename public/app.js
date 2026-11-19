@@ -849,7 +849,7 @@
     }
     $('#aba-ar').disabled = !ef.modelo;
     $('#btn-foto-amb').hidden = !ef.modelo;
-    $('#btn-ao-vivo').hidden = !ef.modelo || !aoVivoServe();
+    $('#btn-ao-vivo').hidden = !ef.modelo || !aoVivoServe() || semARCore;
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
@@ -1135,6 +1135,26 @@
     var ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     return !ios && !MODELOS_EMBUTIDOS && (navigator.maxTouchPoints > 0 || /Android/i.test(ua)) && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   }
+  // Android no Chrome sem a RA do Google (ARCore): o botão principal abre direto o nosso modo ao vivo,
+  // em vez do app do Google que, sem ARCore, só mostra o 3D e não abre a câmera.
+  var semARCore = false;
+  (function () {
+    var ua = navigator.userAgent || '';
+    var chrome = /Android/i.test(ua) && /Chrome\//.test(ua) && !/SamsungBrowser|EdgA|OPR\/|Firefox|; wv\)|FBAN|FBAV|Instagram/i.test(ua);
+    if (!chrome || !aoVivoServe()) return;
+    if (!navigator.xr || !navigator.xr.isSessionSupported) { semARCore = true; atualizarBotoesAR(); return; }
+    navigator.xr.isSessionSupported('immersive-ar').then(function (ok) { semARCore = !ok; atualizarBotoesAR(); }).catch(function () {});
+  })();
+  function atualizarBotoesAR() {
+    var b = $('#btn-ao-vivo'); if (!b) return;
+    // com o botão principal já abrindo o modo ao vivo, o botão extra fica repetido
+    if (semARCore) b.hidden = true;
+  }
+  palco.addEventListener('click', function (e) {
+    if (!semARCore || !e.target.closest('.botao-ar')) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    abrirAoVivo();
+  }, true);
   function abrirAoVivo() {
     var mv = palco.querySelector('model-viewer');
     if (!produtoAtual || !mv) return;
