@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <base href="/">
+  <!-- RA com folha marcadora (celulares sem ARCore): three.js e complementos servidos pelo próprio site -->
+  <script type="importmap">{"imports":{"three":"/vendor/ra/three.module.min.js","three/addons/":"/vendor/ra/addons/"}}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>MenuReal — catálogo 3D e realidade aumentada para lojas de móveis</title>
   <meta name="description" content="Catálogo de móveis em 3D e realidade aumentada: o cliente vê o móvel no tamanho real, na casa dele, antes de comprar.">
@@ -216,6 +218,10 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.7l1.3-2h5l1.3 2h1.7A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12.5" r="3.4" fill="none" stroke="currentColor" stroke-width="2"/></svg>
           <span>Ver numa foto da minha casa<small>Funciona em qualquer celular</small></span>
         </button>
+        <button class="btn btn--contorno btn--bloco foto-amb-btn" type="button" id="btn-ra-folha" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M9 12h7M9 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+          <span>Ver ao vivo com a folha<small>Para celular sem RA: imprima 1 folha A4</small></span>
+        </button>
 
         <div id="painel-3d" role="tabpanel" aria-labelledby="aba-3d">
           <p class="dica">Arraste para girar · pinça ou roda do mouse para zoom · toque duplo para recentralizar.</p>
@@ -328,6 +334,42 @@
       </div>
       <div class="painel__corpo" id="pontos-corpo"></div>
       <div class="painel__rodape" id="pontos-rodape"></div>
+    </div>
+  </dialog>
+
+  <!-- ================= RA ao vivo com a folha marcadora ================= -->
+  <dialog class="ra-folha" id="dlg-folha" aria-labelledby="folha-titulo">
+    <div class="ra-folha__intro" id="folha-intro">
+      <div class="painel__topo">
+        <h2 id="folha-titulo">Ver ao vivo com a folha</h2>
+        <button class="fechar" type="button" data-fechar aria-label="Fechar">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="ra-folha__corpo">
+        <p>Para celulares sem realidade aumentada. Uma folha impressa no chão vira a referência, e o móvel aparece preso nela, <strong>no tamanho real</strong>.</p>
+        <ol class="passos">
+          <li><span><strong>Imprima a folha</strong> em A4, no tamanho real (100%, sem “ajustar à página”).<br><a class="btn btn--contorno btn--p" href="vendor/ra/folha-ra.pdf" download="folha-menureal.pdf">Baixar a folha (PDF)</a></span></li>
+          <li><span>Coloque a folha no chão <strong>onde vai ficar a frente do móvel</strong>, com a seta apontando para você. O móvel aparece atrás da folha.</span></li>
+          <li><span>Abra a câmera e aponte <strong>de perto (cerca de 1 metro)</strong> até o móvel aparecer. Depois afaste-se devagar e ande em volta.</span></li>
+        </ol>
+        <p class="mini">Dica: lugar bem iluminado e folha bem esticada no chão.</p>
+      </div>
+      <div class="painel__rodape"><button class="btn btn--primario btn--bloco" type="button" id="folha-abrir">Abrir a câmera</button></div>
+    </div>
+    <div class="ra-folha__cena" id="folha-cena" hidden>
+      <div class="ra-folha__video" id="folha-video"></div>
+      <div class="ra-folha__topo">
+        <span class="ra-folha__status" id="folha-status" role="status" aria-live="polite">Abrindo a câmera…</span>
+        <button class="fechar" type="button" id="folha-fechar" aria-label="Fechar a câmera">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+      <div class="ra-folha__base">
+        <button class="btn btn--sec btn--p" type="button" data-folha-girar="-45" aria-label="Girar para a esquerda">↺ Girar</button>
+        <span>Arraste para girar</span>
+        <button class="btn btn--sec btn--p" type="button" data-folha-girar="45" aria-label="Girar para a direita">Girar ↻</button>
+      </div>
     </div>
   </dialog>
 

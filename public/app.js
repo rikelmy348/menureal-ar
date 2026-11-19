@@ -697,7 +697,7 @@
       caixa.hidden = true;
     } else {
       caixa.hidden = false;
-      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.' +
+      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>Use “Ver ao vivo com a folha” (imprima 1 folha A4) ou “Ver numa foto da minha casa”.' +
         '<ul>' + motivoSemAR().map(function (m) { return '<li>' + m + '</li>'; }).join('') + '</ul>';
     }
   }
@@ -849,6 +849,7 @@
     }
     $('#aba-ar').disabled = !ef.modelo;
     $('#btn-foto-amb').hidden = !ef.modelo;
+    $('#btn-ra-folha').hidden = !ef.modelo;
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
@@ -1306,6 +1307,52 @@
     img.src = url;
   }
   $('#btn-foto-amb').addEventListener('click', abrirFotoAmbiente);
+
+  // ----- RA ao vivo com a folha marcadora (celulares sem ARCore) -----
+  var raFolha = null, raProduto = null;
+  function abrirRaFolha() {
+    var mvV = palco.querySelector('model-viewer');
+    if (!produtoAtual || !mvV) return;
+    var ef = produtoAtual.combo ? { modelo: produtoAtual.modelo } : efetivo(produtoAtual, tamAtual);
+    var url = new URL(urlModelo(ef.modelo), document.baseURI), lista = mvV.availableVariants || [];
+    if (lista.length > 1 && mvV.variantName && mvV.variantName !== lista[0]) url.searchParams.set('cor', mvV.variantName);   // na cor escolhida
+    raProduto = { p: produtoAtual, url: url.toString() };
+    $('#folha-intro').hidden = false; $('#folha-cena').hidden = true;
+    abrirDialogo($('#dlg-folha'));
+  }
+  function statusFolha(txt, ok) { var el = $('#folha-status'); el.textContent = txt; el.classList.toggle('ok', !!ok); }
+  function pararRaFolha() { if (raFolha) { try { raFolha.parar(); } catch (e) { /* ok */ } raFolha = null; } }
+  function iniciarCameraFolha() {
+    $('#folha-intro').hidden = true; $('#folha-cena').hidden = false;
+    statusFolha('Abrindo a câmera…');
+    var registrado = false;
+    import(new URL('ra-folha.mjs', document.baseURI).href).then(function (m) {
+      statusFolha('Carregando o móvel…');
+      return m.iniciarRaFolha({
+        container: $('#folha-video'), modelo: raProduto.url, alvo: 'vendor/ra/folha-ra.mind',
+        aoEncontrar: function () {
+          statusFolha('Achei a folha! Afaste-se devagar para ver o móvel inteiro.', true);
+          if (!registrado) { registrado = true; registrar('ar', raProduto.p.id); }
+        },
+        aoPerder: function () { statusFolha('Perdi a folha. Aponte de novo para ela, um pouco mais de perto.'); }
+      });
+    }).then(function (ra) {
+      if (!$('#dlg-folha').open) { ra.parar(); return; }
+      raFolha = ra;
+      statusFolha('Aponte para a folha no chão, de perto (cerca de 1 metro).');
+    }).catch(function (e) {
+      console.warn('ra-folha', e);
+      statusFolha('Não deu para abrir a câmera. Permita o acesso à câmera nas configurações do navegador e tente de novo.');
+    });
+  }
+  $('#btn-ra-folha').addEventListener('click', abrirRaFolha);
+  $('#folha-abrir').addEventListener('click', iniciarCameraFolha);
+  $('#folha-fechar').addEventListener('click', function () { fecharDialogo($('#dlg-folha')); });
+  $('#dlg-folha').addEventListener('close', pararRaFolha);
+  $('#dlg-folha').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-folha-girar]');
+    if (b && raFolha) raFolha.girar(Number(b.getAttribute('data-folha-girar')));
+  });
   $('#dlg-casa').addEventListener('close', function () {
     var MV = customElements.get('model-viewer');
     if (fa && MV && fa.escalaAntes != null) MV.minimumRenderScale = fa.escalaAntes;
