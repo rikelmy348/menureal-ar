@@ -251,8 +251,26 @@
       og: img(v.og),
       ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
       marca: v.marca !== false,
-      cenario: ['logo', 'cor', 'claro'].indexOf(v.cenario) > -1 ? v.cenario : 'logo'
+      cenario: ['logo', 'cor', 'claro'].indexOf(v.cenario) > -1 ? v.cenario : 'logo',
+      blocos: validarBlocos(v.blocos, img)
     };
+  }
+  // Seções que o lojista monta na página (banner, galeria, depoimentos, endereço) e a posição dos produtos
+  function validarBlocos(lista, img) {
+    if (!Array.isArray(lista)) return [];
+    var txt = function (x, n) { return String(x == null ? '' : x).replace(/\r/g, '').slice(0, n); };
+    var vistos = {}, temProdutos = false, out = [];
+    lista.slice(0, 24).forEach(function (b) {
+      if (!b || typeof b !== 'object') return;
+      var id = /^[a-z0-9]{4,12}$/.test(b.id) && !vistos[b.id] ? b.id : Math.random().toString(36).slice(2, 10);
+      vistos[id] = 1;
+      if (b.tipo === 'produtos') { if (!temProdutos) { temProdutos = true; out.push({ id: 'produtos', tipo: 'produtos' }); } return; }
+      if (b.tipo === 'banner') out.push({ id: id, tipo: 'banner', foto: img(b.foto), titulo: txt(b.titulo, 90), texto: txt(b.texto, 500), botao: txt(b.botao, 30), acao: ['whatsapp', 'produtos', ''].indexOf(b.acao) > -1 ? b.acao : 'whatsapp' });
+      else if (b.tipo === 'galeria') out.push({ id: id, tipo: 'galeria', titulo: txt(b.titulo, 90), fotos: (Array.isArray(b.fotos) ? b.fotos : []).map(function (f) { return { url: img(f && f.url), legenda: txt(f && f.legenda, 90) }; }).filter(function (f) { return f.url; }).slice(0, 12) });
+      else if (b.tipo === 'depoimentos') out.push({ id: id, tipo: 'depoimentos', titulo: txt(b.titulo, 90), itens: (Array.isArray(b.itens) ? b.itens : []).map(function (d) { return { texto: txt(d && d.texto, 320), nome: txt(d && d.nome, 60), foto: img(d && d.foto) }; }).slice(0, 8) });
+      else if (b.tipo === 'endereco') out.push({ id: id, tipo: 'endereco', titulo: txt(b.titulo, 90), endereco: txt(b.endereco, 180), horario: txt(b.horario, 120), telefone: txt(b.telefone, 30), instagram: txt(b.instagram, 40).replace(/[^\w.]/g, ''), facebook: txt(b.facebook, 80).replace(/[^\w.\-\/]/g, ''), mapa: b.mapa !== false });
+    });
+    return out;
   }
 
   function rgb(h) { var n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
@@ -563,12 +581,12 @@
           : reguaTexto(p.dim)) + '</span></span>' : '') +
       '</div>' +
       '<div class="card__corpo">' +
-        '<h3 class="card__nome">' + esc(p.nome) + '</h3>' +
-        (p.descricao ? '<p class="card__desc">' + esc(p.descricao) + '</p>' : '') +
+        '<h3 class="card__nome"' + (editando ? ' contenteditable="true" data-ph="Nome do produto"' : '') + '>' + esc(p.nome) + '</h3>' +
+        (p.descricao || editando ? '<p class="card__desc"' + (editando ? ' contenteditable="true" data-ph="Descrição (opcional)"' : '') + '>' + esc(p.descricao) + '</p>' : '') +
         (temTams ? '<p class="card__info">' + p.tamanhos.length + ' tamanhos</p>' : '') +
         (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg">Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
         '<div class="card__rodape">' +
-          '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + brl(precoMinimo(p)) + '</span>' +
+          '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + (editando && !temTams ? '<span class="card__preco-ed" contenteditable="true" inputmode="decimal" data-ph="Preço">' + brl(p.preco) + '</span>' : brl(precoMinimo(p))) + '</span>' +
           (p.esgotado ? '<span class="card__esgotado">Esgotado</span>' :
           '<button class="card__add" type="button" data-acao="' + (temOpcoes ? 'escolher' : 'add') + '" aria-label="' +
             (temOpcoes ? 'Escolher opções de ' : 'Adicionar ao pedido: ') + esc(p.nome) + '">' + ICONES.mais + '</button>') +
@@ -2489,7 +2507,9 @@
             : '<small>Disponível no site publicado.</small>') +
         '</div></div><small>' + ajuda + '</small></div>';
     }
-    return '<section class="secao-admin" id="aparencia"><h3>Aparência da página</h3><div class="campos">' +
+    return '<section class="secao-admin" id="aparencia"><h3>Aparência da página</h3>' +
+      (LOJA && servidor ? '<div class="ed-chamada"><div><b>Editar o site na tela</b><span>Mude textos, fotos e preços tocando neles e adicione banner, galeria, depoimentos e endereço.</span></div><button type="button" class="btn btn--primario btn--p" data-editar-site>✏️ Editar o site</button></div>' : '') +
+      '<div class="campos">' +
       '<fieldset class="campo" style="border:0;padding:0;margin:0"><legend style="margin-bottom:6px">Cores</legend><div class="paletas">' +
         PALETAS.map(function (x, i) {
           var ativo = (x.cor || '') === (v.cor || '') && (x.destaque || '') === (v.destaque || '');
@@ -2524,6 +2544,12 @@
     rascunho.padaria.visual = validarVisual(v);
     aplicarVisual(rascunho.padaria);
   }
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-editar-site]')) return;
+    var dlg = $('#dlg-admin');
+    var ir = function () { if (dlg && dlg.open) fecharDialogo(dlg); setTimeout(entrarEdicao, 150); };
+    ir();
+  });
   function renderAparencia() {
     coletarAdmin();
     var sec = $('#aparencia');
@@ -4889,14 +4915,301 @@
     renderCabecalho();
     renderCategorias();
     renderGrade();
+    renderBlocos();
+    atualizarBotaoEditar();
     atualizarContador();
   }
+
+  // ---------------------------------------------------------------------
+  // Seções da página da loja (banner, galeria, depoimentos, endereço) e
+  // editor visual: o lojista edita textos, fotos e preços direto na tela.
+  // ---------------------------------------------------------------------
+  var editando = false;
+  var TIPOS_SECAO = {
+    banner: { nome: 'Banner com foto e texto', ico: '🖼️', novo: function () { return { tipo: 'banner', foto: '', titulo: 'Novidade na loja', texto: 'Escreva aqui a sua promoção, lançamento ou recado para o cliente.', botao: 'Chamar no WhatsApp', acao: 'whatsapp' }; } },
+    galeria: { nome: 'Galeria de fotos', ico: '📷', novo: function () { return { tipo: 'galeria', titulo: 'Ambientes que montamos', fotos: [] }; } },
+    depoimentos: { nome: 'Depoimentos de clientes', ico: '💬', novo: function () { return { tipo: 'depoimentos', titulo: 'O que os clientes dizem', itens: [{ texto: 'Escreva aqui o que o cliente falou da loja.', nome: 'Nome do cliente', foto: '' }] }; } },
+    endereco: { nome: 'Endereço, mapa e redes sociais', ico: '📍', novo: function () { return { tipo: 'endereco', titulo: 'Venha nos visitar', endereco: '', horario: '', telefone: '', instagram: '', facebook: '', mapa: true }; } }
+  };
+  function blocosDaLoja() { var v = dados.padaria.visual || (dados.padaria.visual = validarVisual(null)); if (!Array.isArray(v.blocos)) v.blocos = []; return v.blocos; }
+  function zapDaLoja() { var z = String(dados.padaria.whatsapp || '').replace(/\D/g, ''); return z.length >= 10 ? (z.length <= 11 ? '55' + z : z) : ''; }
+  function campoEd(tag, campo, valor, classe, ph) {
+    return '<' + tag + ' class="' + classe + '" data-campo="' + campo + '" data-ph="' + esc(ph || 'Escreva aqui') + '">' + esc(valor || '') + '</' + tag + '>';
+  }
+  function fotoEd(url, campo, classe, rotulo) {
+    return '<div class="' + classe + (url ? '' : ' sem-foto') + '" data-foto="' + campo + '">' + (url ? '<img src="' + esc(url) + '" alt="" loading="lazy" decoding="async">' : '') +
+      '<span class="so-edicao foto-troca">📷 ' + (url ? 'Trocar foto' : (rotulo || 'Pôr foto')) + '</span></div>';
+  }
+  function htmlBloco(b) {
+    var corpo = '';
+    if (b.tipo === 'banner') {
+      var temBotao = b.acao && (b.acao !== 'whatsapp' || zapDaLoja());
+      corpo = '<div class="sb-banner' + (b.foto ? '' : ' sb-banner--sem') + '">' + fotoEd(b.foto, 'foto', 'sb-banner__foto', 'Pôr foto do banner') +
+        '<div class="sb-banner__txt">' + campoEd('h2', 'titulo', b.titulo, 'sb-titulo', 'Título') + campoEd('p', 'texto', b.texto, 'sb-texto', 'Texto') +
+        (temBotao || editando ? '<span class="sb-botao-linha">' + (temBotao ? '<a class="btn btn--primario sb-botao" data-acao-banner="' + b.acao + '"' + (b.acao === 'whatsapp' ? ' href="https://wa.me/' + zapDaLoja() + '?text=' + encodeURIComponent('Olá! Vi no site: ' + (b.titulo || '')) + '" target="_blank" rel="noopener"' : ' href="#grade"') + '>' + campoEd('span', 'botao', b.botao || 'Saiba mais', '', 'Botão') + '</a>' : '') +
+          '<select class="so-edicao sb-acao" data-acao-sel aria-label="O que o botão faz"><option value="whatsapp"' + (b.acao === 'whatsapp' ? ' selected' : '') + '>Botão abre o WhatsApp</option><option value="produtos"' + (b.acao === 'produtos' ? ' selected' : '') + '>Botão leva aos produtos</option><option value=""' + (!b.acao ? ' selected' : '') + '>Sem botão</option></select></span>' : '') +
+        '</div></div>';
+    } else if (b.tipo === 'galeria') {
+      corpo = campoEd('h2', 'titulo', b.titulo, 'sb-titulo', 'Título da galeria') + '<div class="sb-galeria">' +
+        b.fotos.map(function (f, i) { return '<figure class="sb-galeria__item" data-i="' + i + '"><img src="' + esc(f.url) + '" alt="' + esc(f.legenda) + '" loading="lazy" decoding="async">' + (f.legenda || editando ? campoEd('figcaption', 'legenda', f.legenda, '', 'Legenda (opcional)') : '') + '<button class="so-edicao sb-x" type="button" data-tirar-foto="' + i + '" aria-label="Tirar foto">✕</button></figure>'; }).join('') +
+        '<label class="so-edicao sb-galeria__add">＋ Pôr fotos<input type="file" accept="image/*" multiple hidden data-galeria-add></label></div>';
+    } else if (b.tipo === 'depoimentos') {
+      corpo = campoEd('h2', 'titulo', b.titulo, 'sb-titulo', 'Título') + '<div class="sb-depo">' +
+        b.itens.map(function (d, i) {
+          return '<figure class="sb-depo__item" data-i="' + i + '">' + campoEd('blockquote', 'texto', d.texto, '', 'O que o cliente disse') +
+            '<figcaption>' + fotoEd(d.foto, 'foto', 'sb-depo__foto', 'Foto') + campoEd('span', 'nome', d.nome, 'sb-depo__nome', 'Nome do cliente') + '</figcaption>' +
+            '<button class="so-edicao sb-x" type="button" data-tirar-item="' + i + '" aria-label="Tirar depoimento">✕</button></figure>';
+        }).join('') + '<button class="so-edicao sb-depo__add" type="button" data-depo-add>＋ Depoimento</button></div>';
+    } else if (b.tipo === 'endereco') {
+      var ig = b.instagram, fb = b.facebook;
+      corpo = campoEd('h2', 'titulo', b.titulo, 'sb-titulo', 'Título') + '<div class="sb-end">' +
+        '<div class="sb-end__dados">' +
+          (b.endereco || editando ? '<p class="sb-end__linha"><span aria-hidden="true">📍</span>' + campoEd('span', 'endereco', b.endereco, '', 'Rua, número, bairro, cidade') + '</p>' : '') +
+          (b.horario || editando ? '<p class="sb-end__linha"><span aria-hidden="true">🕘</span>' + campoEd('span', 'horario', b.horario, '', 'Ex.: Seg. a sáb., 9h às 18h') + '</p>' : '') +
+          (b.telefone || editando ? '<p class="sb-end__linha"><span aria-hidden="true">📞</span>' + campoEd('span', 'telefone', b.telefone, '', 'Telefone') + '</p>' : '') +
+          '<p class="sb-redes">' +
+            (editando ? '<span class="sb-end__linha"><span aria-hidden="true">📸</span>@' + campoEd('span', 'instagram', ig, '', 'instagram da loja') + '</span><span class="sb-end__linha"><span aria-hidden="true">👍</span>facebook.com/' + campoEd('span', 'facebook', fb, '', 'página') + '</span>'
+              : (ig ? '<a class="btn btn--sec btn--p" href="https://instagram.com/' + encodeURIComponent(ig) + '" target="_blank" rel="noopener">Instagram</a>' : '') +
+                (fb ? '<a class="btn btn--sec btn--p" href="https://facebook.com/' + esc(fb) + '" target="_blank" rel="noopener">Facebook</a>' : '') +
+                (b.endereco ? '<a class="btn btn--sec btn--p" href="https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(b.endereco) + '" target="_blank" rel="noopener">Como chegar</a>' : '')) +
+          '</p>' +
+          '<label class="so-edicao sb-mapa-op"><input type="checkbox" data-mapa' + (b.mapa ? ' checked' : '') + '> Mostrar o mapa</label>' +
+        '</div>' +
+        (b.mapa && b.endereco ? '<iframe class="sb-mapa" title="Mapa" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://www.google.com/maps?q=' + encodeURIComponent(b.endereco) + '&output=embed"></iframe>' : '') +
+      '</div>';
+    }
+    return '<section class="sb sb--' + b.tipo + '" data-bloco="' + esc(b.id) + '">' + corpo +
+      '<div class="so-edicao sb-ferramentas"><span>' + TIPOS_SECAO[b.tipo].ico + ' ' + TIPOS_SECAO[b.tipo].nome + '</span>' +
+      '<button type="button" data-mover="-1" aria-label="Subir">↑</button><button type="button" data-mover="1" aria-label="Descer">↓</button><button type="button" data-apagar aria-label="Apagar seção">🗑</button></div></section>';
+  }
+  function botaoAdd(pos) { return editando ? '<button class="add-secao" type="button" data-add-pos="' + pos + '">＋ Adicionar seção aqui</button>' : ''; }
+  function renderBlocos() {
+    var antes = $('#blocos-antes'), depois = $('#blocos-depois');
+    if (!antes || !depois) return;
+    if (!LOJA) { antes.innerHTML = depois.innerHTML = ''; return; }
+    var bl = blocosDaLoja(), ip = -1;
+    bl.forEach(function (b, i) { if (b.tipo === 'produtos') ip = i; });
+    if (ip < 0) ip = -0.5; // sem marcador: produtos antes de tudo
+    var ha = '', hd = '';
+    bl.forEach(function (b, i) {
+      if (b.tipo === 'produtos') return;
+      var h = botaoAdd(i) + htmlBloco(b);
+      if (i < ip) ha += h; else hd += h;
+    });
+    antes.innerHTML = ha + (editando ? botaoAdd(ip < 0 ? 0 : ip) : '');
+    depois.innerHTML = hd + (editando ? botaoAdd(bl.length) : '');
+    // no modo edição, o botão logo antes dos produtos insere antes deles
+    if (editando) {
+      $$('[data-campo]', antes).concat($$('[data-campo]', depois)).forEach(function (el) { el.setAttribute('contenteditable', 'plaintext-only'); if (el.contentEditable !== 'plaintext-only') el.setAttribute('contenteditable', 'true'); el.setAttribute('spellcheck', 'true'); });
+    }
+  }
+  function blocoDoAlvo(el) { var s = el.closest('[data-bloco]'); if (!s) return null; var id = s.getAttribute('data-bloco'); return blocosDaLoja().filter(function (b) { return b.id === id; })[0] || null; }
+  function inserirBloco(pos, tipo) {
+    var bl = blocosDaLoja();
+    var b = TIPOS_SECAO[tipo].novo(); b.id = Math.random().toString(36).slice(2, 10);
+    bl.splice(Math.max(0, Math.min(bl.length, pos)), 0, b);
+    marcarMudanca(); renderBlocos();
+    var el = document.querySelector('[data-bloco="' + b.id + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+  function escolherTipoSecao(pos) {
+    var dlg = $('#dlg-secao');
+    if (!dlg) {
+      dlg = document.createElement('dialog'); dlg.id = 'dlg-secao'; dlg.className = 'folha folha--ajuda';
+      dlg.innerHTML = '<div class="painel"><div class="painel__topo"><h2>Adicionar seção</h2><button class="icone-btn" type="button" data-fechar aria-label="Fechar">✕</button></div>' +
+        '<div class="tipos-secao">' + Object.keys(TIPOS_SECAO).map(function (k) { return '<button type="button" class="tipo-secao" data-tipo="' + k + '"><span>' + TIPOS_SECAO[k].ico + '</span>' + TIPOS_SECAO[k].nome + '</button>'; }).join('') + '</div></div>';
+      document.body.appendChild(dlg);
+      dlg.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-tipo]');
+        if (t) { dlg.close(); inserirBloco(Number(dlg.getAttribute('data-pos')), t.getAttribute('data-tipo')); }
+        else if (e.target.closest('[data-fechar]') || e.target === dlg) dlg.close();
+      });
+    }
+    dlg.setAttribute('data-pos', pos); dlg.showModal();
+  }
+  function enviarFotoSite(arquivo, uso, ladoMax) {
+    if (!credenciais()) { toast('Entre na conta da loja para trocar fotos'); return Promise.reject(new Error('sem login')); }
+    toast('Enviando foto…');
+    return reduzirParaEnvio(arquivo, ladoMax || 1600, false).then(function (r) {
+      return fetch(comLoja('api/imagem'), { method: 'POST', headers: cabecalhos(), body: JSON.stringify({ imagem: r.base64, tipo: r.tipo, uso: uso }) });
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.url) throw new Error(j.erro || 'Erro do servidor (' + r.status + ').'); return j.url; });
+    }).catch(function (e) { toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); throw e; });
+  }
+  function escolherArquivo(multiplos) {
+    return new Promise(function (ok) {
+      var i = document.createElement('input'); i.type = 'file'; i.accept = 'image/*'; i.multiple = !!multiplos;
+      i.onchange = function () { ok(Array.prototype.slice.call(i.files || [])); }; i.click();
+    });
+  }
+
+  // --- modo edição ---
+  var mudou = false;
+  function marcarMudanca() { mudou = true; var b = $('#ed-salvar'); if (b) b.disabled = false; }
+  function podeEditarSite() { return !!(LOJA && servidor && lerTokenLoja()); }
+  function atualizarBotaoEditar() {
+    var f = $('#btn-editar-site');
+    if (!f) {
+      f = document.createElement('button'); f.id = 'btn-editar-site'; f.type = 'button'; f.className = 'btn-editar-site';
+      f.innerHTML = '✏️ Editar o site'; f.addEventListener('click', entrarEdicao); document.body.appendChild(f);
+    }
+    f.hidden = !podeEditarSite() || editando;
+  }
+  function entrarEdicao() {
+    if (!podeEditarSite()) { toast('Entre na conta da loja (botão Admin) para editar o site.'); return; }
+    editando = true; mudou = false;
+    // marca a posição dos produtos na lista de seções (para dar para pôr seções antes ou depois deles)
+    var bl0 = blocosDaLoja(); if (!bl0.some(function (b) { return b.tipo === 'produtos'; })) bl0.unshift({ id: 'produtos', tipo: 'produtos' });
+    document.documentElement.classList.add('editando');
+    var barra = $('#barra-edicao');
+    if (!barra) {
+      barra = document.createElement('div'); barra.id = 'barra-edicao'; barra.className = 'barra-edicao';
+      barra.innerHTML = '<div class="barra-edicao__txt"><b>✏️ Editando o site</b><span>Toque em qualquer texto, preço ou foto para mudar</span></div>' +
+        '<button type="button" class="btn btn--sec btn--p" id="ed-sair">Sair</button><button type="button" class="btn btn--primario btn--p" id="ed-salvar" disabled>Publicar</button>';
+      document.body.appendChild(barra);
+      $('#ed-sair').addEventListener('click', sairEdicao);
+      $('#ed-salvar').addEventListener('click', publicarEdicao);
+    }
+    barra.hidden = false;
+    var hero = $('.hero');
+    if (hero && !$('#ed-hero')) {
+      var h = document.createElement('div'); h.id = 'ed-hero'; h.className = 'so-edicao ed-hero';
+      h.innerHTML = '<button type="button" class="btn btn--sec btn--p" data-ed-img="capa">📷 Foto de capa</button><button type="button" class="btn btn--sec btn--p" data-ed-img="logo">🏷️ Logo</button>' +
+        '<button type="button" class="btn btn--fantasma btn--p" data-ed-img-tirar="capa">Tirar capa</button>';
+      hero.appendChild(h);
+    }
+    ['#nome-padaria', '#slogan-padaria'].forEach(function (sel) { var el = $(sel); el.setAttribute('contenteditable', 'true'); el.setAttribute('data-ph', sel === '#nome-padaria' ? 'Nome da loja' : 'Frase da loja'); });
+    renderGrade(); renderBlocos(); atualizarBotaoEditar();
+    toast('Toque no que quiser mudar. No fim, toque em “Publicar”.');
+  }
+  function sairEdicao() {
+    var sair = function () {
+      editando = false; document.documentElement.classList.remove('editando');
+      var barra = $('#barra-edicao'); if (barra) barra.hidden = true;
+      ['#nome-padaria', '#slogan-padaria'].forEach(function (sel) { $(sel).removeAttribute('contenteditable'); });
+      if (mudou) { var guardado = ler(CHAVE_DADOS); if (guardado) { var d = validarDados(guardado); if (d) dados = d; } }
+      mudou = false; renderTudo(); atualizarBotaoEditar();
+    };
+    if (!mudou) return sair();
+    confirmar('Sair sem publicar? As mudanças feitas agora serão perdidas.', 'Sair sem publicar').then(function (sim) { if (sim) sair(); });
+  }
+  function publicarEdicao() {
+    var b = $('#ed-salvar'); b.disabled = true; b.textContent = 'Publicando…';
+    var d = validarDados(dados);
+    if (!d) { toast('Algo ficou inválido. Confira os textos e preços.'); b.disabled = false; b.textContent = 'Publicar'; return; }
+    dados = d; CATEGORIAS = dados.categorias; gravar(CHAVE_DADOS, dados);
+    fetch(comLoja('api/cardapio'), { method: 'PUT', headers: cabecalhos(), body: JSON.stringify(dados) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.erro || 'erro ao publicar'); }); })
+      .then(function () { mudou = false; toast('Publicado: todos os clientes já veem o site novo'); b.textContent = 'Publicar'; })
+      .catch(function (e) { b.disabled = false; b.textContent = 'Publicar'; toast('Não publicou: ' + (/failed to fetch|network/i.test(e.message) ? 'sem conexão' : e.message)); });
+  }
+  // preço digitado ("R$ 2.490,00", "2490", "2.490,5") → número
+  function lerPreco(t) { var s = String(t || '').replace(/[^\d,.]/g, ''); if (s.indexOf(',') > -1) s = s.replace(/\./g, '').replace(',', '.'); else if (/\.\d{3}$/.test(s)) s = s.replace(/\./g, ''); var n = parseFloat(s); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null; }
+
+  // textos: hero, produtos e seções
+  document.addEventListener('input', function (e) {
+    if (!editando) return;
+    var el = e.target.closest('[contenteditable]'); if (!el) return;
+    var t = el.innerText.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+    if (el.id === 'nome-padaria') dados.padaria.nome = t.slice(0, 80);
+    else if (el.id === 'slogan-padaria') dados.padaria.slogan = t.slice(0, 140);
+    else if (el.closest('.card')) {
+      var p = dados.produtos.filter(function (x) { return x.id === el.closest('.card').getAttribute('data-id'); })[0]; if (!p) return;
+      if (el.classList.contains('card__nome')) p.nome = t.slice(0, 80);
+      else if (el.classList.contains('card__desc')) p.descricao = t.slice(0, 400);
+      else return;
+    } else {
+      var b = blocoDoAlvo(el), campo = el.getAttribute('data-campo'); if (!b || !campo) return;
+      var item = el.closest('[data-i]');
+      if (b.tipo === 'galeria' && item) b.fotos[Number(item.getAttribute('data-i'))][campo] = t;
+      else if (b.tipo === 'depoimentos' && item) b.itens[Number(item.getAttribute('data-i'))][campo] = t;
+      else b[campo] = t;
+    }
+    marcarMudanca();
+  });
+  // preço: confere ao sair do campo
+  document.addEventListener('focusout', function (e) {
+    if (!editando || !e.target.classList || !e.target.classList.contains('card__preco-ed')) return;
+    var p = dados.produtos.filter(function (x) { return x.id === e.target.closest('.card').getAttribute('data-id'); })[0]; if (!p) return;
+    var n = lerPreco(e.target.innerText);
+    if (n == null || n > 1000000) { toast('Preço inválido. Ex.: 2.490,00'); e.target.innerText = brl(p.preco); return; }
+    if (n !== p.preco) { p.preco = n; marcarMudanca(); }
+    e.target.innerText = brl(p.preco);
+  });
+  document.addEventListener('keydown', function (e) {
+    if (!editando || e.key !== 'Enter') return;
+    var el = e.target.closest && e.target.closest('[contenteditable]');
+    // títulos, nomes e preços são de uma linha só
+    if (el && (el.matches('h1, h2, .card__nome, .card__preco-ed, span, figcaption'))) { e.preventDefault(); el.blur(); }
+  });
+  // cliques do modo edição (vêm antes dos cliques normais da página)
+  document.addEventListener('click', function (e) {
+    if (!editando) return;
+    var t = e.target;
+    if (t.closest('#barra-edicao') || t.closest('dialog')) return;
+    var add = t.closest('[data-add-pos]'); if (add) { e.preventDefault(); escolherTipoSecao(Number(add.getAttribute('data-add-pos'))); return; }
+    var b = blocoDoAlvo(t);
+    if (t.closest('[contenteditable]')) { if (t.closest('a')) e.preventDefault(); return; }
+    if (t.closest('[data-ed-img]')) {
+      var uso = t.closest('[data-ed-img]').getAttribute('data-ed-img');
+      escolherArquivo(false).then(function (fs) { if (!fs[0]) return; return enviarFotoSite(fs[0], uso, uso === 'logo' ? 640 : 1800).then(function (u) { dados.padaria.visual[uso] = u; marcarMudanca(); aplicarVisual(dados.padaria); toast('Foto trocada. Toque em “Publicar” para salvar.'); }); }).catch(function () {});
+      return;
+    }
+    if (t.closest('[data-ed-img-tirar]')) { dados.padaria.visual.capa = ''; marcarMudanca(); aplicarVisual(dados.padaria); return; }
+    if (b) {
+      e.preventDefault();
+      var bl = blocosDaLoja(), i = bl.indexOf(b);
+      if (t.closest('[data-mover]')) { var j = i + Number(t.closest('[data-mover]').getAttribute('data-mover')); if (j < 0 || j >= bl.length) return; bl.splice(i, 1); bl.splice(j, 0, b); marcarMudanca(); renderBlocos(); return; }
+      if (t.closest('[data-apagar]')) { confirmar('Apagar esta seção?', 'Apagar').then(function (s) { if (!s) return; bl.splice(bl.indexOf(b), 1); marcarMudanca(); renderBlocos(); }); return; }
+      if (t.closest('[data-tirar-foto]')) { b.fotos.splice(Number(t.closest('[data-tirar-foto]').getAttribute('data-tirar-foto')), 1); marcarMudanca(); renderBlocos(); return; }
+      if (t.closest('[data-tirar-item]')) { b.itens.splice(Number(t.closest('[data-tirar-item]').getAttribute('data-tirar-item')), 1); marcarMudanca(); renderBlocos(); return; }
+      if (t.closest('[data-depo-add]')) { if (b.itens.length >= 8) return toast('Até 8 depoimentos'); b.itens.push({ texto: '', nome: '', foto: '' }); marcarMudanca(); renderBlocos(); return; }
+      if (t.closest('[data-galeria-add]') || t.closest('.sb-galeria__add')) { if (t.tagName !== 'INPUT') { e.preventDefault(); var inp = t.closest('[data-bloco]').querySelector('[data-galeria-add]'); inp.click(); } return; }
+      var ft = t.closest('[data-foto]');
+      if (ft) {
+        var it = ft.closest('[data-i]');
+        escolherArquivo(false).then(function (fs) { if (!fs[0]) return; return enviarFotoSite(fs[0], 'secao', b.tipo === 'depoimentos' ? 400 : 1800).then(function (u) {
+          if (b.tipo === 'depoimentos' && it) b.itens[Number(it.getAttribute('data-i'))].foto = u; else b.foto = u;
+          marcarMudanca(); renderBlocos();
+        }); }).catch(function () {});
+      }
+      return;
+    }
+    // produtos: foto (só quem não tem 3D) e nada de abrir o produto enquanto edita
+    var card = t.closest('.card');
+    if (card) {
+      if (t.closest('[contenteditable]')) return;
+      e.preventDefault(); e.stopPropagation();
+      var p = dados.produtos.filter(function (x) { return x.id === card.getAttribute('data-id'); })[0];
+      if (p && !p.modelo && t.closest('.card__vitrine')) {
+        escolherArquivo(false).then(function (fs) { if (!fs[0]) return; return enviarFotoSite(fs[0], 'produto', 1400).then(function (u) { p.foto = u; marcarMudanca(); renderGrade(); }); }).catch(function () {});
+      } else if (p && p.modelo && t.closest('.card__vitrine')) toast('Este produto mostra o 3D. Para trocar o 3D, use o Admin → Produtos.');
+      return;
+    }
+  }, true);
+  document.addEventListener('change', function (e) {
+    if (!editando) return;
+    var t = e.target, b = blocoDoAlvo(t); if (!b) return;
+    if (t.matches('[data-acao-sel]')) { b.acao = t.value; if (b.acao && !b.botao) b.botao = b.acao === 'whatsapp' ? 'Chamar no WhatsApp' : 'Ver os produtos'; marcarMudanca(); renderBlocos(); }
+    else if (t.matches('[data-mapa]')) { b.mapa = t.checked; marcarMudanca(); renderBlocos(); }
+    else if (t.matches('[data-galeria-add]') && t.files && t.files.length) {
+      var fs = Array.prototype.slice.call(t.files, 0, 12 - b.fotos.length); t.value = '';
+      fs.reduce(function (pr, f) { return pr.then(function () { return enviarFotoSite(f, 'secao', 1600).then(function (u) { b.fotos.push({ url: u, legenda: '' }); renderBlocos(); }); }); }, Promise.resolve())
+        .then(function () { marcarMudanca(); toast('Fotos adicionadas. Toque em “Publicar” para salvar.'); }).catch(function () { marcarMudanca(); });
+    }
+  });
+  // botão "ver os produtos" do banner rola até a grade
+  document.addEventListener('click', function (e) {
+    var a = !editando && e.target.closest('[data-acao-banner="produtos"]');
+    if (a) { e.preventDefault(); $('#filtros').scrollIntoView({ behavior: 'smooth' }); }
+  });
+  window.addEventListener('beforeunload', function (e) { if (editando && mudou) { e.preventDefault(); e.returnValue = ''; } });
 
   // ---------------------------------------------------------------------
   // Início
   // ---------------------------------------------------------------------
   renderTudo();
   carregarNuvem().then(function () {
+    atualizarBotaoEditar();
     if (BEM_VINDO && LOJA && lerTokenLoja()) {
       try { history.replaceState(null, '', location.pathname); } catch (e) { /* ok */ }
       abertoNoAdmin = null;

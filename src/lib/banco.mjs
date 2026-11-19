@@ -207,8 +207,25 @@ export function limparVisual(v, slug) {
     og: img(v.og),                                            // imagem de prévia do link (WhatsApp, Instagram)
     ogAss: String(v.ogAss || '').replace(/[^a-z0-9]/g, '').slice(0, 20),
     marca: v.marca !== false,
-    cenario: ['logo', 'cor', 'claro'].includes(v.cenario) ? v.cenario : 'logo'   // fundo atrás do 3D
+    cenario: ['logo', 'cor', 'claro'].includes(v.cenario) ? v.cenario : 'logo',   // fundo atrás do 3D
+    blocos: limparBlocos(v.blocos, img)                                            // seções montadas pelo lojista
   };
+}
+function limparBlocos(lista, img) {
+  if (!Array.isArray(lista)) return [];
+  const txt = (x, n) => String(x == null ? '' : x).replace(/\r/g, '').slice(0, n);
+  const vistos = new Set(); let temProdutos = false; const out = [];
+  for (const b of lista.slice(0, 24)) {
+    if (!b || typeof b !== 'object') continue;
+    const id = /^[a-z0-9]{4,12}$/.test(b.id) && !vistos.has(b.id) ? b.id : crypto.randomUUID().replace(/-/g, '').slice(0, 10);
+    vistos.add(id);
+    if (b.tipo === 'produtos') { if (!temProdutos) { temProdutos = true; out.push({ id: 'produtos', tipo: 'produtos' }); } continue; }
+    if (b.tipo === 'banner') out.push({ id, tipo: 'banner', foto: img(b.foto), titulo: txt(b.titulo, 90), texto: txt(b.texto, 500), botao: txt(b.botao, 30), acao: ['whatsapp', 'produtos', ''].includes(b.acao) ? b.acao : 'whatsapp' });
+    else if (b.tipo === 'galeria') out.push({ id, tipo: 'galeria', titulo: txt(b.titulo, 90), fotos: (Array.isArray(b.fotos) ? b.fotos : []).map((f) => ({ url: img(f && f.url), legenda: txt(f && f.legenda, 90) })).filter((f) => f.url).slice(0, 12) });
+    else if (b.tipo === 'depoimentos') out.push({ id, tipo: 'depoimentos', titulo: txt(b.titulo, 90), itens: (Array.isArray(b.itens) ? b.itens : []).map((d) => ({ texto: txt(d && d.texto, 320), nome: txt(d && d.nome, 60), foto: img(d && d.foto) })).slice(0, 8) });
+    else if (b.tipo === 'endereco') out.push({ id, tipo: 'endereco', titulo: txt(b.titulo, 90), endereco: txt(b.endereco, 180), horario: txt(b.horario, 120), telefone: txt(b.telefone, 30), instagram: txt(b.instagram, 40).replace(/[^\w.]/g, ''), facebook: txt(b.facebook, 80).replace(/[^\w.\-/]/g, ''), mapa: b.mapa !== false });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
