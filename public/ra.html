@@ -97,6 +97,10 @@
     #cores button { width: 34px; height: 34px; border-radius: 50%; border: 3px solid #fff6; padding: 0; box-shadow: 0 2px 8px #0006; }
     #cores button[aria-pressed="true"] { border-color: #fff; outline: 2px solid #fff; outline-offset: 2px; }
     #cores span { font-size: 13px; font-weight: 700; background: var(--vidro); padding: 4px 10px; border-radius: 999px; }
+    #mira { position: fixed; z-index: 2; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; display: grid; justify-items: center; gap: 6px; }
+    #mira i { width: 26px; height: 26px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35), inset 0 0 0 2px rgba(0,0,0,.25); position: relative; }
+    #mira i::after { content: ""; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; border-radius: 50%; background: #fff; }
+    #mira span { margin-top: 30px; position: absolute; top: 100%; white-space: nowrap; font-size: 13px; font-weight: 700; background: var(--vidro); padding: 4px 10px; border-radius: 999px; }
     #flash { position: fixed; inset: 0; z-index: 6; background: #fff; opacity: 0; pointer-events: none; transition: opacity .3s; }
   </style>
   <script type="importmap">{ "imports": { "three": "./vendor/three/three.module.min.js" } }</script>
@@ -208,6 +212,7 @@
     </div></div>
     <canvas id="raiox" hidden></canvas>
     <div id="selo-parado" hidden>⏸ Congelado · móvel parado</div>
+    <div id="mira" hidden aria-hidden="true"><i></i><span id="mira-txt">o móvel vai aqui</span></div>
     <div id="carregando" hidden>Carregando o móvel…</div>
   </div>
   <div id="flash"></div>
@@ -515,7 +520,7 @@
       raio.setFromCamera({ x: nx, y: ny }, camera);
       if (raio.ray.direction.y > -0.05) return null; // olhando para cima: não acerta o chão
       if (!raio.ray.intersectPlane(chao, ponto)) return null;
-      if (Math.hypot(ponto.x - camera.position.x, ponto.z - camera.position.z) > 6) return null;
+      if (Math.hypot(ponto.x - camera.position.x, ponto.z - camera.position.z) > 9) return null;
       return ponto.clone();
     }
     // enquanto mira, o móvel fica meio transparente para dar para ver o chão
@@ -532,7 +537,7 @@
       });
     }
     function textoDica() {
-      if (estado === 'mirando') return temSensor ? 'Aponte para o chão onde quer o móvel (gire com dois dedos) e toque em “Fixar aqui”' : 'Arraste o móvel com o dedo até o lugar';
+      if (estado === 'mirando') return !temSensor ? 'Arraste o móvel com o dedo até o lugar' : grande ? 'Ponha o círculo no pé da parede onde vai o móvel e toque em “Fixar aqui”' : 'Ponha o círculo no chão onde quer o móvel e toque em “Fixar aqui”';
       if (congelado) return 'Arraste o móvel com o dedo · gire com dois dedos · tire a foto';
       return '📌 Fixado · mova devagar · “Congelar” deixa 100% parado';
     }
@@ -558,6 +563,8 @@
       $('btn-medidas').hidden = mirando;
       $('congelar').hidden = mirando || congelado; $('aovivo').hidden = !congelado;
       cotas.visible = !mirando && mostrarCotas;
+      $('mira').hidden = !mirando || !temSensor;
+      $('mira-txt').textContent = grande ? 'aponte para o pé da parede' : 'o móvel vai aqui';
       $('selo-parado').hidden = !congelado; $('sinal').hidden = congelado;
       anel.visible = false;
       contorno.visible = mirando;
@@ -1052,7 +1059,7 @@
           ' psi' + Math.round(pose.psi * 180 / Math.PI) + ' pos' + pose.cx.toFixed(2) + ',' + pose.cz.toFixed(2) + ' fov' + Math.round(camera.fov);
       }
       if (estado === 'mirando') {
-        const p = temSensor ? noChao(0, -0.15) : null;
+        const p = temSensor ? noChao(0, 0) : null;   // mira = centro da tela
         if (p) ultimoPonto.copy(p);
         // a frente do móvel vira para a pessoa; o móvel grande encosta o fundo no ponto mirado
         const yaw = Math.atan2(camera.position.x - ultimoPonto.x, camera.position.z - ultimoPonto.z) + rotUser;
