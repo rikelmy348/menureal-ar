@@ -422,6 +422,15 @@ export async function resumoLoja(env, slug) {
   if (!l) return null;
   return { nome: l.nome, slogan: l.slogan, tipo: l.tipo, visual: limparVisual(lerJson(l.visual, {}), slug) };
 }
+/** Dados públicos de um produto para a prévia do link (?p=id): nome, preço, descrição, medidas e foto. */
+export async function resumoProduto(env, slug, id) {
+  const p = await env.DB.prepare('SELECT nome, preco, descricao, largura_cm, profundidade_cm, altura_cm, opcoes FROM produtos WHERE loja = ? AND id = ?').bind(slug, id).first();
+  if (!p) return null;
+  const op = lerJson(p.opcoes, {});
+  const g = Array.isArray(op.galeria) ? op.galeria : [];
+  const foto = fotoProduto(op.foto, slug) || (g[0] && fotoProduto(g[0].url, slug)) || '';
+  return { nome: p.nome, preco: p.preco, descricao: p.descricao, dim: [p.largura_cm, p.profundidade_cm, p.altura_cm], foto };
+}
 /** Limite de tentativas (cadastro, login, recuperação). true = pode seguir. */
 export async function dentroDoLimite(env, chave, max, janelaMs) {
   const t = Date.now();

@@ -1305,3 +1305,9 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .gal-admin__bts button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(26,25,23,.8); color: #fff; cursor: pointer; font-size: 13px; }
 .gal-admin__add { display: grid; place-items: center; align-content: center; gap: 4px; aspect-ratio: 1; border: 2px dashed var(--linha-forte); border-radius: 10px; color: var(--tinta-2); font-weight: 700; font-size: 13px; cursor: pointer; }
 .gal-admin__add svg { width: 22px; height: 22px; }
+
+.viewer__loja { margin: 2px 0 0; font-size: 14px; color: var(--tinta-2); font-weight: 600; }
+.viewer__contato { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.viewer__contato .btn { text-decoration: none; justify-content: center; }
+.viewer__contato [hidden] { display: none; }
+.viewer__contato:has(#viewer-zap[hidden]) { grid-template-columns: 1fr; }

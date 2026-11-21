@@ -4,7 +4,7 @@
    qualquer endereço de loja, ex.: /sabor-da-vila).
    ========================================================================= */
 import { json, slugValido } from './lib/comum.mjs';
-import { garantirEsquema, resumoLoja } from './lib/banco.mjs';
+import { garantirEsquema, resumoLoja, resumoProduto } from './lib/banco.mjs';
 import { enviarResumos } from './lib/resumo.mjs';
 import cardapio from './api/cardapio.mjs';
 import contas from './api/contas.mjs';
@@ -65,10 +65,24 @@ async function paginaComPrevia(req, env, caminho) {
     info = { titulo: loja.nome + (loja.tipo === 'produtos' ? ' — catálogo' : ' — cardápio'),
       desc: loja.slogan || (loja.tipo === 'produtos' ? 'Veja os móveis em 3D, no tamanho real, na sua casa. Peça o orçamento pelo WhatsApp.' : 'Veja o cardápio em 3D e peça pelo WhatsApp.') };
     if (v.og || v.capa || v.logo) imagem = url.origin + '/' + (v.og || v.capa || v.logo);
+    // link de um móvel (?p=id): a prévia mostra o móvel, não só a loja
+    const idp = url.searchParams.get('p');
+    if (idp && /^[\w-]{1,60}$/.test(idp)) {
+      let pr = null;
+      try { pr = await resumoProduto(env, caminho, idp); } catch (e) { console.error('previa produto', e); }
+      if (pr) {
+        const brl = (n) => 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const cm = (n) => Math.round(n);
+        info = { titulo: pr.nome + ' — ' + loja.nome,
+          desc: (pr.preco > 0 ? brl(pr.preco) + ' · ' : '') + cm(pr.dim[0]) + ' × ' + cm(pr.dim[1]) + ' × ' + cm(pr.dim[2]) + ' cm · ' +
+            (pr.descricao ? pr.descricao.slice(0, 120) : 'Veja em 3D e no tamanho real, na sua casa.') };
+        if (pr.foto) imagem = url.origin + '/' + pr.foto;
+      }
+    }
   }
   const metas = [
     ['property', 'og:type', 'website'], ['property', 'og:site_name', 'MenuReal'], ['property', 'og:title', info.titulo],
-    ['property', 'og:description', info.desc], ['property', 'og:url', url.origin + url.pathname], ['property', 'og:image', imagem],
+    ['property', 'og:description', info.desc], ['property', 'og:url', url.origin + url.pathname + (url.searchParams.get('p') ? '?p=' + encodeURIComponent(url.searchParams.get('p')) : '')], ['property', 'og:image', imagem],
     ['property', 'og:locale', 'pt_BR'], ['name', 'twitter:card', 'summary_large_image']
   ].map(([a, k, v]) => `<meta ${a}="${k}" content="${escAttr(v)}">`).join('');
   const html = new HTMLRewriter()

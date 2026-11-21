@@ -790,6 +790,12 @@
     var ef = p.combo ? { preco: p.preco, dim: p.dim } : efetivo(p, tamAtual);
     $('#viewer-cat').textContent = p.categoria + (p.ilustrativo && p.modelo ? ' · modelo ilustrativo' : '');
     $('#viewer-nome').textContent = p.nome;
+    var lojaNome = LOJA && !ehAlimento() ? dados.padaria.nome : '';
+    $('#viewer-loja').textContent = lojaNome ? 'por ' + lojaNome : ''; $('#viewer-loja').hidden = !lojaNome;
+    var zapV = LOJA && !p.combo ? zapDaLoja() : '';
+    $('#viewer-contato').hidden = !LOJA || !!p.combo;
+    $('#viewer-zap').hidden = !zapV;
+    if (zapV) $('#viewer-zap').href = 'https://wa.me/' + zapV + '?text=' + encodeURIComponent('Olá! Tenho interesse no ' + p.nome + ': ' + linkProduto(p.id));
     mostrarPrecoViewer(p, ef.preco);
     $('#viewer-dim').textContent = p.combo ? (p.ambiente ? 'como você arrumou' : 'itens lado a lado') : dimTexto(ef.dim);
     $('#viewer-desc').textContent = p.descricao;
@@ -905,6 +911,12 @@
         '<span class="info-ponto__n" aria-hidden="true">' + (i + 1) + '</span><span class="info-ponto__txt">' + esc(pt.t) + '</span></button>';
     }).join('');
   }
+  $('#viewer-compartilhar').addEventListener('click', function () {
+    if (!produtoAtual) return;
+    var url = linkProduto(produtoAtual.id), t = produtoAtual.nome + ' — ' + dados.padaria.nome;
+    if (navigator.share) { navigator.share({ title: t, text: 'Olha este móvel: ' + produtoAtual.nome, url: url }).catch(function () {}); return; }
+    (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject()).then(function () { toast('Link copiado'); }).catch(function () { prompt('Copie o link:', url); });
+  });
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
     $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; galV = { itens: [], i: -1, tem3d: false };
