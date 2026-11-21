@@ -152,6 +152,10 @@
   ];
   var TIPOS_FOTO = { frente: 'Frente', lateral: 'Lateral', traseira: 'Traseira', perspectiva: 'Perspectiva', detalhe: 'Detalhe / acabamento', ambiente: 'Ambiente (ilustrativa)', outra: 'Outra' };
   var COR_PADRAO = '#1F1E1B', DESTAQUE_PADRAO = '#D8B78E';
+  // Compatibilidade: 3D precisa de WebGL (diferente de RA, que é WebXR/ARCore/Quick Look).
+  // Sem WebGL, o cliente vê as fotos e as medidas; com pouca memória, a lista usa fotos (mais leve).
+  var SEM_3D = (function () { try { var c = document.createElement('canvas'); return !(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); } catch (e) { return true; } })();
+  var POUCA_MEMORIA = !!(navigator.deviceMemory && navigator.deviceMemory <= 1);
 
   var VAZIO = { padaria: { nome: 'Carregando…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
   // Página inicial: sempre a demonstração da loja de móveis (não depende do que está salvo)
@@ -575,7 +579,7 @@
   function reguaTexto(d) { return num(d.largura) + ' × ' + num(d.altura) + ' cm'; }
 
   function htmlCard(p) {
-    var temModelo = !!p.modelo;
+    var temModelo = !!p.modelo && !SEM_3D && !(POUCA_MEMORIA && fotoPrincipal(p));
     var temTams = p.tamanhos && p.tamanhos.length;
     var temOpcoes = temTams || (p.adicionais && p.adicionais.length);
     var vitrine = temModelo
@@ -700,7 +704,7 @@
     if (tira.hidden) { tira.innerHTML = ''; return; }
     tira.innerHTML = (tem3d ? '<button type="button" class="galeria-tira__item galeria-tira__item--3d" role="tab" aria-selected="true" data-gal="-1"><span>3D</span></button>' : '') +
       galV.itens.map(function (f, k) {
-        return '<button type="button" class="galeria-tira__item" role="tab" aria-selected="false" data-gal="' + k + '" aria-label="Foto ' + (k + 1) + ': ' + esc(TIPOS_FOTO[f.tipo] || 'Foto') + '"><img src="' + esc(urlModelo(f.url)) + '" alt="" loading="lazy" decoding="async"></button>';
+        return '<button type="button" class="galeria-tira__item' + (f.tipo === 'ambiente' ? ' galeria-tira__item--amb' : '') + '" role="tab" aria-selected="false" data-gal="' + k + '" aria-label="Foto ' + (k + 1) + ': ' + esc(TIPOS_FOTO[f.tipo] || 'Foto') + '"><img src="' + esc(urlModelo(f.url)) + '" alt="" loading="lazy" decoding="async"></button>';
       }).join('');
   }
   function mostrarFotoViewer(k) {
@@ -721,6 +725,13 @@
     $$('#viewer-galeria [data-gal]').forEach(function (b) { b.setAttribute('aria-selected', String(Number(b.getAttribute('data-gal')) === galV.i)); });
     var sel = document.querySelector('#viewer-galeria [aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
+  // Vistas rápidas do 3D (e voltar à posição inicial)
+  var VISTAS = { inicio: '28deg 72deg auto', frente: '0deg 80deg auto', lado: '90deg 80deg auto', tras: '180deg 80deg auto', cima: '0deg 12deg auto' };
+  $('#viewer-vistas').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-vista]'), mv = palco.querySelector('model-viewer'); if (!b || !mv) return;
+    if (galV.i >= 0) mostrarFotoViewer(-1);
+    mv.cameraTarget = 'auto auto auto'; mv.fieldOfView = 'auto'; mv.cameraOrbit = VISTAS[b.getAttribute('data-vista')];
+  });
   $('#viewer-galeria').addEventListener('click', function (e) { var b = e.target.closest('[data-gal]'); if (b) mostrarFotoViewer(Number(b.getAttribute('data-gal'))); });
   $('#palco-fotos').addEventListener('click', function (e) { var b = e.target.closest('[data-foto-nav]'); if (b) mostrarFotoViewer(galV.i + Number(b.getAttribute('data-foto-nav'))); });
   (function () {   // arrastar para os lados troca a foto
@@ -919,7 +930,7 @@
   });
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
-    $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; galV = { itens: [], i: -1, tem3d: false };
+    $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; $('#viewer-vistas').hidden = true; galV = { itens: [], i: -1, tem3d: false };
     preencherTextosViewer(p);
     $('#viewer-dim-modelo').textContent = 'calculando…';
     $('#viewer-escala').hidden = true;
@@ -932,8 +943,15 @@
     abrirDialogo(dlgViewer);
     trocarAba(modo);
 
-    if (mvStatus === 'falhou') {
-      estadoPalco('<div class="caixa-erro"><strong>Visualização 3D indisponível</strong>A biblioteca &lt;model-viewer&gt; não carregou. Verifique a conexão com a internet e recarregue a página.</div>', true);
+    if ((mvStatus === 'falhou' || SEM_3D) && fotosDoProduto(p).length && !p.combo) {
+      $('#aba-ar').disabled = !ef.modelo || SEM_3D;
+      renderGaleriaViewer(p, false); trocarAba('3d'); estadoPalco(''); mostrarFotoViewer(0);
+      $('#viewer-dim-modelo').textContent = '—';
+      toast(SEM_3D ? 'Este aparelho não mostra 3D. Veja as fotos e as medidas.' : 'O 3D não carregou. Veja as fotos e as medidas.');
+      return;
+    }
+    if (mvStatus === 'falhou' || (SEM_3D && ef.modelo)) {
+      estadoPalco(SEM_3D ? '<div class="palco-sem3d"><strong>Este aparelho não mostra 3D</strong>Confira as medidas abaixo e use o “Cabe no meu espaço?”. Num computador ou outro celular, o 3D aparece normalmente.</div>' : '<div class="caixa-erro"><strong>Visualização 3D indisponível</strong>A biblioteca &lt;model-viewer&gt; não carregou. Verifique a conexão com a internet e recarregue a página.</div>', true);
       $('#viewer-dim-modelo').textContent = '—';
       atualizarAvisoAR();
       return;
@@ -997,10 +1015,15 @@
       } else {
         conferirEscala(mv, { dim: efetivo(p, tamAtual).dim });
       }
+      $('#viewer-vistas').hidden = false;
       atualizarAvisoAR();
       if (pontosValidos(p, ef).length) toast('Toque nos números no 3D para ver os detalhes do móvel.');
     });
     mv.addEventListener('error', function () {
+      if (!p.combo && fotosDoProduto(p).length) {   // plano B: mostra as fotos
+        renderGaleriaViewer(p, false); mostrarFotoViewer(0); $('#viewer-dim-modelo').textContent = '—';
+        toast('O 3D não carregou. Veja as fotos e as medidas.'); return;
+      }
       estadoPalco('<div class="caixa-erro"><strong>Não foi possível carregar o modelo 3D</strong>' +
         'Confira se o arquivo existe e se a página está sendo servida por um servidor (não abra o index.html direto do disco).<br><br>' +
         'Arquivo: <code>' + esc(ef.modelo) + '</code></div>', true);

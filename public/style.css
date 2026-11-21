@@ -1311,3 +1311,11 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .viewer__contato .btn { text-decoration: none; justify-content: center; }
 .viewer__contato [hidden] { display: none; }
 .viewer__contato:has(#viewer-zap[hidden]) { grid-template-columns: 1fr; }
+
+.vistas { display: flex; gap: 6px; overflow-x: auto; padding: 10px 16px 0; scrollbar-width: none; }
+.vistas::-webkit-scrollbar { display: none; }
+.vistas button { flex: none; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--linha-forte); background: var(--superficie); color: var(--tinta); font: 650 13.5px var(--fonte); cursor: pointer; }
+.vistas button:active { background: var(--limao-suave); }
+.vistas[hidden] { display: none; }
+.galeria-tira__item--amb { position: relative; }
+.galeria-tira__item--amb::after { content: "Ambiente"; position: absolute; left: 0; right: 0; bottom: 0; padding: 1px 0; background: rgba(26,25,23,.75); color: #fff; font: 700 9.5px var(--fonte); text-align: center; }
