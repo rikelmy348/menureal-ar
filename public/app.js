@@ -150,6 +150,7 @@
     { nome: 'Chumbo', cor: '#43464B', destaque: '#E2D6C2' },
     { nome: 'Noite', cor: '#121212', destaque: '#D8B78E' }
   ];
+  var TIPOS_FOTO = { frente: 'Frente', lateral: 'Lateral', traseira: 'Traseira', perspectiva: 'Perspectiva', detalhe: 'Detalhe / acabamento', ambiente: 'Ambiente (ilustrativa)', outra: 'Outra' };
   var COR_PADRAO = '#1F1E1B', DESTAQUE_PADRAO = '#D8B78E';
 
   var VAZIO = { padaria: { nome: 'Carregando…', slogan: '', abre: '00:00', fecha: '00:00', dias: [], whatsapp: '' }, categorias: [], produtos: [] };
@@ -231,7 +232,10 @@
         pontos: lerPontos(x.pontos),            // pontos de informação no 3D (ex.: "tecido impermeável")
         pontosDe: String(x.pontosDe || ''),      // o 3D em que os pontos foram marcados
         planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null,   // ficha do montador de planejados
-        precoDe: Math.min(1000000, Math.max(0, Math.round((Number(x.precoDe) || 0) * 100) / 100))   // preço antigo (oferta: "de R$ X por R$ Y")
+        precoDe: Math.min(1000000, Math.max(0, Math.round((Number(x.precoDe) || 0) * 100) / 100)),   // preço antigo (oferta: "de R$ X por R$ Y")
+        galeria: (Array.isArray(x.galeria) ? x.galeria : []).filter(function (f) { return f && /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(f.url || '')); })
+          .map(function (f) { return { url: String(f.url), tipo: TIPOS_FOTO[f.tipo] ? f.tipo : 'outra' }; }).slice(0, 12),   // mais fotos do móvel
+        acabamentos: String(x.acabamentos || '').slice(0, 400)
       };
     });
     return { padaria: padaria, categorias: categorias, produtos: produtos };
@@ -582,11 +586,12 @@
           '<span class="card__estado" data-estado><span class="carregando"><span class="spinner" aria-hidden="true"></span><span class="barra"><i></i></span></span></span>' +
         '</button>' +
         '<button class="card__mesa" type="button" data-acao="ar" aria-label="Ver ' + esc(p.nome) + ' no tamanho real, pela câmera">' + ICONES.ar + '<span>' + (ehAlimento() ? 'Na mesa' : 'Ver em casa') + '</span></button>'
-      : p.foto
-        ? '<button class="card__palco card__palco--foto" type="button" data-acao="3d" aria-label="Ver detalhes e medidas de ' + esc(p.nome) + '"><img src="' + esc(urlModelo(p.foto)) + '" alt="' + esc(p.nome) + '" loading="lazy" decoding="async"></button>'
+      : fotoPrincipal(p)
+        ? '<button class="card__palco card__palco--foto" type="button" data-acao="3d" aria-label="Ver fotos e medidas de ' + esc(p.nome) + '"><img src="' + esc(urlModelo(fotoPrincipal(p))) + '" alt="' + esc(p.nome) + '" loading="lazy" decoding="async">' +
+          (fotosDoProduto(p).length > 1 ? '<span class="card__nfotos">' + fotosDoProduto(p).length + ' fotos</span>' : '') + '</button>'
         : '<button class="card__palco card__palco--vazio" type="button" data-acao="3d" aria-label="Ver detalhes e medidas de ' + esc(p.nome) + '"><span>' + esc(p.nome.trim().charAt(0).toUpperCase()) + '</span></button>';
     var mostraRegua = temModelo || !(p.dim.largura <= 5 && p.dim.altura <= 5 && p.dim.profundidade <= 5);
-    return '<article class="card' + (temModelo || p.foto ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
+    return '<article class="card' + (temModelo || fotoPrincipal(p) ? '' : ' card--simples') + (p.esgotado ? ' card--esgotado' : '') + '" data-id="' + esc(p.id) + '">' +
       '<div class="card__vitrine">' + vitrine + (p.esgotado ? '<span class="selo-esgotado">Esgotado</span>'
         : emOferta(p) ? '<span class="selo-oferta">Oferta −' + descontoTexto(p) + '%</span>' : '') +
         (mostraRegua ? '<span class="regua" title="' + (temTams ? 'Largura dos tamanhos' : 'Largura × altura') + '"><span>' + esc(temTams
@@ -685,6 +690,44 @@
   var palco = $('#palco');
   var palcoEstado = $('#palco-estado');
 
+  // ---- Galeria no produto: tira com "3D" + fotos; a foto aparece por cima do 3D (o 3D não é recarregado)
+  var galV = { itens: [], i: -1, tem3d: false };
+  function renderGaleriaViewer(p, tem3d) {
+    galV = { itens: p.combo ? [] : fotosDoProduto(p), i: -1, tem3d: tem3d };
+    var tira = $('#viewer-galeria'), n = galV.itens.length;
+    $('#palco-fotos').hidden = true;
+    tira.hidden = n === 0 || (n === 1 && !tem3d);
+    if (tira.hidden) { tira.innerHTML = ''; return; }
+    tira.innerHTML = (tem3d ? '<button type="button" class="galeria-tira__item galeria-tira__item--3d" role="tab" aria-selected="true" data-gal="-1"><span>3D</span></button>' : '') +
+      galV.itens.map(function (f, k) {
+        return '<button type="button" class="galeria-tira__item" role="tab" aria-selected="false" data-gal="' + k + '" aria-label="Foto ' + (k + 1) + ': ' + esc(TIPOS_FOTO[f.tipo] || 'Foto') + '"><img src="' + esc(urlModelo(f.url)) + '" alt="" loading="lazy" decoding="async"></button>';
+      }).join('');
+  }
+  function mostrarFotoViewer(k) {
+    var n = galV.itens.length, camada = $('#palco-fotos');
+    if (k < 0 || !n) { if (galV.tem3d) { galV.i = -1; camada.hidden = true; marcarTira(); return; } k = 0; }
+    k = (k + n) % n; galV.i = k;
+    var f = galV.itens[k];
+    $('#palco-fotos-img').src = urlModelo(f.url);
+    $('#palco-fotos-img').alt = (produtoAtual ? produtoAtual.nome + ' — ' : '') + (TIPOS_FOTO[f.tipo] || 'foto');
+    var rot = f.tipo && f.tipo !== 'outra' ? (f.tipo === 'ambiente' ? 'Ambiente' : TIPOS_FOTO[f.tipo]) : '';
+    $('#palco-fotos-tipo').textContent = rot + (n > 1 ? (rot ? ' · ' : '') + (k + 1) + '/' + n : '');
+    $('#palco-fotos-tipo').hidden = !$('#palco-fotos-tipo').textContent;
+    $('#palco-fotos-aviso').hidden = f.tipo !== 'ambiente';
+    $$('.palco-fotos__nav', camada).forEach(function (b) { b.hidden = n < 2; });
+    camada.hidden = false; marcarTira();
+  }
+  function marcarTira() {
+    $$('#viewer-galeria [data-gal]').forEach(function (b) { b.setAttribute('aria-selected', String(Number(b.getAttribute('data-gal')) === galV.i)); });
+    var sel = document.querySelector('#viewer-galeria [aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  $('#viewer-galeria').addEventListener('click', function (e) { var b = e.target.closest('[data-gal]'); if (b) mostrarFotoViewer(Number(b.getAttribute('data-gal'))); });
+  $('#palco-fotos').addEventListener('click', function (e) { var b = e.target.closest('[data-foto-nav]'); if (b) mostrarFotoViewer(galV.i + Number(b.getAttribute('data-foto-nav'))); });
+  (function () {   // arrastar para os lados troca a foto
+    var x0 = null;
+    $('#palco-fotos').addEventListener('pointerdown', function (e) { x0 = e.clientX; });
+    $('#palco-fotos').addEventListener('pointerup', function (e) { if (x0 == null) return; var d = e.clientX - x0; x0 = null; if (Math.abs(d) > 40 && galV.itens.length > 1) mostrarFotoViewer(galV.i + (d < 0 ? 1 : -1)); });
+  })();
   function estadoPalco(html, erro) {
     palcoEstado.hidden = !html;
     palcoEstado.classList.toggle('erro', !!erro);
@@ -761,6 +804,7 @@
     }).join('');
     var info = '';
     if (p.ingredientes) info += '<div><dt>' + (ehAlimento() ? 'Ingredientes' : 'Composição') + '</dt><dd>' + esc(p.ingredientes) + '</dd></div>';
+    if (!ehAlimento() && p.acabamentos) info += '<div><dt>Acabamentos</dt><dd>' + esc(p.acabamentos) + '</dd></div>';
     if (ehAlimento() && p.alergenos && p.alergenos.length) info += '<div class="alerg"><dt>Alérgicos</dt><dd>Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '.</dd></div>';
     $('#viewer-info').innerHTML = info;
     $('#viewer-info').hidden = !info;
@@ -863,6 +907,7 @@
   }
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
+    $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; galV = { itens: [], i: -1, tem3d: false };
     preencherTextosViewer(p);
     $('#viewer-dim-modelo').textContent = 'calculando…';
     $('#viewer-escala').hidden = true;
@@ -886,11 +931,11 @@
     marcarSemAR();
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
+    renderGaleriaViewer(p, !!ef.modelo);
     if (!ef.modelo) {
       trocarAba('3d');
-      estadoPalco((p.foto ? '<img class="palco-foto" src="' + esc(urlModelo(p.foto)) + '" alt="' + esc(p.nome) + '">' : '') +
-        '<div class="palco-sem3d"><strong>' + (p.foto ? 'Foto do produto' : 'Produto sem foto') + '</strong>' +
-        'O 3D deste produto ainda não está disponível. Confira as medidas e use o “Cabe no meu espaço?” abaixo.</div>');
+      if (fotosDoProduto(p).length) { estadoPalco(''); mostrarFotoViewer(0); }
+      else estadoPalco('<div class="palco-sem3d"><strong>Produto sem foto</strong>O 3D deste produto ainda não está disponível. Confira as medidas e use o “Cabe no meu espaço?” abaixo.</div>');
       $('#viewer-dim-modelo').textContent = '—';
       return;
     }
@@ -2663,6 +2708,23 @@
     if (t.matches('[data-v="marca"]')) { visualRascunho(function (v) { v.marca = t.checked; }); return; }
     if (t.name === 'v-cenario') { visualRascunho(function (v) { v.cenario = t.value; }); return; }
     if (t.matches('[data-img]') && t.files && t.files[0]) { enviarImagemLoja(t.getAttribute('data-img'), t.files[0]); t.value = ''; }
+    if (t.matches('[data-gal-tipo]')) { var xg = produtoDoAlvo(t), kg = Number(t.closest('[data-gk]').getAttribute('data-gk')); if (xg.galeria[kg]) xg.galeria[kg].tipo = t.value; return; }
+    if (t.matches('[data-up-galeria]') && t.files && t.files.length) {
+      var xgal = produtoDoAlvo(t), arqs = Array.prototype.slice.call(t.files, 0, 12 - (xgal.galeria || []).length); t.value = '';
+      if (!credenciais()) { toast('Entre na conta do estabelecimento'); return; }
+      xgal.galeria = xgal.galeria || [];
+      toast('Enviando ' + arqs.length + (arqs.length > 1 ? ' fotos…' : ' foto…'));
+      arqs.reduce(function (pr, arq) {
+        return pr.then(function () {
+          return reduzirParaEnvio(arq, 1600, false).then(function (r) {
+            return fetch(comLoja('api/imagem'), { method: 'POST', headers: cabecalhos(), body: JSON.stringify({ imagem: r.base64, tipo: r.tipo, uso: 'produto' }) });
+          }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || !j.url) throw new Error(j.erro || 'Erro do servidor (' + r.status + ').'); xgal.galeria.push({ url: j.url, tipo: 'outra' }); }); });
+        });
+      }, Promise.resolve()).then(function () {
+        coletarAdmin(); abertoNoAdmin = xgal.id; renderAdmin(); toast('Fotos enviadas. Escolha o tipo de cada uma e toque em “Salvar alterações”.');
+      }).catch(function (e) { coletarAdmin(); abertoNoAdmin = xgal.id; renderAdmin(); toast(/failed to fetch|network/i.test(e.message) ? 'Sem conexão com o servidor.' : e.message); });
+      return;
+    }
     if (t.matches('[data-up-foto]') && t.files && t.files[0]) {
       var xp = produtoDoAlvo(t), arqP = t.files[0]; t.value = '';
       if (!credenciais()) { toast('Entre na conta do estabelecimento'); return; }
@@ -3379,6 +3441,26 @@
   }, true);
 
   // Foto do produto: aparece no catálogo enquanto o 3D não fica pronto (a loja pode começar só com fotos)
+  // Todas as fotos do móvel, na ordem: a principal e depois a galeria
+  function fotosDoProduto(p) {
+    var l = []; if (p.foto) l.push({ url: p.foto, tipo: 'perspectiva', principal: true });
+    (p.galeria || []).forEach(function (f) { l.push(f); });
+    return l;
+  }
+  function fotoPrincipal(p) { var f = fotosDoProduto(p)[0]; return f ? f.url : ''; }
+  function htmlGaleriaAdmin(x) {
+    if (!servidor || ehAlimento(rascunho)) return '';
+    var g = x.galeria || [];
+    return '<div class="campo gal-admin"><span class="foto-prod__rot">Mais fotos do móvel <small>(até 12: frente, lateral, traseira, detalhes, ambiente…)</small></span>' +
+      '<div class="gal-admin__lista">' + g.map(function (f, k) {
+        return '<figure class="gal-admin__item" data-gk="' + k + '"><img src="' + esc(urlModelo(f.url)) + '" alt="" loading="lazy">' +
+          '<select data-gal-tipo aria-label="Tipo da foto">' + Object.keys(TIPOS_FOTO).map(function (t) { return '<option value="' + t + '"' + (t === f.tipo ? ' selected' : '') + '>' + TIPOS_FOTO[t] + '</option>'; }).join('') + '</select>' +
+          '<div class="gal-admin__bts">' + (k > 0 ? '<button type="button" data-gal-mover="-1" aria-label="Mover para a esquerda">←</button>' : '') +
+          '<button type="button" data-gal-tirar aria-label="Tirar foto">✕</button></div></figure>';
+      }).join('') +
+      (g.length < 12 ? '<label class="gal-admin__add">' + ICONES.camera + '<span>Pôr fotos</span><input type="file" accept="image/*" multiple data-up-galeria hidden></label>' : '') +
+      '</div><small>As fotos “Ambiente” aparecem para o cliente com o aviso “imagem ilustrativa”.</small></div>';
+  }
   function htmlFotoProdutoAdmin(x) {
     if (!servidor || ehAlimento(rascunho)) return '';
     return '<div class="campo foto-prod"><span class="foto-prod__rot">Foto do produto' + (x.modelo ? ' <small>(o catálogo mostra o 3D; a foto fica de reserva)</small>' : ' <small>(aparece no catálogo enquanto o 3D não fica pronto)</small>') + '</span>' +
@@ -3411,13 +3493,15 @@
                 return '<label class="checar"><input type="checkbox" data-alerg="' + esc(a) + '"' + (x.alergenos.indexOf(a) > -1 ? ' checked' : '') + '>' + esc(a) + '</label>';
               }).join('') +
             '</div></fieldset>'
-          : campo('Composição / materiais', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: madeira maciça, tecido linho, pés de metal">' + esc(x.ingredientes) + '</textarea>')) +
+          : campo('Composição / materiais', '<textarea data-f="ingredientes" maxlength="600" placeholder="Ex.: madeira maciça, tecido linho, pés de metal">' + esc(x.ingredientes) + '</textarea>') +
+            campo('Acabamentos', '<textarea data-f="acabamentos" maxlength="400" placeholder="Ex.: laca fosca, puxadores em cobre, fita de borda 2 mm">' + esc(x.acabamentos || '') + '</textarea>')) +
         '<div class="campos campos--3">' +
           campo('Largura (cm)', '<input data-f="largura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.largura + '">') +
           campo('Profund. (cm)', '<input data-f="profundidade" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.profundidade + '">') +
           campo('Altura (cm)', '<input data-f="altura" type="number" min="0.1" max="1000" step="0.1" inputmode="decimal" value="' + x.dim.altura + '">') +
         '</div>' +
         htmlFotoProdutoAdmin(x) +
+        htmlGaleriaAdmin(x) +
         htmlProduto3dAdmin(x) +
         '<fieldset class="campo tams-admin"><legend>' + (ehAlimento(rascunho) ? 'Tamanhos (opcional)' : 'Versões: cor, tamanho ou modelo (opcional)') + '</legend>' +
           '<small>' + (ehAlimento(rascunho) ? 'Ex.: pequeno e grande. Cada tamanho tem preço e medidas próprios.'
@@ -3490,6 +3574,7 @@
       var x = rascunho.produtos[Number(d.getAttribute('data-i'))];
       var g = function (k) { return d.querySelector('[data-f="' + k + '"]'); };
       x.nome = g('nome').value.trim();
+      var gAc = g('acabamentos'); if (gAc) x.acabamentos = gAc.value.trim().slice(0, 400);
       x._preco = g('preco').value;
       x.preco = lerPreco(g('preco').value);
       var gDe = g('precoDe'); if (gDe) { var de = gDe.value.trim() ? lerPreco(gDe.value) : 0; x.precoDe = isFinite(de) && de > x.preco ? de : 0; }
@@ -3747,6 +3832,13 @@
       var d = $('details.prod[open]');
       if (d) { d.scrollIntoView({ block: 'center', behavior: reduzMovimento ? 'auto' : 'smooth' }); d.querySelector('[data-f="nome"]').select(); }
       return;
+    }
+    var gt = e.target.closest('[data-gal-tirar], [data-gal-mover]');
+    if (gt && gt.closest('.gal-admin')) {
+      var xgt = produtoDoAlvo(gt), kk = Number(gt.closest('[data-gk]').getAttribute('data-gk')); coletarAdmin();
+      if (gt.hasAttribute('data-gal-tirar')) xgt.galeria.splice(kk, 1);
+      else { var f0 = xgt.galeria.splice(kk, 1)[0]; xgt.galeria.splice(Math.max(0, kk - 1), 0, f0); }
+      abertoNoAdmin = xgt.id; renderAdmin(); return;
     }
     var tfoto = e.target.closest('[data-tirar-foto]');
     if (tfoto) { var xt = produtoDoAlvo(tfoto); coletarAdmin(); xt.foto = ''; abertoNoAdmin = xt.id; renderAdmin(); return; }

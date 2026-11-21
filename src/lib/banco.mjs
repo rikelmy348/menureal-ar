@@ -190,6 +190,12 @@ function limparParcelas(v) {
 }
 
 /** Foto do produto (para quem ainda não tem o 3D): só imagens da pasta da própria loja. */
+/** Galeria do móvel: até 12 fotos (do próprio produto da loja), cada uma com o tipo da foto. */
+export const TIPOS_FOTO = ['frente', 'lateral', 'traseira', 'perspectiva', 'detalhe', 'ambiente', 'outra'];
+function limparGaleria(lista, slug) {
+  return (Array.isArray(lista) ? lista : []).map((f) => ({ url: fotoProduto(f && f.url, slug), tipo: TIPOS_FOTO.includes(f && f.tipo) ? f.tipo : 'outra' }))
+    .filter((f) => f.url).slice(0, 12);
+}
 function fotoProduto(u, slug) {
   u = String(u || '');
   return new RegExp('^api/arquivo/imagens/' + String(slug).replace(/[^a-z0-9_-]/g, '') + '/produto-[\\w.-]+\\.(webp|png|jpg)$').test(u) ? u : '';
@@ -257,7 +263,9 @@ export async function lerCardapio(env, slug) {
       pontos: limparPontos(lerJson(p.opcoes, {}).pontos),
       pontosDe: String(lerJson(p.opcoes, {}).pontosDe || ''),
       planejado: lerJson(p.opcoes, {}).planejado || null,
-      precoDe: reais(lerJson(p.opcoes, {}).precoDe, 1000000)
+      precoDe: reais(lerJson(p.opcoes, {}).precoDe, 1000000),
+      galeria: lerJson(p.opcoes, {}).galeria || [],
+      acabamentos: String(lerJson(p.opcoes, {}).acabamentos || '')
     })),
     atualizadoEm: l.atualizada_em
   };
@@ -314,7 +322,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), galeria: limparGaleria(x.galeria, s), acabamentos: texto(x.acabamentos, 400), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

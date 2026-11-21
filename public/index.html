@@ -206,7 +206,15 @@
         <!-- O <model-viewer> é criado pelo app.js a cada abertura -->
         <div class="palco__marca" id="palco-marca" aria-hidden="true"></div>
         <div class="palco__estado" id="palco-estado" hidden></div>
+        <div class="palco-fotos" id="palco-fotos" hidden>
+          <img id="palco-fotos-img" alt="" draggable="false">
+          <span class="palco-fotos__tipo" id="palco-fotos-tipo"></span>
+          <p class="palco-fotos__aviso" id="palco-fotos-aviso" hidden>Imagem ilustrativa: mostra o estilo, não as medidas reais.</p>
+          <button class="palco-fotos__nav palco-fotos__nav--ant" type="button" data-foto-nav="-1" aria-label="Foto anterior">‹</button>
+          <button class="palco-fotos__nav palco-fotos__nav--prox" type="button" data-foto-nav="1" aria-label="Próxima foto">›</button>
+        </div>
       </div>
+      <div class="galeria-tira" id="viewer-galeria" hidden role="tablist" aria-label="Fotos e 3D do móvel"></div>
 
       <div class="viewer__painel">
         <div class="tamanhos" id="viewer-tamanhos" role="group" aria-label="Tamanho" hidden></div>

@@ -1280,3 +1280,28 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 /* celular sem RA: o modo foto vira o caminho principal */
 .foto-amb-btn--principal { background: var(--verde); color: var(--sobre-verde); border-color: var(--verde); }
 .foto-amb-btn--principal small { color: inherit; opacity: .8; }
+
+/* =================== Galeria do móvel =================== */
+.palco-fotos { position: absolute; inset: 0; z-index: 8; background: var(--palco-a); display: grid; place-items: center; touch-action: pan-y; user-select: none; }
+.palco-fotos img { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
+.palco-fotos__tipo { position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 999px; background: rgba(26,25,23,.78); color: #fff; font-size: 12.5px; font-weight: 700; }
+.palco-fotos__tipo[hidden] { display: none; }
+.palco-fotos__aviso { position: absolute; left: 12px; right: 12px; bottom: 12px; margin: 0; padding: 8px 12px; border-radius: 12px; background: rgba(26,25,23,.82); color: #fff; font-size: 13px; text-align: center; }
+.palco-fotos__nav { position: absolute; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #1A1917; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.2); cursor: pointer; }
+.palco-fotos__nav--ant { left: 10px; } .palco-fotos__nav--prox { right: 10px; }
+.palco-fotos__nav[hidden] { display: none; }
+.galeria-tira { display: flex; gap: 8px; overflow-x: auto; padding: 10px 16px 2px; scrollbar-width: none; }
+.galeria-tira::-webkit-scrollbar { display: none; }
+.galeria-tira__item { flex: none; width: 62px; height: 62px; padding: 0; border-radius: 12px; overflow: hidden; border: 2px solid transparent; background: var(--palco-b); cursor: pointer; }
+.galeria-tira__item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.galeria-tira__item[aria-selected="true"] { border-color: var(--tinta); }
+.galeria-tira__item--3d { display: grid; place-items: center; font: 800 16px var(--fonte); color: var(--tinta); background: var(--superficie); border-color: var(--linha-forte); }
+.card__nfotos { position: absolute; right: 8px; bottom: 36px; padding: 3px 8px; border-radius: 999px; background: rgba(26,25,23,.72); color: #fff; font-size: 11.5px; font-weight: 700; }
+.gal-admin__lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin: 6px 0; }
+.gal-admin__item { position: relative; margin: 0; display: grid; gap: 4px; }
+.gal-admin__item img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: var(--palco-b); }
+.gal-admin__item select { width: 100%; font-size: 12.5px; padding: 5px; border-radius: 8px; border: 1px solid var(--linha-forte); background: var(--superficie); }
+.gal-admin__bts { position: absolute; top: 4px; right: 4px; display: flex; gap: 4px; }
+.gal-admin__bts button { width: 26px; height: 26px; border-radius: 50%; border: 0; background: rgba(26,25,23,.8); color: #fff; cursor: pointer; font-size: 13px; }
+.gal-admin__add { display: grid; place-items: center; align-content: center; gap: 4px; aspect-ratio: 1; border: 2px dashed var(--linha-forte); border-radius: 10px; color: var(--tinta-2); font-weight: 700; font-size: 13px; cursor: pointer; }
+.gal-admin__add svg { width: 22px; height: 22px; }
