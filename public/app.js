@@ -931,6 +931,9 @@
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
     $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; $('#viewer-vistas').hidden = true; galV = { itens: [], i: -1, tem3d: false };
+    var ef0 = p.combo ? { modelo: p.modelo } : efetivo(p, tamAtual);
+    $('#viewer-abas').hidden = !ef0.modelo || SEM_3D;   // sem 3D: sem as abas 3D / tamanho real
+    var dica0 = $('#painel-3d .dica'); if (dica0) dica0.hidden = !ef0.modelo || SEM_3D;
     preencherTextosViewer(p);
     $('#viewer-dim-modelo').textContent = 'calculando…';
     $('#viewer-escala').hidden = true;
