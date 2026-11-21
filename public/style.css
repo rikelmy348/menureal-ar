@@ -1111,8 +1111,6 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .foto-amb-btn { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 4px; text-align: left; }
 .foto-amb-btn svg { width: 24px; height: 24px; flex: none; }
 .foto-amb-btn span { display: grid; line-height: 1.2; }
-.foto-amb-btn .t-ao-vivo { font-style: normal; }
-.foto-amb-btn .selo-beta { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 999px; background: #FFC24B; color: #2A1640; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; vertical-align: 1px; }
 .foto-amb-btn small { font-weight: 500; font-size: 12px; opacity: .8; }
 .casa-passos { margin: 8px 0 16px; }
 .casa-btn-arq { margin-bottom: 10px; cursor: pointer; }
@@ -1173,7 +1171,6 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .numero:nth-child(4) { background: #D8B78E; color: #2B1D10; }
 .medidor i { background: linear-gradient(90deg, #1F1E1B, #8A6A4A); }
 .top-produtos li b { background: linear-gradient(90deg, var(--verde), var(--limao)); }
-.foto-amb-btn .selo-beta { background: #D8B78E; color: #2B1D10; }
 .link-botao { color: #D8B78E; }
 
 /* =================== Seções da loja (banner, galeria, depoimentos, endereço) =================== */
@@ -1279,3 +1276,7 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .viewer__preco .preco-de { display: inline; font-size: .7em; margin-right: 4px; }
 .card__parcela { margin: 4px 0 0; font-size: 13.5px; color: var(--ok); font-weight: 600; }
 .viewer__parcela { margin: 2px 0 0; font-size: 15px; color: var(--ok); font-weight: 600; }
+
+/* celular sem RA: o modo foto vira o caminho principal */
+.foto-amb-btn--principal { background: var(--verde); color: var(--sobre-verde); border-color: var(--verde); }
+.foto-amb-btn--principal small { color: inherit; opacity: .8; }

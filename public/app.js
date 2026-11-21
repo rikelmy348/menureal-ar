@@ -726,7 +726,7 @@
       caixa.hidden = true;
     } else {
       caixa.hidden = false;
-      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>' + (aoVivoServe() ? 'Use “Ver ao vivo pela câmera” ou “Ver numa foto da minha casa”: funcionam em qualquer celular.' : 'Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.') +
+      caixa.innerHTML = '<strong>Seu aparelho ou navegador não abriu a RA aqui</strong>' + 'Use o botão “Ver numa foto da minha casa”: funciona em qualquer celular.' +
         '<ul>' + motivoSemAR().map(function (m) { return '<li>' + m + '</li>'; }).join('') + '</ul>';
     }
   }
@@ -883,7 +883,7 @@
     }
     $('#aba-ar').disabled = !ef.modelo;
     $('#btn-foto-amb').hidden = !ef.modelo;
-    $('#btn-ao-vivo').hidden = !ef.modelo || !aoVivoServe() || semARCore;
+    marcarSemAR();
     var dica = $('#painel-3d .dica'); if (dica) dica.hidden = !ef.modelo;
     var celModelo = $('#viewer-dim-modelo').parentNode; if (celModelo) celModelo.hidden = !ef.modelo;
     if (!ef.modelo) {
@@ -1162,46 +1162,23 @@
   // porta, piso) e o móvel aparece na foto na escala certa. Depois gira,
   // posiciona e compartilha a imagem.
   // ===================================================================
-  // Ver ao vivo (beta): a nossa própria câmera com sensores (ra.html), para
-  // celulares sem RA do Google. iPhone sempre tem a RA da Apple, então não aparece.
-  function aoVivoServe() {
-    var ua = navigator.userAgent || '';
-    var ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    return !ios && !MODELOS_EMBUTIDOS && (navigator.maxTouchPoints > 0 || /Android/i.test(ua)) && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
-  }
-  // Android no Chrome sem a RA do Google (ARCore): o botão principal abre direto o nosso modo ao vivo,
-  // em vez do app do Google que, sem ARCore, só mostra o 3D e não abre a câmera.
+  // Android no Chrome sem a RA do Google (ARCore): o botão "Ver na sua casa" abriria o app do Google,
+  // que sem ARCore só mostra o 3D. Nesses celulares o botão abre direto o modo foto.
   var semARCore = false;
   (function () {
     var ua = navigator.userAgent || '';
     var chrome = /Android/i.test(ua) && /Chrome\//.test(ua) && !/SamsungBrowser|EdgA|OPR\/|Firefox|; wv\)|FBAN|FBAV|Instagram/i.test(ua);
-    if (!chrome || !aoVivoServe()) return;
-    if (!navigator.xr || !navigator.xr.isSessionSupported) { semARCore = true; atualizarBotoesAR(); return; }
-    navigator.xr.isSessionSupported('immersive-ar').then(function (ok) { semARCore = !ok; atualizarBotoesAR(); }).catch(function () {});
+    if (!chrome || MODELOS_EMBUTIDOS) return;
+    if (!navigator.xr || !navigator.xr.isSessionSupported) { semARCore = true; return; }
+    navigator.xr.isSessionSupported('immersive-ar').then(function (ok) { semARCore = !ok; marcarSemAR(); }).catch(function () {});
   })();
-  function atualizarBotoesAR() {
-    var b = $('#btn-ao-vivo'); if (!b) return;
-    // com o botão principal já abrindo o modo ao vivo, o botão extra fica repetido
-    if (semARCore) b.hidden = true;
-  }
+  function marcarSemAR() { var b = $('#btn-foto-amb'); if (b) b.classList.toggle('foto-amb-btn--principal', semARCore); }
   palco.addEventListener('click', function (e) {
     if (!semARCore || !e.target.closest('.botao-ar')) return;
     e.preventDefault(); e.stopImmediatePropagation();
-    abrirAoVivo();
+    registrar('ar', produtoAtual && produtoAtual.id);
+    abrirFotoAmbiente();
   }, true);
-  function abrirAoVivo() {
-    var mv = palco.querySelector('model-viewer');
-    if (!produtoAtual || !mv) return;
-    var ef = produtoAtual.combo ? { modelo: produtoAtual.modelo } : efetivo(produtoAtual, tamAtual);
-    var lista = mv.availableVariants || [];
-    var q = new URLSearchParams({ m: ef.modelo, n: produtoAtual.nome || 'Móvel' });
-    if (lista.length > 1 && mv.variantName && mv.variantName !== lista[0]) q.set('cor', mv.variantName);
-    if (LOJA) q.set('v', '/' + LOJA);
-    var zap = String((dados && dados.padaria && dados.padaria.whatsapp) || '').replace(/\D/g, '');
-    if (zap.length >= 10) q.set('w', zap.length <= 11 ? '55' + zap : zap);
-    registrar('ar', produtoAtual.id);
-    location.href = 'ra?' + q.toString();
-  }
 
   var fa = null;   // { p, ef, variante, foto: {img, w, h, url}, ref: {x1,y1,x2,y2,cm}, sprite, pos, theta, phi, ajuste, luz, etapa }
   function abrirFotoAmbiente() {
@@ -1382,7 +1359,6 @@
     img.src = url;
   }
   $('#btn-foto-amb').addEventListener('click', abrirFotoAmbiente);
-  $('#btn-ao-vivo').addEventListener('click', abrirAoVivo);
   $('#dlg-casa').addEventListener('close', function () {
     var MV = customElements.get('model-viewer');
     if (fa && MV && fa.escalaAntes != null) MV.minimumRenderScale = fa.escalaAntes;
