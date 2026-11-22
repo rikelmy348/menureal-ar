@@ -21,6 +21,30 @@ export function lerGlb(buf) {
   return { json, bin };
 }
 
+/** .gltf de arquivo único (dados embutidos em base64) → .glb. Lança 'externo' se depender de outros arquivos. */
+export function gltfParaGlb(texto) {
+  const j = JSON.parse(texto);
+  if (!j.asset || !Array.isArray(j.meshes)) throw new Error('gltf-invalido');
+  const b64 = (uri) => { if (!/^data:[^,]*;base64,/.test(uri || '')) throw new Error('externo'); const s = atob(uri.slice(uri.indexOf(',') + 1)); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+  const bufs = (j.buffers || []).map((b) => b64(b.uri));
+  const pedacos = []; let tam = 0;
+  const por = (bytes) => { tam = (tam + 3) & ~3; const o = tam; pedacos.push([o, bytes]); tam += bytes.length; return o; };
+  const inicio = bufs.map((b) => por(b));
+  for (const v of j.bufferViews || []) { v.byteOffset = (v.byteOffset || 0) + inicio[v.buffer || 0]; v.buffer = 0; }
+  for (const im of j.images || []) {
+    if (!im.uri) continue;
+    const mime = (im.uri.match(/^data:([^;,]+)/) || [])[1] || im.mimeType || 'image/png';
+    const bytes = b64(im.uri);
+    j.bufferViews = j.bufferViews || [];
+    j.bufferViews.push({ buffer: 0, byteOffset: por(bytes), byteLength: bytes.length });
+    im.bufferView = j.bufferViews.length - 1; im.mimeType = mime; delete im.uri;
+  }
+  const bin = new Uint8Array((tam + 3) & ~3);
+  for (const [o, b] of pedacos) bin.set(b, o);
+  j.buffers = [{ byteLength: bin.length }];
+  return escreverGlb(j, bin);
+}
+
 export function escreverGlb(json, bin) {
   const js = new TextEncoder().encode(JSON.stringify(json));
   const padJs = (4 - (js.length % 4)) % 4;

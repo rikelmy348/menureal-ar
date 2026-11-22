@@ -263,6 +263,9 @@ export async function lerCardapio(env, slug) {
       pontos: limparPontos(lerJson(p.opcoes, {}).pontos),
       pontosDe: String(lerJson(p.opcoes, {}).pontosDe || ''),
       planejado: lerJson(p.opcoes, {}).planejado || null,
+      planejadoDe: String(lerJson(p.opcoes, {}).planejadoDe || ''),
+      pecas: limparPecas(lerJson(p.opcoes, {}).pecas),
+      pecasDe: String(lerJson(p.opcoes, {}).pecasDe || ''),
       precoDe: reais(lerJson(p.opcoes, {}).precoDe, 1000000),
       galeria: lerJson(p.opcoes, {}).galeria || [],
       acabamentos: String(lerJson(p.opcoes, {}).acabamentos || '')
@@ -279,6 +282,28 @@ export function limparPontos(lista) {
     const p = vet(x && x.p), n = vet(x && x.n) || [0, 1, 0], t = texto(x && x.t, 80);
     return p && t ? { p, n, t } : null;
   }).filter(Boolean).slice(0, 8);
+}
+
+/** Raio-X: peças do arquivo 3D identificadas pelo marceneiro (nó do GLB → nome, tipo, descrição, material, movimento). */
+export const TIPOS_PECA = ['porta', 'gaveta', 'prateleira', 'lateral', 'divisoria', 'fundo', 'tampo', 'estrutura', 'puxador', 'rodape', 'eletro', 'acessorio', 'painel', 'led', 'frente', 'ferragem', 'estofado', 'outra'];
+const MOV_PECA = ['', 'porta_esq', 'porta_dir', 'basculante', 'gaveta'];
+const EXPLODIR_PECA = ['', 'auto', 'frente', 'tras', 'esquerda', 'direita', 'cima', 'baixo'];
+export function limparPecas(lista) {
+  const vistos = new Set();
+  return (Array.isArray(lista) ? lista : []).map((x) => {
+    const no = Math.round(Number(x && x.no));
+    const nome = texto(x && x.nome, 60).trim();
+    if (!(no >= 0 && no < 5000) || !nome || vistos.has(no)) return null;
+    vistos.add(no);
+    return {
+      no, nomeNo: texto(x.nomeNo, 120), nome,
+      tipo: TIPOS_PECA.includes(x.tipo) ? x.tipo : 'outra',
+      desc: texto(x.desc, 240), material: texto(x.material, 80),
+      destacar: x.destacar !== false,
+      mov: MOV_PECA.includes(x.mov) ? x.mov : '',
+      explodir: EXPLODIR_PECA.includes(x.explodir) ? x.explodir : ''
+    };
+  }).filter(Boolean).slice(0, 200);
 }
 
 /** Substitui o cardápio inteiro da loja, numa transação (batch). */
@@ -322,7 +347,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), galeria: limparGaleria(x.galeria, s), acabamentos: texto(x.acabamentos, 400), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), galeria: limparGaleria(x.galeria, s), acabamentos: texto(x.acabamentos, 400), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null, planejadoDe: texto(x.planejadoDe, 300), pecas: limparPecas(x.pecas), pecasDe: texto(x.pecasDe, 300) })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

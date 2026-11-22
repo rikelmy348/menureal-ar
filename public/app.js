@@ -119,6 +119,7 @@
   }
 
   var ICONES = {
+    fechar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
     cubo: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8 20 7.4v9.2L12 21.2 4 16.6V7.4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M4 7.4 12 12l8-4.6M12 12v9.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg>',
     ar: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><path d="M12 7.5 16 9.8v4.4L12 16.5 8 14.2V9.8z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
     mais: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
@@ -150,6 +151,20 @@
     { nome: 'Chumbo', cor: '#43464B', destaque: '#E2D6C2' },
     { nome: 'Noite', cor: '#121212', destaque: '#D8B78E' }
   ];
+  var TIPOS_PECA = { porta: 'Porta', gaveta: 'Gaveta', prateleira: 'Prateleira', lateral: 'Lateral', divisoria: 'Divisória', fundo: 'Fundo', tampo: 'Tampo', estrutura: 'Estrutura',
+    puxador: 'Puxador', rodape: 'Rodapé', eletro: 'Eletrodoméstico', acessorio: 'Acessório', painel: 'Painel', led: 'Iluminação', frente: 'Frente', ferragem: 'Ferragem', estofado: 'Estofado', outra: 'Outra peça' };
+  var MOV_PECA = { '': 'Não se mexe', porta_esq: 'Porta: dobradiça à esquerda', porta_dir: 'Porta: dobradiça à direita', basculante: 'Porta basculante (abre para cima)', gaveta: 'Gaveta (corre para a frente)' };
+  var EXPLODIR_PECA = { '': 'Fica no lugar', auto: 'Para fora (automático)', frente: 'Para a frente', tras: 'Para trás', esquerda: 'Para a esquerda', direita: 'Para a direita', cima: 'Para cima', baixo: 'Para baixo' };
+  function lerPecas(l) {
+    var vistos = {};
+    return (Array.isArray(l) ? l : []).map(function (x) {
+      var no = Math.round(Number(x && x.no)), nome = String((x && x.nome) || '').trim().slice(0, 60);
+      if (!(no >= 0 && no < 5000) || !nome || vistos[no]) return null;
+      vistos[no] = 1;
+      return { no: no, nomeNo: String(x.nomeNo || '').slice(0, 120), nome: nome, tipo: TIPOS_PECA[x.tipo] ? x.tipo : 'outra', desc: String(x.desc || '').slice(0, 240),
+        material: String(x.material || '').slice(0, 80), destacar: x.destacar !== false, mov: MOV_PECA[x.mov] ? x.mov : '', explodir: EXPLODIR_PECA[x.explodir] !== undefined ? x.explodir : '' };
+    }).filter(Boolean).slice(0, 200);
+  }
   var TIPOS_FOTO = { frente: 'Frente', lateral: 'Lateral', traseira: 'Traseira', perspectiva: 'Perspectiva', detalhe: 'Detalhe / acabamento', ambiente: 'Ambiente (ilustrativa)', outra: 'Outra' };
   var COR_PADRAO = '#1F1E1B', DESTAQUE_PADRAO = '#D8B78E';
   // Compatibilidade: 3D precisa de WebGL (diferente de RA, que é WebXR/ARCore/Quick Look).
@@ -236,6 +251,9 @@
         pontos: lerPontos(x.pontos),            // pontos de informação no 3D (ex.: "tecido impermeável")
         pontosDe: String(x.pontosDe || ''),      // o 3D em que os pontos foram marcados
         planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null,   // ficha do montador de planejados
+        planejadoDe: String(x.planejadoDe || ''),   // o 3D gerado a partir da ficha (o Raio-X só vale para ele)
+        pecas: lerPecas(x.pecas),                   // Raio-X: partes do .glb identificadas pelo marceneiro
+        pecasDe: String(x.pecasDe || ''),
         precoDe: Math.min(1000000, Math.max(0, Math.round((Number(x.precoDe) || 0) * 100) / 100)),   // preço antigo (oferta: "de R$ X por R$ Y")
         galeria: (Array.isArray(x.galeria) ? x.galeria : []).filter(function (f) { return f && /^api\/arquivo\/imagens\/[\w\/.-]+$/.test(String(f.url || '')); })
           .map(function (f) { return { url: String(f.url), tipo: TIPOS_FOTO[f.tipo] ? f.tipo : 'outra' }; }).slice(0, 12),   // mais fotos do móvel
@@ -461,6 +479,12 @@
     if (window.MENUREAL_MV_EMBUTIDO) {
       return comPrazo(customElements.whenDefined('model-viewer'), 15000).then(function () { return true; }, function () { return false; });
     }
+    // 3D comprimido (Draco / Meshopt): decodificadores do próprio site, sem depender de outro servidor
+    try {
+      window.ModelViewerElement = window.ModelViewerElement || {};
+      window.ModelViewerElement.dracoDecoderLocation = new URL('vendor/three/draco/', document.baseURI).href;
+      window.ModelViewerElement.meshoptDecoderLocation = new URL('vendor/three/meshopt_decoder.js', document.baseURI).href;
+    } catch (e) { /* usa o padrão */ }
     var i = 0;
     function tentar() {
       if (customElements.get('model-viewer')) return Promise.resolve(true);
@@ -725,12 +749,331 @@
     $$('#viewer-galeria [data-gal]').forEach(function (b) { b.setAttribute('aria-selected', String(Number(b.getAttribute('data-gal')) === galV.i)); });
     var sel = document.querySelector('#viewer-galeria [aria-selected="true"]'); if (sel) sel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
-  // Vistas rápidas do 3D (e voltar à posição inicial)
-  var VISTAS = { inicio: '28deg 72deg auto', frente: '0deg 80deg auto', lado: '90deg 80deg auto', tras: '180deg 80deg auto', cima: '0deg 12deg auto' };
-  $('#viewer-vistas').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-vista]'), mv = palco.querySelector('model-viewer'); if (!b || !mv) return;
+  // =====================================================================
+  // Modo Presença: barra do 3D (girar, vistas, zoom, centralizar, dimensões,
+  // iluminação, cenário, tela cheia) e câmera que sempre enquadra o móvel.
+  // Modo Raio-X: o móvel por dentro (raiox.mjs, carregado só quando usado).
+  // =====================================================================
+  var VISTAS = { inicio: [28, 72], frente: [0, 80], lado: [90, 80], tras: [180, 80], cima: [0, 12] };
+  var LUZES = [
+    { nome: 'Estúdio', env: 'estudio', exp: 1, sombra: 1.25, suave: 0.55 },
+    { nome: 'Luz natural', env: 'neutral', exp: 1.08, sombra: 0.9, suave: 1 },
+    { nome: 'Destaque', env: 'estudio', exp: 1.28, sombra: 1.8, suave: 0.22 }
+  ];
+  var CENARIOS = [{ id: '', nome: 'Cenário da loja' }, { id: 'claro', nome: 'Estúdio claro' }, { id: 'escuro', nome: 'Estúdio escuro' }];
+  var luzAtual = 0, modo3d = 'presenca', rx = null, rxVez = 0;
+  var cenarioAtual = (function () { try { var c = localStorage.getItem('menureal:cenario3d') || ''; return CENARIOS.some(function (x) { return x.id === c; }) ? c : ''; } catch (e) { return ''; } })();
+  function mvAtual() { return palco.querySelector('model-viewer'); }
+  function dicaBarra(txt) {
+    var d = $('#barra-dica'); d.textContent = txt; d.classList.add('ver');
+    clearTimeout(dicaBarra.t); dicaBarra.t = setTimeout(function () { d.classList.remove('ver'); }, 1800);
+  }
+  function fecharPops(exceto) {
+    $$('.pop3d', palco).forEach(function (p) { if (p !== exceto && p.id !== 'rx-explodir') p.hidden = true; });
+    $$('.barra3d [aria-expanded]', palco).forEach(function (b) { if (!exceto || b.getAttribute('aria-controls') !== exceto.id) b.setAttribute('aria-expanded', 'false'); });
+  }
+  function alternarPop(pop, botao) {
+    var abrir = pop.hidden; fecharPops(abrir ? pop : null);
+    pop.hidden = !abrir; if (botao) botao.setAttribute('aria-expanded', String(abrir));
+    if (abrir && botao) {   // o menu abre em cima do botão
+      var pr = palco.getBoundingClientRect(), br = botao.getBoundingClientRect();
+      pop.style.left = Math.max(8, Math.min(pr.width - pop.offsetWidth - 8, br.left - pr.left + br.width / 2 - pop.offsetWidth / 2)) + 'px';
+    }
+  }
+  function aplicarCenario() { if (cenarioAtual) palco.setAttribute('data-fundo', cenarioAtual); else palco.removeAttribute('data-fundo'); }
+  aplicarCenario();
+  function aplicarLuz(mv) {
+    var l = LUZES[luzAtual];
+    mv.setAttribute('environment-image', l.env === 'estudio' ? ESTUDIO() : l.env);
+    mv.setAttribute('exposure', String(l.exp)); mv.setAttribute('shadow-intensity', String(l.sombra)); mv.setAttribute('shadow-softness', String(l.suave));
+  }
+  // ponto para onde a câmera olha: o centro do móvel, um pouco abaixo (a barra de baixo cobre a base do palco)
+  function alvoPresenca(mv) {
+    try { var c = mv.getBoundingBoxCenter(), d = mv.getDimensions(); return c.x + 'm ' + (c.y - d.y * 0.1) + 'm ' + c.z + 'm'; } catch (e) { return 'auto auto auto'; }
+  }
+  // câmera inteligente: enquadra o móvel inteiro, limita o zoom e não deixa passar por baixo do chão
+  function enquadrarPresenca(mv) {
+    if (mv.dataset.r0) return;
+    var o = mv.getCameraOrbit(), r0 = o.radius * 1.25;
+    mv.dataset.r0 = String(r0);
+    mv.minCameraOrbit = 'auto 4deg ' + (r0 * 0.3) + 'm';
+    mv.maxCameraOrbit = 'auto 96deg ' + (r0 * 2.4) + 'm';
+    var fim = o.theta + 'rad ' + o.phi + 'rad ' + r0 + 'm';
+    mv.cameraTarget = alvoPresenca(mv);
+    if (!reduzMovimento) {   // entrada: o móvel chega girando devagar até a posição de apresentação
+      mv.cameraOrbit = (o.theta - 0.85) + 'rad ' + Math.max(0.6, o.phi - 0.28) + 'rad ' + (r0 * 1.8) + 'm';
+      mv.jumpCameraToGoal();
+      setTimeout(function () { if (mv.isConnected) mv.cameraOrbit = fim; }, 50);
+    } else { mv.cameraOrbit = fim; mv.jumpCameraToGoal(); }
+    mv.classList.add('mv-entrou');
+    // arrastar com dois dedos (mover) não deixa o móvel sair do quadro
+    mv.addEventListener('camera-change', function (e) {
+      if (!e.detail || e.detail.source !== 'user-interaction') return;
+      try {
+        var t = mv.getCameraTarget(), c = mv.getBoundingBoxCenter(), d = mv.getDimensions(), mud = false;
+        var lim = function (v, c0, l) { var n = Math.min(c0 + l, Math.max(c0 - l, v)); if (Math.abs(n - v) > 1e-4) mud = true; return n; };
+        var x = lim(t.x, c.x, d.x * 0.55 + 0.05), y = lim(t.y, c.y, d.y * 0.55 + 0.05), z = lim(t.z, c.z, d.z * 0.55 + 0.05);
+        if (mud) mv.cameraTarget = x + 'm ' + y + 'm ' + z + 'm';
+      } catch (err) { /* ok */ }
+    });
+  }
+  function girarPresenca(on) {
+    var mv = mvAtual(); if (mv) mv.autoRotate = on;
+    $('#barra-presenca [data-b3="girar"]').setAttribute('aria-pressed', String(on));
+  }
+  function vistaPresenca(nome) {
+    var mv = mvAtual(); if (!mv) return;
+    var v = VISTAS[nome] || VISTAS.inicio, r0 = Number(mv.dataset.r0) || 0;
+    girarPresenca(false);
+    // o "girar sozinho" gira o móvel (não a câmera): soma o giro para a frente ser a frente do móvel
+    var yaw = mv.turntableRotation || 0;
+    mv.cameraTarget = alvoPresenca(mv); mv.fieldOfView = 'auto';
+    mv.cameraOrbit = (v[0] * Math.PI / 180 + yaw) + 'rad ' + v[1] + 'deg ' + (r0 ? r0 + 'm' : 'auto');
+  }
+  function zoomPresenca(f) {
+    var mv = mvAtual(); if (!mv) return;
+    var o = mv.getCameraOrbit(), r0 = Number(mv.dataset.r0) || o.radius;
+    mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + Math.min(r0 * 2.4, Math.max(r0 * 0.3, o.radius * f)) + 'm';
+  }
+  function centralizarPresenca() {
+    var mv = mvAtual(); if (!mv) return;
+    var o = mv.getCameraOrbit(), r0 = Number(mv.dataset.r0) || 0;
+    mv.cameraTarget = alvoPresenca(mv); mv.fieldOfView = 'auto';
+    mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (r0 ? r0 + 'm' : 'auto');
+  }
+  // tela cheia (no iPhone, que não deixa, o palco ocupa a tela toda)
+  function telaCheiaLigada() { return document.fullscreenElement === palco || palco.classList.contains('palco--cheio'); }
+  function marcarCheia() { var on = telaCheiaLigada(); $$('[data-b3="cheia"]', palco).forEach(function (b) { b.setAttribute('aria-pressed', String(on)); b.setAttribute('aria-label', on ? 'Sair da tela cheia' : 'Tela cheia'); }); if (rx) rx.redesenhar(); }
+  function alternarTelaCheia(forcarSair) {
+    if (telaCheiaLigada() || forcarSair) {
+      if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
+      palco.classList.remove('palco--cheio');
+    } else if (palco.requestFullscreen && document.fullscreenEnabled) {
+      palco.requestFullscreen().catch(function () { palco.classList.add('palco--cheio'); marcarCheia(); });
+    } else palco.classList.add('palco--cheio');
+    setTimeout(marcarCheia, 120);
+  }
+  document.addEventListener('fullscreenchange', marcarCheia);
+  dlgViewer.addEventListener('cancel', function (e) { if (palco.classList.contains('palco--cheio')) { e.preventDefault(); alternarTelaCheia(true); } });
+
+  // ----- Ver dimensões: só as cadastradas (conferidas com o 3D) ou as do próprio arquivo quando não há cadastro
+  var CHAVE_DIM = 'menureal:dimensoes';
+  var dimLigadas = (function () { try { return localStorage.getItem(CHAVE_DIM) === '1'; } catch (e) { return false; } })();
+  function alternarDimensoes() {
+    var mv = mvAtual(); if (!mv) return;
+    dimLigadas = !dimLigadas;
+    try { localStorage.setItem(CHAVE_DIM, dimLigadas ? '1' : '0'); } catch (err) { /* ignora */ }
+    mostrarDimensoes(mv);
+    dicaBarra(dimLigadas ? 'Dimensões visíveis' : 'Dimensões ocultas');
+  }
+  function mostrarDimensoes(mv) {
+    var modo = mv.dataset.dimModo || '', card = $('#dim-card');
+    $('#barra-presenca [data-b3="dimensoes"]').setAttribute('aria-pressed', String(dimLigadas));
+    mv.classList.toggle('sem-medidas', !dimLigadas || modo !== 'linhas');
+    card.hidden = !dimLigadas || modo !== 'cartao';
+  }
+
+  // ----- Raio-X
+  function pecasValidas(p) {
+    if (!p.pecas || !p.pecas.length || p.pecasDe !== p.modelo) return [];
+    var nomes = {}; p.pecas.forEach(function (c) { nomes[c.nome.toLowerCase() + '|' + c.tipo] = 1; });
+    return Object.keys(nomes).length >= 2 ? p.pecas : [];
+  }
+  function fonteRaioX(p) {
+    if (!p || p.combo || !p.modelo || SEM_3D || mvStatus !== 'ok') return null;
+    if (efetivo(p, tamAtual).modelo !== p.modelo) return null;   // outra versão com outro 3D
+    if (p.planejado && (!p.planejadoDe || p.planejadoDe === p.modelo)) return { tipo: 'planejado', ficha: p.planejado, dim: p.dim };
+    var pc = pecasValidas(p);
+    if (pc.length) return { tipo: 'glb', url: urlModelo(p.modelo), pecas: pc };
+    return null;
+  }
+  function mesmasMedidas(a, b) {
+    return ['largura', 'altura', 'profundidade'].every(function (k) { return Math.abs(a[k] - b[k]) <= Math.max(1, b[k] * 0.02); });
+  }
+  function marcarModo() {
+    var rxOn = modo3d === 'raiox';
+    $$('#palco-modos [data-modo3d]').forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-modo3d') === modo3d)); });
+    $('#barra-presenca').hidden = rxOn || !mvAtual() || !mvAtual().loaded;
+    $('#barra-raiox').hidden = !rxOn || !rx;
+    palco.classList.toggle('palco--raiox', rxOn);
+    if (!rxOn) ['#rx-info', '#rx-lista', '#rx-clipes', '#rx-explodir'].forEach(function (s) { $(s).hidden = true; });
+    fecharPops();
+  }
+  function entrarRaioX() {
+    if (modo3d === 'raiox' || !produtoAtual) return;
+    var fonte = fonteRaioX(produtoAtual), mv = mvAtual();
+    if (!fonte || !mv || !mv.loaded) { dicaBarra('O Raio-X não está disponível para este móvel.'); return; }
     if (galV.i >= 0) mostrarFotoViewer(-1);
-    mv.cameraTarget = 'auto auto auto'; mv.fieldOfView = 'auto'; mv.cameraOrbit = VISTAS[b.getAttribute('data-vista')];
+    modo3d = 'raiox'; marcarModo();
+    $('#dim-card').hidden = true;
+    var vez = ++rxVez, orb = null;
+    try {
+      // a câmera do Raio-X fica no mesmo ângulo em relação ao móvel (descontando o giro automático)
+      var co = mv.getCameraOrbit(), ct = mv.getCameraTarget(), yaw = mv.turntableRotation || 0, cc = mv.getBoundingBoxCenter();
+      var dx = ct.x - cc.x, dz = ct.z - cc.z, cs = Math.cos(-yaw), sn = Math.sin(-yaw);
+      orb = { theta: co.theta - yaw, phi: co.phi, radius: co.radius, alvo: [cc.x + dx * cs + dz * sn, ct.y, cc.z - dx * sn + dz * cs], fov: mv.getFieldOfView() };
+    } catch (e) { orb = null; }
+    mv.autoRotate = false;
+    estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando o Raio-X…</span></div>');
+    var velha = $('#rx-camada'); if (velha) velha.remove();
+    var camada = document.createElement('div'); camada.className = 'rx-camada'; camada.id = 'rx-camada';
+    palco.insertBefore(camada, palcoEstado);
+    import(new URL('raiox.mjs', document.baseURI).href).then(function (R) {
+      if (vez !== rxVez) return null;
+      return R.criarRaioX(camada, fonte, {
+        orbita: orb, pouca: POUCA_MEMORIA || !!(navigator.deviceMemory && navigator.deviceMemory <= 2),
+        aoSelecionar: mostrarPecaRx, aoMudar: atualizarExplodirRx,
+        aoProgresso: function (f) { estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Preparando o Raio-X… ' + Math.round(f * 100) + '%</span></div>'); },
+        aoFalhar: function (msg) { if (vez === rxVez) { sairRaioX(); toast(msg); } }
+      });
+    }).then(function (api) {
+      if (!api) return;
+      if (vez !== rxVez) { api.destruir(); return; }
+      // confere: as peças do Raio-X têm as mesmas medidas do 3D publicado
+      if (fonte.tipo === 'planejado' && fonte.dim && !mesmasMedidas(api.medidas, fonte.dim)) {
+        api.destruir(); camada.remove(); falhaRx('O Raio-X deste planejado não confere com o 3D publicado.'); return;
+      }
+      rx = api; estadoPalco('');
+      api.transparencia(Number($('#rx-transp').value) / 100);
+      prepararBarraRx(api);
+      requestAnimationFrame(function () { camada.classList.add('ver'); });
+      marcarModo();
+      dicaBarra('Toque numa peça para ver os detalhes');
+    }).catch(function (e) {
+      console.warn('[raio-x]', e);
+      if (vez !== rxVez) return;
+      camada.remove(); falhaRx(e && /aparelho/.test(e.message || '') ? e.message : 'Não consegui abrir o Raio-X. Tente de novo.');
+    });
+  }
+  function falhaRx(msg) { rxVez++; modo3d = 'presenca'; estadoPalco(''); marcarModo(); toast(msg); }
+  function sairRaioX() {
+    rxVez++;
+    var mv = mvAtual(), camada = $('#rx-camada'), api = rx;
+    rx = null;
+    if (api && mv) {   // a Presença continua do mesmo ângulo em que o cliente estava no Raio-X
+      try {
+        var o = api.orbita();
+        if (mv.resetTurntableRotation) mv.resetTurntableRotation(0);
+        mv.cameraTarget = o.alvo[0] + 'm ' + o.alvo[1] + 'm ' + o.alvo[2] + 'm'; mv.fieldOfView = o.fov + 'deg';
+        mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + o.radius + 'm'; mv.jumpCameraToGoal();
+      } catch (e) { /* segue */ }
+    }
+    if (camada) { camada.classList.remove('ver'); setTimeout(function () { if (api) api.destruir(); camada.remove(); }, 280); }
+    else if (api) api.destruir();
+    modo3d = 'presenca'; estadoPalco(''); marcarModo();
+    if (mv) girarPresenca(false);
+  }
+  function prepararBarraRx(api) {
+    var b = $('#barra-raiox');
+    b.querySelector('[data-b3="abrir"]').hidden = !api.temMovimento;
+    b.querySelector('[data-b3="abrir"]').setAttribute('aria-pressed', 'false');
+    b.querySelector('[data-b3="animacoes"]').hidden = !api.clipes.length;
+    b.querySelector('[data-b3="explodir"]').setAttribute('aria-pressed', 'false');
+    $('#rx-explodir').hidden = true; $('#rx-intens').value = 100; $('#rx-info').hidden = true;
+    var porTipo = {}, ordem = ['porta', 'gaveta', 'prateleira', 'divisoria', 'lateral', 'fundo', 'tampo', 'frente', 'eletro', 'acessorio', 'estofado', 'puxador', 'ferragem', 'painel', 'estrutura', 'rodape', 'led', 'outra'];
+    api.pecas.forEach(function (pc) { (porTipo[pc.tipoNome] = porTipo[pc.tipoNome] || []).push(pc); });
+    var pos = function (t) { var i = ordem.indexOf(porTipo[t][0].tipo); return i < 0 ? 99 : i; };
+    $('#rx-lista').innerHTML = '<p class="rx-lista__titulo">' + api.pecas.length + (api.pecas.length === 1 ? ' peça' : ' peças') + '</p>' +
+      Object.keys(porTipo).sort(function (a, b) { return pos(a) - pos(b); }).map(function (t) {
+        return '<p class="rx-lista__tipo">' + esc(t) + ' <small>' + porTipo[t].length + '</small></p>' +
+          porTipo[t].map(function (pc) { return '<button type="button" data-peca="' + esc(pc.id) + '">' + esc(pc.nome) + (pc.grupo ? '<small>' + esc(pc.grupo) + '</small>' : '') + '</button>'; }).join('');
+      }).join('');
+    $('#rx-clipes').innerHTML = api.clipes.map(function (c, i) { return '<button type="button" data-clipe="' + i + '">' + esc(c) + '</button>'; }).join('');
+  }
+  function medidaPeca(m) {
+    if (!m) return '';
+    return m.slice().sort(function (a, b) { return b - a; }).map(function (v) { return num(v); }).join(' × ') + ' cm';
+  }
+  function mostrarPecaRx(pc) {
+    var box = $('#rx-info');
+    if (!pc) { box.hidden = true; return; }
+    var movTxt = pc.mov === 'gaveta' ? (pc.aberto ? 'Fechar gaveta' : 'Abrir gaveta') : pc.mov ? (pc.aberto ? 'Fechar porta' : 'Abrir porta') : '';
+    var dados = [pc.material, medidaPeca(pc.medidas)].filter(Boolean);
+    box.innerHTML = '<div class="rx-info__cab"><span class="rx-info__tipo">' + esc(pc.tipoNome) + '</span>' +
+        '<button type="button" class="rx-info__x" data-rx="limpar" aria-label="Voltar para o móvel inteiro">' + ICONES.fechar + '</button></div>' +
+      '<strong class="rx-info__nome">' + esc(pc.nome) + '</strong>' +
+      (pc.grupo ? '<small class="rx-info__grupo">' + esc(pc.grupo) + '</small>' : '') +
+      (pc.desc ? '<p class="rx-info__desc">' + esc(pc.desc) + '</p>' : '') +
+      (dados.length ? '<p class="rx-info__dados">' + dados.map(esc).join(' · ') + '</p>' : '') +
+      (movTxt ? '<div class="rx-info__acoes"><button type="button" class="rx-texto rx-texto--forte" data-rx="mov" data-id="' + esc(pc.id) + '">' + movTxt + '</button></div>' : '');
+    box.hidden = false;
+    fecharPops();
+  }
+  function atualizarExplodirRx() {
+    if (!rx) return;
+    var e = rx.explosao(), bP = $('#rx-explodir [data-rx="pausar"]');
+    bP.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (e.pausada ? 'M8 5.5v13l10-6.5z' : 'M9 5.5v13M15 5.5v13') + '"/></svg>';
+    bP.setAttribute('aria-label', e.pausada ? 'Continuar a animação' : 'Pausar a animação');
+    bP.disabled = !e.andando && !e.pausada;
+    if (!e.andando && !e.pausada && e.atual === 0) { $('#rx-explodir').hidden = true; $('#barra-raiox [data-b3="explodir"]').setAttribute('aria-pressed', 'false'); }
+  }
+
+  // ----- cliques na barra (os dois modos)
+  palco.addEventListener('click', function (e) {
+    var m = e.target.closest('[data-modo3d]');
+    if (m) { if (m.getAttribute('data-modo3d') === 'raiox') entrarRaioX(); else if (modo3d === 'raiox') sairRaioX(); return; }
+    var v = e.target.closest('[data-vista]');
+    if (v) { var nv = v.getAttribute('data-vista'); if (modo3d === 'raiox' && rx) rx.vista(nv); else { if (galV.i >= 0) mostrarFotoViewer(-1); vistaPresenca(nv); } fecharPops(); return; }
+    var pcb = e.target.closest('[data-peca]');
+    if (pcb && rx) { rx.selecionar(pcb.getAttribute('data-peca')); return; }
+    var cl = e.target.closest('[data-clipe]');
+    if (cl && rx) { var fr = rx.tocarClipe(Number(cl.getAttribute('data-clipe'))); fecharPops(); dicaBarra((fr ? '▶ ' : '◀ ') + cl.textContent + (fr ? '' : ' (voltando)')); return; }
+    var r = e.target.closest('[data-rx]');
+    if (r && rx) {
+      var a = r.getAttribute('data-rx');
+      if (a === 'limpar') rx.selecionar(null);
+      else if (a === 'mov') { var ab = rx.alternarMov(r.getAttribute('data-id')); var tp = /gaveta/i.test(r.textContent) ? 'gaveta' : 'porta'; r.textContent = (ab ? 'Fechar ' : 'Abrir ') + tp; $('#barra-raiox [data-b3="abrir"]').setAttribute('aria-pressed', String(rx.algoAberto())); }
+      else if (a === 'pausar') { var ex = rx.explosao(); rx.pausarExplosao(!ex.pausada); atualizarExplodirRx(); }
+      else if (a === 'montar') { rx.explodir(0); $('#barra-raiox [data-b3="explodir"]').setAttribute('aria-pressed', 'false'); atualizarExplodirRx(); dicaBarra('Montando de volta'); }
+      return;
+    }
+    var b = e.target.closest('[data-b3]');
+    if (!b) { if (!e.target.closest('.pop3d, .rx-info')) fecharPops(); return; }
+    var acao = b.getAttribute('data-b3'), mv = mvAtual();
+    if (acao === 'vistas') { alternarPop($('#vistas-pop'), b); return; }
+    if (acao === 'pecas') { alternarPop($('#rx-lista'), b); return; }
+    if (acao === 'animacoes') { alternarPop($('#rx-clipes'), b); return; }
+    fecharPops();
+    if (acao === 'cheia') { alternarTelaCheia(); return; }
+    if (acao === 'centro') { if (rx) rx.centralizar(); else centralizarPresenca(); dicaBarra('Móvel centralizado'); return; }
+    if (rx) {
+      if (acao === 'explodir') {
+        if (!rx.temExplosao) { dicaBarra('A vista explodida ainda não está disponível para este móvel.'); return; }
+        var on = b.getAttribute('aria-pressed') !== 'true';
+        b.setAttribute('aria-pressed', String(on));
+        if (on) { $('#rx-explodir').hidden = false; rx.explodir(Number($('#rx-intens').value) / 100 || 1); if ($('#rx-intens').value === '0') { $('#rx-intens').value = 100; rx.explodir(1); } }
+        else rx.explodir(0);
+        atualizarExplodirRx(); dicaBarra(on ? 'Separando as peças' : 'Montando de volta');
+      } else if (acao === 'abrir') {
+        var abre = b.getAttribute('aria-pressed') !== 'true';
+        rx.abrirTudo(abre); b.setAttribute('aria-pressed', String(abre));
+        dicaBarra(abre ? 'Portas e gavetas abertas' : 'Portas e gavetas fechadas');
+        var ib = $('#rx-info [data-rx="mov"]'); if (ib) { var tp2 = /gaveta/i.test(ib.textContent) ? 'gaveta' : 'porta'; ib.textContent = (abre ? 'Fechar ' : 'Abrir ') + tp2; }
+      }
+      return;
+    }
+    if (!mv) return;
+    if (acao === 'girar') { var g = b.getAttribute('aria-pressed') !== 'true'; girarPresenca(g); dicaBarra(g ? 'Girando sozinho' : 'Rotação parada'); }
+    else if (acao === 'mais') zoomPresenca(0.78);
+    else if (acao === 'menos') zoomPresenca(1.28);
+    else if (acao === 'dimensoes') alternarDimensoes();
+    else if (acao === 'luz') { luzAtual = (luzAtual + 1) % LUZES.length; aplicarLuz(mv); dicaBarra('Iluminação: ' + LUZES[luzAtual].nome); b.setAttribute('aria-label', 'Trocar a iluminação (agora: ' + LUZES[luzAtual].nome + ')'); }
+    else if (acao === 'cenario') {
+      var ic = 0; CENARIOS.forEach(function (c, i) { if (c.id === cenarioAtual) ic = i; });
+      cenarioAtual = CENARIOS[(ic + 1) % CENARIOS.length].id; aplicarCenario();
+      try { localStorage.setItem('menureal:cenario3d', cenarioAtual); } catch (err) { /* ok */ }
+      dicaBarra(CENARIOS[(ic + 1) % CENARIOS.length].nome);
+    }
+  });
+  // no computador, passar o mouse mostra o nome do botão
+  palco.addEventListener('mouseover', function (e) {
+    var b = e.target.closest('[data-dica]');
+    if (b && window.matchMedia && matchMedia('(hover: hover)').matches) dicaBarra(b.getAttribute('data-dica'));
+  });
+  $('#rx-transp').addEventListener('input', function () { if (rx) rx.transparencia(Number(this.value) / 100); });
+  $('#rx-intens').addEventListener('input', function () {
+    if (!rx) return; var v = Number(this.value) / 100; rx.explodir(v);
+    $('#barra-raiox [data-b3="explodir"]').setAttribute('aria-pressed', String(v > 0)); atualizarExplodirRx();
   });
   $('#viewer-galeria').addEventListener('click', function (e) { var b = e.target.closest('[data-gal]'); if (b) mostrarFotoViewer(Number(b.getAttribute('data-gal'))); });
   $('#palco-fotos').addEventListener('click', function (e) { var b = e.target.closest('[data-foto-nav]'); if (b) mostrarFotoViewer(galV.i + Number(b.getAttribute('data-foto-nav'))); });
@@ -823,8 +1166,14 @@
     if (p.ingredientes) info += '<div><dt>' + (ehAlimento() ? 'Ingredientes' : 'Composição') + '</dt><dd>' + esc(p.ingredientes) + '</dd></div>';
     if (!ehAlimento() && p.acabamentos) info += '<div><dt>Acabamentos</dt><dd>' + esc(p.acabamentos) + '</dd></div>';
     if (ehAlimento() && p.alergenos && p.alergenos.length) info += '<div class="alerg"><dt>Alérgicos</dt><dd>Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '.</dd></div>';
+    var matPlan = !ehAlimento() && !p.acabamentos && p.planejado && p.planejado.acabamentos && (!p.planejadoDe || p.planejadoDe === p.modelo);
+    if (matPlan) info += '<div><dt>Materiais do projeto</dt><dd id="viewer-mat-plan">…</dd></div>';
     $('#viewer-info').innerHTML = info;
     $('#viewer-info').hidden = !info;
+    if (matPlan) carregarPlanejado().then(function (P) {   // os acabamentos que estão na ficha do planejado
+      var a = p.planejado.acabamentos, el = $('#viewer-mat-plan'); if (!el || produtoAtual !== p) return;
+      el.textContent = ['Portas: ' + (P.CORES[a.portas] || '—'), 'Corpo: ' + (P.CORES[a.corpo] || '—')].concat(a.tampo && P.TAMPOS[a.tampo] && (p.planejado.trechos || []).some(function (t) { return t.tampo && (t.tipo === 'baixo' || t.tipo === 'bancada'); }) ? ['Tampo: ' + P.TAMPOS[a.tampo]] : []).join(' · ');
+    }).catch(function () { var el = $('#viewer-mat-plan'); if (el) el.parentNode.remove(); });
     var adic = $('#viewer-adicionais');
     var lista = p.combo ? [] : (p.adicionais || []);
     adic.hidden = !lista.length;
@@ -930,7 +1279,9 @@
   });
   function abrirViewerProduto(p, modo) {
     produtoAtual = p;
-    $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; $('#viewer-vistas').hidden = true; galV = { itens: [], i: -1, tem3d: false };
+    $('#palco-fotos').hidden = true; $('#viewer-galeria').hidden = true; galV = { itens: [], i: -1, tem3d: false };
+    if (rx || modo3d === 'raiox') sairRaioX();
+    $('#barra-presenca').hidden = true; $('#palco-modos').hidden = true; $('#dim-card').hidden = true; fecharPops();
     var ef0 = p.combo ? { modelo: p.modelo } : efetivo(p, tamAtual);
     $('#viewer-abas').hidden = !ef0.modelo || SEM_3D;   // sem 3D: sem as abas 3D / tamanho real
     var dica0 = $('#painel-3d .dica'); if (dica0) dica0.hidden = !ef0.modelo || SEM_3D;
@@ -996,11 +1347,13 @@
     };
     if (!reduzMovimento) { attrs['auto-rotate'] = ''; attrs['auto-rotate-delay'] = '2500'; attrs['rotation-per-second'] = '18deg'; }
     Object.keys(attrs).forEach(function (k) { mv.setAttribute(k, attrs[k]); });
+    aplicarLuz(mv);
+    $('#barra-presenca [data-b3="girar"]').setAttribute('aria-pressed', String(!reduzMovimento));
     mv.innerHTML =
       '<button slot="ar-button" class="botao-ar" type="button" aria-label="Abrir câmera e ver no tamanho real">' + ICONES.ar + (ehAlimento() ? 'Ver na mesa' : 'Ver na sua casa') + '</button>' +
       '<div slot="progress-bar" class="progresso"><i></i></div>' +
       HTML_MEDIDAS + htmlPontosViewer(p, ef);
-    mv.classList.toggle('sem-medidas', !medidasLigadas);
+    mv.classList.add('sem-medidas');
     palco.insertBefore(mv, palcoEstado);
     estadoPalco('<div class="carregando"><div class="spinner" aria-hidden="true"></div><span>Carregando modelo 3D…</span></div>');
 
@@ -1012,17 +1365,26 @@
     });
     mv.addEventListener('load', function () {
       estadoPalco('');
-      posicionarMedidas(mv);
+      enquadrarPresenca(mv);
       if (p.combo) {
         try { var dc = mv.getDimensions(); $('#viewer-dim-modelo').textContent = dimTexto({ largura: dc.x * 100, altura: dc.y * 100, profundidade: dc.z * 100 }); } catch (e2) { /* ignora */ }
+        mv.dataset.dimModo = 'linhas'; posicionarMedidas(mv, null);
       } else {
-        conferirEscala(mv, { dim: efetivo(p, tamAtual).dim });
+        // "Ver dimensões": as medidas cadastradas, desenhadas no 3D só quando o arquivo confere com elas
+        var dimCad = efetivo(p, tamAtual).dim, esc0 = conferirEscala(mv, { dim: dimCad });
+        mv.dataset.dimModo = esc0 === 'ok' ? 'linhas' : 'cartao';
+        if (esc0 === 'ok') posicionarMedidas(mv, dimCad);
+        $('#dim-card').innerHTML = '<strong>Medidas cadastradas</strong><span>L ' + num(dimCad.largura) + ' · P ' + num(dimCad.profundidade) + ' · A ' + num(dimCad.altura) + ' cm</span>' +
+          '<small>' + (esc0 === 'maior' ? 'O 3D segue as proporções das fotos; valem estas medidas.' : 'O arquivo 3D não confere com estas medidas; valem as cadastradas.') + '</small>';
       }
-      $('#viewer-vistas').hidden = false;
+      mostrarDimensoes(mv);
+      $('#palco-modos').hidden = !fonteRaioX(p);
+      marcarModo();
       atualizarAvisoAR();
       if (pontosValidos(p, ef).length) toast('Toque nos números no 3D para ver os detalhes do móvel.');
     });
     mv.addEventListener('error', function () {
+      $('#barra-presenca').hidden = true; $('#palco-modos').hidden = true;
       if (!p.combo && fotosDoProduto(p).length) {   // plano B: mostra as fotos
         renderGaleriaViewer(p, false); mostrarFotoViewer(0); $('#viewer-dim-modelo').textContent = '—';
         toast('O 3D não carregou. Veja as fotos e as medidas.'); return;
@@ -1123,6 +1485,7 @@
     mv.variantName = v;
     $$('#viewer-cores [data-variante], #palco-cores [data-variante]').forEach(function (x) { x.setAttribute('aria-pressed', String(x.getAttribute('data-variante') === v)); });
     var nm = $('#palco-cores .palco-cores__nome'); if (nm) nm.textContent = nomeCor(v);
+    if (e.target.closest('#palco-cores')) dicaBarra('Cor: ' + nomeCor(v));
   }
   $('#viewer-cores').addEventListener('click', escolherCor);
   palco.addEventListener('click', function (e) { if (e.target.closest('#palco-cores')) escolherCor(e); });
@@ -1130,8 +1493,6 @@
   // ---------------------------------------------------------------------
   // Medidas no modelo (largura, altura, profundidade) — 3D e câmera (WebXR)
   // ---------------------------------------------------------------------
-  var CHAVE_MEDIDAS = 'menureal:medidas';
-  var medidasLigadas = (function () { try { return localStorage.getItem(CHAVE_MEDIDAS) !== '0'; } catch (e) { return true; } })();
   var quadroMedidas = 0;
   var HTML_MEDIDAS =
     '<button slot="hotspot-pA" class="med-ponto" tabindex="-1" aria-hidden="true"></button>' +
@@ -1141,14 +1502,12 @@
     '<div slot="hotspot-mL" class="med-rotulo" data-med="largura"></div>' +
     '<div slot="hotspot-mA" class="med-rotulo" data-med="altura"></div>' +
     '<div slot="hotspot-mP" class="med-rotulo" data-med="profundidade"></div>' +
-    '<svg class="med-linhas" aria-hidden="true"><line data-de="pA" data-ate="pB"></line><line data-de="pA" data-ate="pC"></line><line data-de="pB" data-ate="pD"></line></svg>' +
-    '<button type="button" class="med-alternar" aria-pressed="' + medidasLigadas + '">' +
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 17 3l4 4L7 21z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="m7 13 2 2M10 10l2 2M13 7l2 2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>' +
-      '<span>Medidas</span></button>';
+    '<svg class="med-linhas" aria-hidden="true"><line data-de="pA" data-ate="pB"></line><line data-de="pA" data-ate="pC"></line><line data-de="pB" data-ate="pD"></line></svg>';
 
   function cmTexto(m) { var c = m * 100; return (c < 10 ? c.toFixed(1).replace('.', ',') : String(Math.round(c))) + ' cm'; }
 
-  function posicionarMedidas(mv) {
+  // rot: medidas cadastradas (cm) já conferidas com o 3D; sem rot, as do próprio arquivo (conjuntos)
+  function posicionarMedidas(mv, rot) {
     try {
       var c = mv.getBoundingBoxCenter(), d = mv.getDimensions();
       var x0 = c.x - d.x / 2, x1 = c.x + d.x / 2, y0 = c.y - d.y / 2, y1 = c.y + d.y / 2, z0 = c.z - d.z / 2, z1 = c.z + d.z / 2;
@@ -1159,17 +1518,10 @@
       pos('mL', c.x, y0, z1 + folga);
       pos('mA', x0 - folga, c.y, z1);
       pos('mP', x1 + folga, y0, c.z);
-      // afasta um pouco a câmera para as etiquetas caberem na tela
-      if (!mv.dataset.enquadrado) {
-        mv.dataset.enquadrado = '1';
-        var o = mv.getCameraOrbit();
-        mv.maxCameraOrbit = 'auto auto ' + (o.radius * 2.5) + 'm';
-        mv.cameraOrbit = o.theta + 'rad ' + o.phi + 'rad ' + (o.radius * 1.3) + 'm';
-        mv.jumpCameraToGoal();
-      }
-      mv.querySelector('[data-med="largura"]').textContent = 'L ' + cmTexto(d.x);
-      mv.querySelector('[data-med="altura"]').textContent = 'A ' + cmTexto(d.y);
-      mv.querySelector('[data-med="profundidade"]').textContent = 'P ' + cmTexto(d.z);
+      var t = function (cad, m) { return cad ? num(cad) + ' cm' : cmTexto(m); };
+      mv.querySelector('[data-med="largura"]').textContent = 'L ' + t(rot && rot.largura, d.x);
+      mv.querySelector('[data-med="altura"]').textContent = 'A ' + t(rot && rot.altura, d.y);
+      mv.querySelector('[data-med="profundidade"]').textContent = 'P ' + t(rot && rot.profundidade, d.z);
       animarLinhas(mv);
     } catch (e) { /* modelo sem dimensões: sem medidas */ }
   }
@@ -1201,18 +1553,9 @@
       var abrir = ip.getAttribute('aria-expanded') !== 'true';
       $$('.info-ponto', palco).forEach(function (o) { o.setAttribute('aria-expanded', 'false'); });
       ip.setAttribute('aria-expanded', String(abrir));
-      var mvp = palco.querySelector('model-viewer'); if (mvp) mvp.autoRotate = false;
+      girarPresenca(false);
       return;
     }
-    var b = e.target.closest('.med-alternar');
-    if (!b) return;
-    medidasLigadas = !medidasLigadas;
-    try { localStorage.setItem(CHAVE_MEDIDAS, medidasLigadas ? '1' : '0'); } catch (err) { /* ignora */ }
-    var mv = palco.querySelector('model-viewer');
-    if (!mv) return;
-    mv.classList.toggle('sem-medidas', !medidasLigadas);
-    b.setAttribute('aria-pressed', String(medidasLigadas));
-    toast(medidasLigadas ? 'Medidas visíveis no 3D' : 'Medidas ocultas');
   });
 
   function conferirEscala(mv, p) {
@@ -1229,13 +1572,16 @@
       var okMaior = Math.abs(maiorM - maiorP) / maiorP <= TOLERANCIA_ESCALA;
       el.hidden = false;
       el.className = 'escala ' + (ok || okMaior ? 'ok' : 'aviso');
+      var res = ok ? 'ok' : okMaior ? 'maior' : 'difere';
       el.textContent = ok
         ? '✓ Escala conferida: o arquivo 3D tem as medidas cadastradas. Em RA, ele aparece nesse tamanho.'
         : okMaior
           ? '✓ Tamanho real ajustado pela maior medida (' + num(maiorP) + ' cm). As outras medidas seguem as proporções das fotos.'
           : '⚠ O arquivo 3D não corresponde às medidas cadastradas. Em RA ele aparecerá com o tamanho do arquivo (' + dimTexto(m) + '). Ajuste o modelo ou as medidas.';
+      return res;
     } catch (e) {
       $('#viewer-dim-modelo').textContent = '—';
+      return 'difere';
     }
   }
 
@@ -1526,6 +1872,8 @@
   });
   dlgViewer.addEventListener('close', function () {
     cancelAnimationFrame(quadroMedidas);
+    if (rx || modo3d === 'raiox') sairRaioX();
+    if (telaCheiaLigada()) alternarTelaCheia(true);
     var mv = palco.querySelector('model-viewer');
     if (mv) mv.remove(); // libera memória da GPU
     estadoPalco('');
@@ -2846,7 +3194,15 @@
           var nome = /\.glb$/i.test(arquivo.name) ? arquivo.name : (arquivo.name || 'movel').replace(/\.[^.]*$/, '') + '.glb';
           opcoesEnvio.conferido = true;
           enviar3d(nome === arquivo.name ? arquivo : new File([arquivo], nome, { type: 'model/gltf-binary' }), x, tamId, opcoesEnvio);
-        } else toast('Esse arquivo não é um 3D em .glb. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).');
+        } else if (m[0] === 0x7B || (m[0] === 0xEF && m[3] === 0x7B) || /\.gltf$/i.test(arquivo.name)) {   // .gltf (texto): vira .glb se for arquivo único
+          Promise.all([carregarModuloGlb(), arquivo.text()]).then(function (r) {
+            var glb = r[0].gltfParaGlb(r[1].replace(/^\uFEFF/, ''));
+            opcoesEnvio.conferido = true;
+            enviar3d(new File([glb], (arquivo.name || 'movel').replace(/\.[^.]*$/, '') + '.glb', { type: 'model/gltf-binary' }), x, tamId, opcoesEnvio);
+          }).catch(function (e) {
+            toast(e && e.message === 'externo' ? 'Este .gltf depende de outros arquivos (.bin, texturas). Exporte como .glb (arquivo único) e envie de novo.' : 'Não consegui ler esse .gltf. Exporte como .glb e envie de novo.');
+          });
+        } else toast('Esse arquivo não é um 3D em .glb ou .gltf. Se a fábrica mandou outro formato (.skp, .obj, .fbx), converta no Blender: Arquivo → Exportar → glTF (.glb).');
       }).catch(function () { toast('Não consegui ler esse arquivo.'); });
       return;
     }
@@ -2887,8 +3243,13 @@
         toast('3D da versão “' + tv.nome + '” enviado' + (semMedV ? ' (' + dimTexto(res.med) + ')' : '') + '. Toque em “Salvar alterações”.');
         return;
       }
+      var modeloAntigo = x.modelo;
       x.modelo = res.url;
       x.ilustrativo = false;
+      // Raio-X: as peças valem para o 3D em que foram identificadas (o mesmo móvel mais leve ou com cores continua valendo)
+      if (opcoesEnvio.planejado) x.planejadoDe = res.url;
+      else if (x.planejado) x.planejadoDe = opcoesEnvio.manterMedidas && (!x.planejadoDe || x.planejadoDe === modeloAntigo) ? res.url : '-';
+      if (x.pecas && x.pecas.length && x.pecasDe === modeloAntigo && opcoesEnvio.manterMedidas) x.pecasDe = res.url;
       var txtReducao = opcoesEnvio.reducao ? ' (ficou mais leve: ' + mb(opcoesEnvio.reducao.antes) + ' → ' + mb(opcoesEnvio.reducao.depois) + ')' : '';
       if (opcoesEnvio.manterMedidas) {   // mesmo móvel (só mudou a cor ou o peso): medidas e ajuste continuam como estavam
         abertoNoAdmin = x.id; renderAdmin();
@@ -2923,7 +3284,7 @@
       '<p class="modelo-admin__estado' + (x.modelo ? ' ok' : '') + '">' + (x.modelo ? '✓ 3D pronto' + (arq ? ' <small>(' + esc(arq) + ')</small>' : '') : 'Sem 3D: o cliente ainda não consegue ver na casa dele.') + '</p>' +
       (servidor
         ? '<div class="linha-acoes">' +
-            '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb)<input type="file" data-up3d hidden></label>' +
+            '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb ou .gltf)<input type="file" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
             (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
@@ -2934,12 +3295,179 @@
       (servidor && x.modelo && !ehAlimento(rascunho) ? '<div class="pontos-admin"><div><strong>Cores do móvel</strong><small>Escolha a parte (tecido, portas…) e as cores. O cliente troca no catálogo e vê na câmera.</small></div>' +
         '<button class="btn btn--sec btn--p" type="button" data-cores-movel>' + ICONES.mais + 'Escolher cores</button></div>' : '') +
       (servidor && x.modelo && !ehAlimento(rascunho) ? htmlPontosAdmin(x) : '') +
+      (servidor && x.modelo && !ehAlimento(rascunho) ? htmlRaioXAdmin(x) : '') +
       (servidor ? htmlFormaAdmin(x) : '') +
       '<details class="conta-det"><summary>Endereço do arquivo (avançado)</summary>' +
         campo('Arquivo 3D', '<input data-f="modelo" maxlength="300" placeholder="https://… .glb" value="' + esc(x.modelo) + '">', 'Caminho ou link https de um arquivo .glb em metros.') +
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Mostrar selo “Modelo ilustrativo” (use se o 3D não for fiel ao produto)</label>' +
       '</details></fieldset>';
   }
+
+  // ----- Raio-X no painel: o marceneiro dá nome às partes do 3D (sem programar) -----
+  function htmlRaioXAdmin(x) {
+    var plan = x.planejado && (!x.planejadoDe || x.planejadoDe === x.modelo);
+    var nomes = {}; pecasValidas(x).forEach(function (c) { nomes[c.nome.toLowerCase() + '|' + c.tipo] = 1; });
+    var n = Object.keys(nomes).length, velhas = x.pecas && x.pecas.length && x.pecasDe !== x.modelo;
+    var txt = plan ? 'Automático: o montador de planejados já separa portas, gavetas, prateleiras e laterais.'
+      : n ? n + ' peças no Raio-X. O cliente vê o móvel por dentro.'
+        : velhas ? 'O 3D mudou: identifique as peças de novo.'
+          : x.pecas && x.pecas.length ? 'Dê nome a pelo menos 2 peças para o Raio-X aparecer.'
+            : 'Dê nome às peças do 3D (portas, gavetas, prateleiras…) para o cliente ver o móvel por dentro.';
+    return '<div class="pontos-admin"><div><strong>Raio-X</strong><small>' + txt + '</small></div>' +
+      '<button class="btn btn--sec btn--p" type="button" data-pecas>' + ICONES.cubo + (plan ? 'Ver o Raio-X' : n ? 'Editar peças' : 'Identificar peças') + '</button></div>';
+  }
+  var pecasEd = null;
+  var PALPITES_PECA = [[/porta|door/i, 'porta'], [/gaveta|drawer/i, 'gaveta'], [/prateleira|shelf|shelve/i, 'prateleira'], [/lateral|side/i, 'lateral'],
+    [/divis|divider|partition/i, 'divisoria'], [/fundo|back/i, 'fundo'], [/tampo|countertop|\btop\b/i, 'tampo'], [/puxador|handle|knob/i, 'puxador'],
+    [/rodap|plinth|kick/i, 'rodape'], [/dobradi|hinge|corredi|slide|rail/i, 'ferragem'], [/almofada|assento|encosto|cushion|seat|fabric|tecido/i, 'estofado'], [/frente|front/i, 'frente']];
+  function palpitePeca(nomeNo) {
+    var t = 'outra'; PALPITES_PECA.some(function (r) { if (r[0].test(nomeNo)) { t = r[1]; return true; } return false; });
+    var nome = String(nomeNo || '').replace(/[._-]+/g, ' ').replace(/\b\d{3}\b/g, '').replace(/\s+/g, ' ').trim();
+    return { tipo: t, nome: nome && !/^(mesh|object|objeto|node|cube|cubo|group|grupo)\s*\d*$/i.test(nome) ? nome.charAt(0).toUpperCase() + nome.slice(1) : '' };
+  }
+  function abrirPecas(x) {
+    if (SEM_3D) { toast('Este aparelho não mostra 3D. Abra o painel num computador ou celular com 3D.'); return; }
+    var plan = !!(x.planejado && (!x.planejadoDe || x.planejadoDe === x.modelo));
+    pecasEd = { x: x, plan: plan, lista: (x.pecasDe === x.modelo ? x.pecas || [] : []).map(function (c) { return Object.assign({}, c); }), partes: [], sel: null, api: null, vez: 0, modo: plan ? 'testar' : 'identificar' };
+    $('#pecas-corpo').innerHTML =
+      '<p class="mini" id="pecas-ajuda" style="margin-top:0"></p>' +
+      '<div class="pecas-palco" id="pecas-palco"><div class="pecas-estado" id="pecas-estado"><div class="spinner" aria-hidden="true"></div>Carregando o 3D…</div></div>' +
+      '<div class="pecas-teste" id="pecas-teste" hidden>' +
+        '<label>Transparência <input type="range" id="pecas-transp" min="0" max="100" value="75"></label>' +
+        '<button type="button" class="btn btn--contorno btn--p" data-pecas-t="explodir" aria-pressed="false">Explodir</button>' +
+        '<button type="button" class="btn btn--contorno btn--p" data-pecas-t="abrir" aria-pressed="false">Abrir portas e gavetas</button>' +
+        '<p class="mini" id="pecas-sel" aria-live="polite"></p></div>' +
+      '<div id="pecas-form"></div><div class="pecas-lista" id="pecas-lista"></div>';
+    $('#pecas-rodape').innerHTML = plan ? '<button class="btn btn--primario btn--bloco" type="button" data-fechar>Fechar</button>'
+      : '<div class="painel__rodape--admin"><button class="btn btn--sec" type="button" data-pecas-modo>Testar</button><button class="btn btn--primario" type="button" data-pecas-pronto>Pronto</button></div>';
+    abrirDialogo($('#dlg-pecas'));
+    montarCenaPecas();
+  }
+  function montarCenaPecas() {
+    var ed = pecasEd, vez = ++ed.vez, palcoP = $('#pecas-palco'), est = $('#pecas-estado');
+    if (ed.api) { ed.api.destruir(); ed.api = null; }
+    $$('.rx-camada', palcoP).forEach(function (r) { r.remove(); });
+    var camada = document.createElement('div'); camada.className = 'rx-camada ver'; palcoP.insertBefore(camada, est);
+    est.hidden = false;
+    $('#pecas-teste').hidden = true; $('#pecas-form').innerHTML = ''; $('#pecas-lista').innerHTML = '';
+    var testar = ed.modo === 'testar';
+    $('#pecas-ajuda').innerHTML = ed.plan ? 'Este é o Raio-X que o cliente vê. As peças vêm do projeto do planejado, com as medidas dele. Toque numa peça para ver o nome.'
+      : testar ? 'Teste como o cliente vai ver. Toque nas peças, explodir e abrir portas.'
+        : 'Toque numa parte do 3D (ou na lista) e dê um nome. <strong>Só as partes com nome aparecem no Raio-X.</strong> Partes com o mesmo nome viram uma peça só (ex.: frente e caixa da gaveta).';
+    var mod = $('[data-pecas-modo]'); if (mod) mod.textContent = testar ? 'Identificar' : 'Testar';
+    var lista = lerPecas(ed.lista);
+    var fonte = ed.plan ? { tipo: 'planejado', ficha: ed.x.planejado } : { tipo: 'glb', url: urlModelo(ed.x.modelo), pecas: lista };
+    if (testar && !ed.plan) {
+      var nomes = {}; lista.forEach(function (c) { nomes[c.nome.toLowerCase() + '|' + c.tipo] = 1; });
+      if (Object.keys(nomes).length < 2) { est.innerHTML = 'Dê nome a pelo menos 2 peças para testar o Raio-X.'; camada.remove(); return; }
+    }
+    import(new URL('raiox.mjs', document.baseURI).href).then(function (R) {
+      return R.criarRaioX(camada, fonte, { editor: !testar, aoSelecionar: aoSelecionarPecaEd, aoMudar: function () {} });
+    }).then(function (api) {
+      if (vez !== ed.vez || pecasEd !== ed || !$('#dlg-pecas').open) { api.destruir(); return; }
+      ed.api = api; est.hidden = true;
+      if (testar) {
+        $('#pecas-teste').hidden = false;
+        api.transparencia(Number($('#pecas-transp').value) / 100);
+        $('[data-pecas-t="explodir"]').hidden = !api.temExplosao; $('[data-pecas-t="abrir"]').hidden = !api.temMovimento;
+        $('#pecas-sel').textContent = api.pecas.length + ' peças' + (api.temExplosao ? '' : ' · vista explodida: escolha “Vista explodida” em alguma peça') + (api.temMovimento ? '' : ' · nenhuma porta ou gaveta com movimento');
+        return;
+      }
+      ed.partes = api.pecas.map(function (p) { return { no: p.nos[0], nomeNo: p.nomeNo, tri: p.tri }; });
+      if (ed.partes.length < 2) {
+        est.hidden = false;
+        est.innerHTML = '<strong>Este 3D é uma peça única</strong>Acontece com 3D criado por fotos ou exportado “juntando” os objetos. Para o Raio-X, peça à fábrica o arquivo com as peças separadas (no SketchUp ou Blender, exporte sem juntar os objetos).';
+        api.destruir(); ed.api = null; camada.remove();
+        var bm = $('[data-pecas-modo]'); if (bm) bm.hidden = true;
+        return;
+      }
+      renderListaPecas();
+    }).catch(function (e) { console.warn('[peças]', e); est.innerHTML = 'Não consegui abrir este 3D aqui. ' + esc(e && e.message || ''); });
+  }
+  function e2Visivel(el) { var r = el.getBoundingClientRect(); return !(r.top >= 0 && r.bottom <= innerHeight); }
+  function confPeca(no) { return pecasEd.lista.filter(function (c) { return c.no === no; })[0] || null; }
+  function renderListaPecas() {
+    var ed = pecasEd, max = 300;
+    var com = ed.lista.filter(function (c) { return c.nome; }).length;
+    $('#pecas-lista').innerHTML = '<p class="pecas-lista__cab">' + ed.partes.length + ' partes no arquivo · ' + com + ' com nome</p>' +
+      ed.partes.slice(0, max).map(function (pt) {
+        var c = confPeca(pt.no);
+        return '<button type="button" class="pecas-item' + (c ? ' ok' : '') + (ed.sel === pt.no ? ' sel' : '') + '" data-pc-no="' + pt.no + '">' +
+          '<span>Parte ' + (pt.no + 1) + '<small>' + esc(pt.nomeNo || 'sem nome no arquivo') + '</small></span>' +
+          '<em>' + (c ? esc(c.nome) + ' · ' + esc(TIPOS_PECA[c.tipo]) : '—') + '</em></button>';
+      }).join('') + (ed.partes.length > max ? '<p class="mini">Mostrando as primeiras ' + max + ' partes. Toque no 3D para escolher as outras.</p>' : '');
+  }
+  function aoSelecionarPecaEd(info) {
+    var ed = pecasEd; if (!ed) return;
+    if (ed.modo === 'testar') {
+      $('#pecas-sel').textContent = info ? info.nome + ' · ' + info.tipoNome + (info.material ? ' · ' + info.material : '') + (info.mov ? ' (toque de novo em “Abrir portas e gavetas” para testar)' : '') : '';
+      return;
+    }
+    ed.sel = info && info.nos ? info.nos[0] : null;
+    renderFormPeca();
+    $$('#pecas-lista .pecas-item').forEach(function (b) { b.classList.toggle('sel', Number(b.getAttribute('data-pc-no')) === ed.sel); });
+    var it = $('#pecas-lista .pecas-item.sel'); if (it && e2Visivel(it)) it.scrollIntoView({ block: 'nearest' });
+  }
+  function renderFormPeca() {
+    var ed = pecasEd, f = $('#pecas-form');
+    if (ed.sel == null) { f.innerHTML = ''; return; }
+    var pt = ed.partes.filter(function (p) { return p.no === ed.sel; })[0] || { no: ed.sel, nomeNo: '' };
+    var c = confPeca(ed.sel), pal = palpitePeca(pt.nomeNo);
+    var v = c || { nome: '', tipo: pal.tipo, desc: '', material: '', destacar: true, mov: '', explodir: '' };
+    var op = function (obj, sel) { return Object.keys(obj).map(function (k) { return '<option value="' + k + '"' + (k === sel ? ' selected' : '') + '>' + esc(obj[k]) + '</option>'; }).join(''); };
+    f.innerHTML = '<fieldset class="campo pecas-form"><legend>Parte ' + (pt.no + 1) + (pt.nomeNo ? ' <small>(' + esc(pt.nomeNo) + ')</small>' : '') + '</legend>' +
+      campo('Nome da peça', '<input data-pc="nome" maxlength="60" placeholder="' + esc(pal.nome || 'ex.: Porta esquerda') + '" value="' + esc(v.nome) + '">', 'Deixe vazio para não aparecer no Raio-X.') +
+      '<div class="pecas-form__2">' + campo('Tipo', '<select data-pc="tipo">' + op(TIPOS_PECA, v.tipo) + '</select>') +
+        campo('Material', '<input data-pc="material" maxlength="80" placeholder="ex.: MDF branco 18 mm" value="' + esc(v.material) + '">') + '</div>' +
+      campo('Descrição (opcional)', '<textarea data-pc="desc" maxlength="240" rows="2" placeholder="ex.: corrediça telescópica com amortecedor">' + esc(v.desc) + '</textarea>') +
+      '<div class="pecas-form__2">' + campo('Abre / fecha', '<select data-pc="mov">' + op(MOV_PECA, v.mov) + '</select>') +
+        campo('Vista explodida', '<select data-pc="explodir">' + op(EXPLODIR_PECA, v.explodir) + '</select>') + '</div>' +
+      '<label class="checar"><input type="checkbox" data-pc="destacar"' + (v.destacar !== false ? ' checked' : '') + '> O cliente pode tocar e destacar esta peça</label>' +
+      (pal.nome && !c ? '<button type="button" class="btn btn--fantasma btn--p" data-pc-sugestao>Usar o nome “' + esc(pal.nome) + '”</button>' : '') +
+      '</fieldset>';
+  }
+  function salvarFormPeca(sugestao) {
+    var ed = pecasEd; if (!ed || ed.sel == null) return;
+    var g = function (k) { var el = $('#pecas-form [data-pc="' + k + '"]'); return el ? (el.type === 'checkbox' ? el.checked : el.value) : ''; };
+    var pt = ed.partes.filter(function (p) { return p.no === ed.sel; })[0] || { nomeNo: '' };
+    var nome = String(sugestao || g('nome')).trim().slice(0, 60);
+    ed.lista = ed.lista.filter(function (c) { return c.no !== ed.sel; });
+    if (nome) ed.lista.push({ no: ed.sel, nomeNo: pt.nomeNo || '', nome: nome, tipo: g('tipo') || 'outra', desc: String(g('desc')).slice(0, 240), material: String(g('material')).slice(0, 80), destacar: g('destacar') !== false, mov: g('mov') || '', explodir: g('explodir') || '' });
+    ed.lista.sort(function (a, b) { return a.no - b.no; });
+    // só atualiza a linha desta parte (redesenhar a lista inteira engoliria o próximo toque)
+    var c = confPeca(ed.sel), linha = $('#pecas-lista [data-pc-no="' + ed.sel + '"]');
+    if (linha) { linha.classList.toggle('ok', !!c); linha.querySelector('em').textContent = c ? c.nome + ' · ' + TIPOS_PECA[c.tipo] : '—'; }
+    var sug = $('#pecas-form [data-pc-sugestao]'); if (sug && c) sug.hidden = true;
+    var cab = $('#pecas-lista .pecas-lista__cab'); if (cab) cab.textContent = ed.partes.length + ' partes no arquivo · ' + ed.lista.length + ' com nome';
+  }
+  document.addEventListener('input', function (e) {
+    if (e.target.closest('#pecas-form [data-pc]')) salvarFormPeca();
+    if (e.target.id === 'pecas-transp' && pecasEd && pecasEd.api) pecasEd.api.transparencia(Number(e.target.value) / 100);
+  });
+  document.addEventListener('change', function (e) { if (e.target.closest('#pecas-form [data-pc]')) salvarFormPeca(); });
+  document.addEventListener('click', function (e) {
+    if (!pecasEd || !e.target.closest('#dlg-pecas')) return;
+    var ed = pecasEd;
+    var it = e.target.closest('[data-pc-no]');
+    if (it && ed.api) { ed.api.selecionar('n' + it.getAttribute('data-pc-no')); return; }
+    if (e.target.closest('[data-pc-sugestao]')) { var inp = $('#pecas-form [data-pc="nome"]'); inp.value = inp.placeholder; salvarFormPeca(); renderFormPeca(); return; }
+    var t = e.target.closest('[data-pecas-t]');
+    if (t && ed.api) {
+      var on = t.getAttribute('aria-pressed') !== 'true'; t.setAttribute('aria-pressed', String(on));
+      if (t.getAttribute('data-pecas-t') === 'explodir') ed.api.explodir(on ? 1 : 0); else ed.api.abrirTudo(on);
+      return;
+    }
+    if (e.target.closest('[data-pecas-modo]')) { ed.modo = ed.modo === 'testar' ? 'identificar' : 'testar'; ed.sel = null; montarCenaPecas(); return; }
+    if (e.target.closest('[data-pecas-pronto]')) {
+      var x = ed.x, lista = lerPecas(ed.lista), nomes = {};
+      lista.forEach(function (c) { nomes[c.nome.toLowerCase() + '|' + c.tipo] = 1; });
+      x.pecas = lista; x.pecasDe = x.modelo;
+      fecharDialogo($('#dlg-pecas'));
+      abertoNoAdmin = x.id; renderAdmin();
+      toast(Object.keys(nomes).length >= 2 ? 'Peças guardadas. Toque em “Salvar alterações” para publicar o Raio-X.' : lista.length ? 'Guardei, mas o Raio-X só aparece com pelo menos 2 peças com nome.' : 'Nenhuma peça com nome: o Raio-X fica desligado para este móvel.');
+    }
+  });
+  $('#dlg-pecas').addEventListener('close', function () { if (pecasEd) { pecasEd.vez++; if (pecasEd.api) pecasEd.api.destruir(); pecasEd = null; } });
 
   // ----- Pontos de informação no 3D (ex.: "tecido impermeável", "gaveta com corrediça") -----
   function htmlPontosAdmin(x) {
@@ -3327,7 +3855,7 @@
       if (!x.nome) x.nome = plan.ficha.nome;
       var arq = new File([plan.glb], slug(x.nome || 'planejado') + '.glb', { type: 'model/gltf-binary' });
       fecharDialogo($('#dlg-planejado'));
-      enviar3d(arq, x);
+      enviar3d(arq, x, null, { planejado: true });
     };
     if (plan.glb) ir();
     else plan.P.montarPlanejado(plan.ficha).then(function (r) { plan.glb = r.glb; plan.medidas = r.medidas; ir(); }).catch(function (e) { toast(e.message); });
@@ -3896,6 +4424,8 @@
     if (bpl) { coletarAdmin(); var xpl = produtoDoAlvo(bpl); if (xpl) abrirPlanejado(xpl); return; }
     var bpt = e.target.closest('[data-pontos]');
     if (bpt) { coletarAdmin(); var xpt = produtoDoAlvo(bpt); if (xpt && xpt.modelo) abrirPontos(xpt); return; }
+    var bpc = e.target.closest('[data-pecas]');
+    if (bpc) { coletarAdmin(); var xpc = produtoDoAlvo(bpc); if (xpc && xpc.modelo) abrirPecas(xpc); return; }
     var g3d = e.target.closest('[data-gerar-3d]');
     if (g3d) {
       coletarAdmin();
@@ -3913,6 +4443,8 @@
         body: JSON.stringify({ acao: 'reescalar', url: px.modelo, dim: px.dim, produto: slug(px.nome) }) })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
         .then(function (j) {
+          if (px.pecasDe === px.modelo) px.pecasDe = j.url;   // mesmas partes, só o tamanho mudou
+          if (px.planejado) px.planejadoDe = '-';             // o 3D deixou de ser o da ficha do planejado
           px.modelo = j.url; abertoNoAdmin = px.id; renderAdmin();
           toast('Tamanho ajustado para ' + dimTexto({ largura: j.medidasCm[0], altura: j.medidasCm[1], profundidade: j.medidasCm[2] }) + '. Salve para publicar.');
         })

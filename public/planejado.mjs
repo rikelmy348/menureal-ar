@@ -110,9 +110,18 @@ export const NOMES_MODELOS = { cozinha_reta: 'Cozinha reta', cozinha_l: 'Cozinha
 export function comprimentoTrecho(t) { return t.modulos.reduce((s, m) => s + m.largura, 0); }
 
 // ------------------------------------------------------------------ geometria
-function criarGeo() {
+// comPecas = true: cada peça (porta, gaveta, lateral, prateleira…) fica separada, para o Raio-X.
+// O interior deixa de ser um bloco escuro e vira a caixa de verdade (laterais, fundo, caixa da gaveta).
+function criarGeo(comPecas) {
   const mats = new Map(); let T = { ang: 0, tx: 0, tz: 0 };
-  function g(mat) { if (!mats.has(mat)) mats.set(mat, { pos: [], nor: [], uv: [], idx: [] }); return mats.get(mat); }
+  const pecas = []; let peca = null;
+  function g(mat) {
+    let alvo = mats;
+    if (comPecas) { if (!peca) novaPeca({ nome: 'Estrutura', tipo: 'estrutura' }); alvo = peca.mats; }
+    if (!alvo.has(mat)) alvo.set(mat, { pos: [], nor: [], uv: [], idx: [] });
+    return alvo.get(mat);
+  }
+  function novaPeca(info) { if (!comPecas) return; peca = Object.assign({ mats: new Map() }, info); pecas.push(peca); }
   function tp(x, y, z) { // aplica giro (graus, em torno do eixo vertical) + translação
     const a = T.ang * Math.PI / 180, c = Math.round(Math.cos(a) * 1e6) / 1e6, s = Math.round(Math.sin(a) * 1e6) / 1e6;
     return [c * x + s * z + T.tx, y, -s * x + c * z + T.tz];
@@ -151,13 +160,19 @@ function criarGeo() {
       });
     }
   }
-  return { mats, caixa, cilindro, set: (t) => { T = t; } };
+  return { mats, caixa, cilindro, set: (t) => { T = t; }, tp, tn, pecas, detalhe: !!comPecas,
+    // peca(info): o que vier depois pertence a esta peça (só no modo com peças)
+    peca: (info) => {
+      if (!comPecas) return;
+      if (info.chave) { const ex = pecas.find((x) => x.chave === info.chave); if (ex) { peca = ex; return; } }
+      info.explode = info.explode ? tn(...info.explode) : [0, 0, 0]; if (info.pivo) info.pivo = tp(...info.pivo); if (info.desliza) info.desliza = tn(...info.desliza); novaPeca(info); } };
 }
 
 // lados das faces: a geometria usa a regra da mão direita; as tampas do cilindro são dupla face no material
 function corrigirOrientacao(G) {
   // garante que cada triângulo aponta para o lado da sua normal (os materiais ainda são dupla face por segurança)
-  for (const m of G.mats.values()) {
+  const todos = [...G.mats.values(), ...G.pecas.flatMap((pc) => [...pc.mats.values()])];
+  for (const m of todos) {
     const p = m.pos, n = m.nor, ix = m.idx;
     for (let t = 0; t < ix.length; t += 3) {
       const a = ix[t] * 3, b = ix[t + 1] * 3, c = ix[t + 2] * 3;
@@ -172,7 +187,7 @@ function corrigirOrientacao(G) {
 // ------------------------------------------------------------------ montagem dos trechos
 const RODAPE = 10, FOLGA = 0.4, TAMPO = 3;
 
-function montarTrecho(G, t, fic) {
+function montarTrecho(G, t, fic, ti) {
   const P = t.profundidade, E = t.elevacao, H = t.altura;
   const temTampo = t.tampo && (t.tipo === 'baixo' || t.tipo === 'bancada');
   const comRodape = (t.tipo === 'baixo' || t.tipo === 'alto') && E === 0;
@@ -181,6 +196,7 @@ function montarTrecho(G, t, fic) {
   const zf0 = P - 1.8, zf1 = P;
   const furos = [];
   const C = G.caixa, CIL = G.cilindro;
+  const D = G.detalhe, PC = G.peca;   // D: modo com peças (Raio-X)
   const inv = t.parede === 'B_esquerda';
   let s = t.inicio;
   const faixas = [];   // [a, b] em x local de cada módulo
@@ -191,104 +207,152 @@ function montarTrecho(G, t, fic) {
   if (!faixas.length) return;
   const xmin = Math.min(...faixas.map((f) => f[0])), xmax = Math.max(...faixas.map((f) => f[1]));
   const frenteMat = (m) => (m.frente === 'madeira' ? 'corpo' : m.frente === 'vidro' ? 'vidro' : m.frente === 'espelho' ? 'espelho' : 'portas');
+  const nomeT = t.nome || TIPOS_TRECHO[t.tipo].split(' (')[0];
+  const meioT = (xmin + xmax) / 2, largT = Math.max(1, xmax - xmin);
+  const abre = (a, b) => ((a + b) / 2 - meioT) / largT * 1.2;   // na vista explodida os módulos se afastam um pouco
 
   function porta(mat, a, b, ya, yb) {
     if (mat === 'vidro') {   // vidro com moldura de alumínio
       C('perfil', a + FOLGA, b - FOLGA, ya, yb, zf0, zf1 - 0.4);
       C('vidro', a + 2.2, b - 2.2, ya + 2.2, yb - 2.2, zf1 - 0.5, zf1 - 0.1);
-      C('interno', a + 2.2, b - 2.2, ya + 2.2, yb - 2.2, zf0 - 0.2, zf0);
+      if (!D) C('interno', a + 2.2, b - 2.2, ya + 2.2, yb - 2.2, zf0 - 0.2, zf0);
       return;
     }
     C(mat, a + FOLGA, b - FOLGA, ya + FOLGA, yb - FOLGA, zf0, zf1);
+  }
+  // porta de abrir: a dobradiça fica do lado oposto ao puxador
+  function pecaPorta(nome, a, b, esq, grupo, sx, mat) {
+    PC({ nome, tipo: 'porta', grupo, mat, pivo: [esq ? a + FOLGA : b - FOLGA, 0, zf1], giro: esq ? -1 : 1, dobradica: esq ? 'esquerda' : 'direita', explode: [sx, 0, 1.2] });
   }
   function puxadorCava(a, b, y) { C('perfil', a + FOLGA, b - FOLGA, y - 3, y - 0.4, zf0 - 2.6, zf0 - 2.2); }
   function puxadorVertical(x, ya, yb) { C('perfil', x - 0.8, x + 0.8, ya, yb, zf1, zf1 + 1.6); }
 
   // ----- painel (ripado / TV)
   if (t.tipo === 'painel') {
+    PC({ nome: 'Painel', tipo: 'painel', grupo: nomeT, mat: 'corpo', explode: [0, 0, -0.6] });
     C('corpo', xmin, xmax, E, E + H, 0, 1.8);
-    for (const [a, b, m] of faixas) {
+    faixas.forEach(([a, b, m], i) => {
+      const grupo = nomeT + ' · módulo ' + (i + 1), sx = abre(a, b);
       if (m.tipo === 'ripado') {
+        PC({ nome: 'Ripado', tipo: 'painel', grupo, mat: 'corpo', explode: [sx, 0, 0.5] });
         for (let x = a + 0.9; x + 2.2 <= b; x += 4) C('corpo', x, x + 2.2, E, E + H, 1.8, 4.8);
       } else if (m.tipo === 'tv') {
         const w = Math.min(m.largura - 4, 200), h = w * 0.5625, cx = (a + b) / 2, yc = E + H * 0.5;
+        PC({ nome: 'TV', tipo: 'eletro', grupo, mat: 'preto', explode: [sx, 0, 1.4] });
         C('preto', cx - w / 2, cx + w / 2, yc - h / 2, yc + h / 2, 4, 7);
         C('tela', cx - w / 2 + 0.8, cx + w / 2 - 0.8, yc - h / 2 + 0.8, yc + h / 2 - 0.8, 7, 7.15);
       } else if (m.tipo === 'nicho') {
         const n = Math.max(1, m.prateleiras);
-        for (let k = 1; k <= n; k++) C('corpo', a, b, E + H * k / (n + 1) - 1, E + H * k / (n + 1) + 1, 1.8, 26);
+        for (let k = 1; k <= n; k++) { PC({ nome: 'Prateleira', tipo: 'prateleira', grupo, mat: 'corpo', explode: [sx, 0, 0.9] }); C('corpo', a, b, E + H * k / (n + 1) - 1, E + H * k / (n + 1) + 1, 1.8, 26); }
       }
-    }
-    if (t.led) C('led', xmin, xmax, E + H - 1, E + H - 0.4, 5, 5.6);
+    });
+    if (t.led) { PC({ nome: 'Iluminação LED', tipo: 'led', grupo: nomeT, mat: 'led', explode: [0, 0.4, 0.4] }); C('led', xmin, xmax, E + H - 1, E + H - 0.4, 5, 5.6); }
     return;
   }
 
   // ----- corpo de cada módulo
-  for (const [a, b, m] of faixas) {
-    const w = b - a;
-    if (m.tipo === 'vazio') {
-      if (t.tipo === 'bancada') continue;
-      continue;
-    }
+  faixas.forEach(([a, b, m], i) => {
+    const w = b - a, grupo = nomeT + ' · módulo ' + (i + 1), sx = abre(a, b);
+    if (m.tipo === 'vazio') return;
     if (m.tipo === 'eletro' && m.aparelho === 'geladeira') {
       const hG = Math.min(190, Math.max(150, (t.tipo === 'alto' ? H - 10 : 185)));
+      PC({ nome: 'Geladeira', tipo: 'eletro', grupo, mat: 'inox', explode: [sx, 0, 1.4] });
       C('inox', a + 1, b - 1, 0, hG, 2, zf1 - 2);
       C('inox_esc', a + 1.2, b - 1.2, hG * 0.62, hG * 0.62 + 0.4, zf1 - 2, zf1 - 1.9);
       C('cromado', b - 6, b - 4.5, hG * 0.66, hG * 0.95, zf1, zf1 + 2.5); C('cromado', b - 6, b - 4.5, hG * 0.3, hG * 0.58, zf1, zf1 + 2.5);
-      if (t.tipo === 'alto') C('corpo', a, b, hG + 1, E + H, 0, zf1);
+      if (t.tipo === 'alto') { PC({ nome: 'Caixa sobre a geladeira', tipo: 'estrutura', grupo, mat: 'corpo', explode: [sx, 0.9, 0] }); C('corpo', a, b, hG + 1, E + H, 0, zf1); }
       furos.push({ a, b, todo: true });
-      continue;
+      return;
     }
-    if (m.tipo === 'ripado' || m.tipo === 'tv') { C('corpo', a, b, y0, yTopo, 0, 1.8); continue; }
+    if (m.tipo === 'ripado' || m.tipo === 'tv') { PC({ nome: m.tipo === 'tv' ? 'Painel da TV' : 'Painel ripado', tipo: 'painel', grupo, mat: 'corpo', explode: [sx, 0, -0.6] }); C('corpo', a, b, y0, yTopo, 0, 1.8); return; }
     // caixa e rodapé
-    if (comRodape) C('rodape', a, b, E, y0, 0, P - 6);
+    if (comRodape) { PC({ nome: 'Rodapé', tipo: 'rodape', chave: 'rodape' + ti, grupo: nomeT, mat: 'rodape', explode: [0, -0.2, 0.7] }); C('rodape', a, b, E, y0, 0, P - 6); }
     const temCuba = temTampo && /cuba|tanque/.test(m.item_tampo);
     const topoInterno = temCuba ? yTopo - (m.item_tampo === 'tanque' ? 31 : 21) : yTopo - 1.8;   // deixa espaço para a cuba
-    if (m.tipo !== 'nicho') C('interno', a + 0.1, b - 0.1, y0 + 1.8, topoInterno, 0.1, zf0 - 0.1);
+    if (m.tipo !== 'nicho' && !D) C('interno', a + 0.1, b - 0.1, y0 + 1.8, topoInterno, 0.1, zf0 - 0.1);
     if (m.tipo !== 'nicho') {
-      if (!temTampo) C('corpo', a, b, yTopo - 1.8, yTopo, 0, zf0);   // topo (com tampo, o tampo cobre)
+      if (!temTampo) { PC({ nome: 'Topo', tipo: 'estrutura', grupo, mat: 'corpo', explode: [sx, 0.9, 0] }); C('corpo', a, b, yTopo - 1.8, yTopo, 0, zf0); }   // topo (com tampo, o tampo cobre)
+      PC({ nome: 'Base', tipo: 'estrutura', grupo, mat: 'corpo', explode: [sx, -0.35, 0] });
       C('corpo', a, b, y0, y0 + 1.8, 0, zf0);         // base
+      if (D) {   // a caixa de verdade: laterais e fundo
+        const yl = temTampo ? yTopo : yTopo - 1.8;
+        PC({ nome: a <= xmin + 0.01 ? 'Lateral esquerda' : 'Divisória', tipo: a <= xmin + 0.01 ? 'lateral' : 'divisoria', grupo, mat: 'corpo', explode: [sx - 1, 0, 0] });
+        C('corpo', a, a + 1.8, y0 + 1.8, yl, 0, zf0);
+        PC({ nome: b >= xmax - 0.01 ? 'Lateral direita' : 'Divisória', tipo: b >= xmax - 0.01 ? 'lateral' : 'divisoria', grupo, mat: 'corpo', explode: [sx + 1, 0, 0] });
+        C('corpo', b - 1.8, b, y0 + 1.8, yl, 0, zf0);
+        PC({ nome: 'Fundo', tipo: 'fundo', grupo, mat: 'corpo', explode: [sx, 0, -1] });
+        C('corpo', a + 1.8, b - 1.8, y0 + 1.8, yl, 0, 0.6);
+      }
     }
     const yt = yTopo - (t.tipo === 'baixo' && temTampo ? 3.4 : 0);   // espaço do puxador cava
     const cava = t.tipo === 'baixo' && temTampo;
-    if (cava) puxadorCava(a, b, yTopo);
+    const gola = () => PC({ nome: 'Perfil puxador (gola)', tipo: 'puxador', chave: 'gola' + ti + ':' + i, grupo, mat: 'perfil', explode: [sx, 0, 0.6] });
+    if (cava) { gola(); puxadorCava(a, b, yTopo); }
+    // prateleiras internas: só as que o projeto tem
+    const prateleiras = (yb, n) => {
+      if (!D || !n) return;
+      for (let k = 1; k <= n; k++) {
+        const yy = y0 + 1.8 + (yb - y0 - 1.8) * k / (n + 1);
+        PC({ nome: 'Prateleira', tipo: 'prateleira', grupo, mat: 'corpo', explode: [sx, 0, 0.8] });
+        C('corpo', a + 1.8, b - 1.8, yy - 0.9, yy + 0.9, 0.6, zf0 - 1.5);
+      }
+    };
 
     if (m.tipo === 'portas') {
       const n = Math.max(1, m.portas || 1), fm = frenteMat(m);
       const maleiro = t.tipo === 'alto' && H >= 200 ? 45 : 0;
       for (let k = 0; k < n; k++) {
         const pa = a + w * k / n, pb = a + w * (k + 1) / n;
+        pecaPorta(n > 1 ? 'Porta ' + (k + 1) : 'Porta', pa, pb, k % 2 === 0, grupo, sx, fm);
         porta(fm, pa, pb, y0, yt - maleiro);
-        if (maleiro) porta(fm === 'espelho' ? 'portas' : fm, pa, pb, yt - maleiro, yt);
         if (t.tipo === 'alto') puxadorVertical(k % 2 ? pa + 4 : pb - 4, y0 + (yt - y0 - maleiro) * 0.35, y0 + (yt - y0 - maleiro) * 0.62);
+        if (maleiro) { pecaPorta('Porta do maleiro', pa, pb, k % 2 === 0, grupo, sx, fm === 'espelho' ? 'portas' : fm); porta(fm === 'espelho' ? 'portas' : fm, pa, pb, yt - maleiro, yt); }
       }
+      if (D && maleiro) { PC({ nome: 'Divisão do maleiro', tipo: 'divisoria', grupo, mat: 'corpo', explode: [sx, 0.35, 0.5] }); C('corpo', a + 1.8, b - 1.8, yt - maleiro - 0.9, yt - maleiro + 0.9, 0.6, zf0 - 0.5); }
+      prateleiras((temTampo ? yTopo : yTopo - 1.8) - maleiro, m.prateleiras);
     } else if (m.tipo === 'gavetas') {
       let gav = m.gavetas.length ? m.gavetas : [20, 20, 20];
       const hDisp = t.tipo === 'alto' ? Math.min(yt - y0, gav.reduce((x, v) => x + v, 0)) : yt - y0;
       const esc = hDisp / gav.reduce((x, v) => x + v, 0);
-      let y = y0 + hDisp;
+      const fundoCx = Math.min(55, zf0 - 4), curso = Math.round(fundoCx * 0.75);
+      let y = y0 + hDisp, g = 0;
       for (const hg of gav) {
-        const ya = y - hg * esc; porta(frenteMat(m), a, b, ya, y);
-        if (!cava || y < yt - 1) C('perfil', a + FOLGA, b - FOLGA, y - 2.6, y - FOLGA, zf0 - 2.6, zf0 - 2.2);
+        const ya = y - hg * esc, mov = 'gaveta:' + ti + ':' + i + ':' + (g++);
+        PC({ nome: 'Gaveta' + (gav.length > 1 ? ' ' + g : ''), tipo: 'gaveta', grupo, mat: frenteMat(m), mov, desliza: [0, 0, curso], explode: [sx, 0, 1.6] });
+        porta(frenteMat(m), a, b, ya, y);
         if (t.tipo !== 'baixo') C('perfil', (a + b) / 2 - 8, (a + b) / 2 + 8, y - 3.5, y - 2.3, zf1, zf1 + 1.4);
+        if (D) {   // caixa da gaveta (corre junto com a frente)
+          const bx0 = a + 3, bx1 = b - 3, by0 = ya + 2.5, by1 = Math.max(by0 + 6, y - 4.5), bz0 = zf0 - 0.2 - fundoCx, bz1 = zf0 - 0.2;
+          PC({ nome: 'Caixa da gaveta' + (gav.length > 1 ? ' ' + g : ''), tipo: 'gaveta', grupo, mat: 'corpo', mov, desliza: [0, 0, curso], explode: [sx, 0, 1.6] });
+          C('corpo', bx0, bx0 + 1.5, by0, by1, bz0, bz1); C('corpo', bx1 - 1.5, bx1, by0, by1, bz0, bz1);
+          C('corpo', bx0 + 1.5, bx1 - 1.5, by0, by1, bz0, bz0 + 1.5); C('corpo', bx0 + 1.5, bx1 - 1.5, by0, by1, bz1 - 1.5, bz1);
+          C('corpo', bx0 + 1.5, bx1 - 1.5, by0, by0 + 0.6, bz0 + 1.5, bz1 - 1.5);
+        }
+        if (!cava || y < yt - 1) { gola(); C('perfil', a + FOLGA, b - FOLGA, y - 2.6, y - FOLGA, zf0 - 2.6, zf0 - 2.2); }
         y = ya;
       }
       if (t.tipo === 'alto' && y0 + hDisp < yt - 1) {   // portas acima das gavetas
         const maleiro = H >= 200 ? 45 : 0;
-        porta('portas', a, b, y0 + hDisp, yt - maleiro); if (maleiro) porta('portas', a, b, yt - maleiro, yt);
+        pecaPorta('Porta', a, b, true, grupo, sx, 'portas');
+        porta('portas', a, b, y0 + hDisp, yt - maleiro);
         puxadorVertical(b - 4, y0 + hDisp + 30, y0 + hDisp + 80);
+        if (maleiro) { pecaPorta('Porta do maleiro', a, b, true, grupo, sx, 'portas'); porta('portas', a, b, yt - maleiro, yt); }
+        if (D) { PC({ nome: 'Divisão das gavetas', tipo: 'divisoria', grupo, mat: 'corpo', explode: [sx, 0, 0.5] }); C('corpo', a + 1.8, b - 1.8, y0 + hDisp, y0 + hDisp + 1.8, 0.6, zf0 - 0.5); }
+        if (D && maleiro) { PC({ nome: 'Divisão do maleiro', tipo: 'divisoria', grupo, mat: 'corpo', explode: [sx, 0.35, 0.5] }); C('corpo', a + 1.8, b - 1.8, yt - maleiro - 0.9, yt - maleiro + 0.9, 0.6, zf0 - 0.5); }
       }
     } else if (m.tipo === 'nicho') {
-      C('corpo', a, a + 1.8, y0, yTopo, 0, zf1); C('corpo', b - 1.8, b, y0, yTopo, 0, zf1);
-      C('corpo', a, b, y0, y0 + 1.8, 0, zf1); C('corpo', a, b, yTopo - 1.8, yTopo, 0, zf1);
-      C('corpo', a, b, y0, yTopo, 0, 1.5);
+      PC({ nome: 'Lateral do nicho', tipo: a <= xmin + 0.01 ? 'lateral' : 'divisoria', grupo, mat: 'corpo', explode: [sx - 1, 0, 0] }); C('corpo', a, a + 1.8, y0, yTopo, 0, zf1);
+      PC({ nome: 'Lateral do nicho', tipo: b >= xmax - 0.01 ? 'lateral' : 'divisoria', grupo, mat: 'corpo', explode: [sx + 1, 0, 0] }); C('corpo', b - 1.8, b, y0, yTopo, 0, zf1);
+      PC({ nome: 'Base do nicho', tipo: 'estrutura', grupo, mat: 'corpo', explode: [sx, -0.35, 0] }); C('corpo', a, b, y0, y0 + 1.8, 0, zf1);
+      PC({ nome: 'Topo do nicho', tipo: 'estrutura', grupo, mat: 'corpo', explode: [sx, 0.9, 0] }); C('corpo', a, b, yTopo - 1.8, yTopo, 0, zf1);
+      PC({ nome: 'Fundo do nicho', tipo: 'fundo', grupo, mat: 'corpo', explode: [sx, 0, -1] }); C('corpo', a, b, y0, yTopo, 0, 1.5);
       const n = m.prateleiras;
-      for (let k = 1; k <= n; k++) { const yy = y0 + (yTopo - y0) * k / (n + 1); C('corpo', a + 1.8, b - 1.8, yy - 0.9, yy + 0.9, 1.5, zf1 - 1); }
-      if (m.frente === 'vidro' || m.frente === 'espelho') porta(m.frente, a, b, y0, yTopo);
+      for (let k = 1; k <= n; k++) { const yy = y0 + (yTopo - y0) * k / (n + 1); PC({ nome: 'Prateleira', tipo: 'prateleira', grupo, mat: 'corpo', explode: [sx, 0, 0.8] }); C('corpo', a + 1.8, b - 1.8, yy - 0.9, yy + 0.9, 1.5, zf1 - 1); }
+      if (m.frente === 'vidro' || m.frente === 'espelho') { pecaPorta(m.frente === 'vidro' ? 'Porta de vidro' : 'Porta de espelho', a, b, true, grupo, sx, m.frente); porta(m.frente, a, b, y0, yTopo); }
     } else if (m.tipo === 'eletro') {
-      eletro(G, m.aparelho, a, b, y0, yt, zf0, zf1, E, comRodape, y0);
+      eletro(G, m.aparelho, a, b, y0, yt, zf0, zf1, E, comRodape, { grupo, sx, porta: (nome) => pecaPorta(nome, a, b, true, grupo, sx, 'portas') });
     }
-  }
+  });
 
   // ----- tampo com recortes
   if (temTampo) {
@@ -300,10 +364,12 @@ function montarTrecho(G, t, fic) {
       if (it === 'cooktop') {
         const w = Math.min(85, Math.max(58, b - a + 20)), p = Math.min(50, P - 12);
         furos.push({ a: cx - w / 2, b: cx + w / 2, za: cz - p / 2, zb: cz + p / 2 });
+        PC({ nome: 'Cooktop', tipo: 'acessorio', grupo: nomeT, mat: 'cooktop', explode: [abre(a, b), 2.6, 0] });
         cooktop(G, cx, cz, w, p, ytB);
       } else {
         const dupla = it === 'cuba_dupla', tq = it === 'tanque';
         const w = Math.max(28, Math.min(dupla ? 80 : tq ? 50 : 60, b - a - 8)), p = Math.min(tq ? 42 : 40, P - 18);
+        PC({ nome: tq ? 'Tanque' : dupla ? 'Cuba dupla' : 'Cuba', tipo: 'acessorio', grupo: nomeT, mat: 'inox', explode: [abre(a, b), 2.6, 0] });
         if (dupla) {
           [cx - w / 4, cx + w / 4].forEach((c) => { furos.push({ a: c - w / 4 + 1, b: c + w / 4 - 1, za: cz - p / 2, zb: cz + p / 2 }); cuba(G, c, cz, w / 2 - 2, p, tq ? 30 : 20, ytB, c === cx - w / 4); });
         } else {
@@ -317,6 +383,7 @@ function montarTrecho(G, t, fic) {
     furos.forEach((f) => cortes.push(f.a, f.b));
     const xs = [...new Set(cortes.map((v) => Math.round(v * 100) / 100))].sort((p, q) => p - q);
     const tampoMat = fic.acabamentos.tampo === 'igual_corpo' ? 'corpo' : 'tampo';
+    PC({ nome: 'Tampo', tipo: 'tampo', grupo: nomeT, mat: tampoMat, explode: [0, 1.5, 0] });
     for (let i = 0; i < xs.length - 1; i++) {
       const xa = xs[i], xb = xs[i + 1], meio = (xa + xb) / 2;
       if (meio < xmin || meio > xmax) continue;
@@ -334,58 +401,69 @@ function montarTrecho(G, t, fic) {
     if (t.tipo === 'baixo' && E === 0) C(tampoMat, xmin, xmax, ytB, ytB + 7, 0, 2);   // rodabanca
     if (t.tipo === 'bancada') {   // pés/painéis nas pontas quando não há módulo
       const [fa] = faixas, fb = faixas[faixas.length - 1];
-      if (fa[2].tipo === 'vazio') C('corpo', fa[0], fa[0] + 2.5, 0, ytA, 0, zt);
-      if (fb[2].tipo === 'vazio') C('corpo', fb[1] - 2.5, fb[1], 0, ytA, 0, zt);
+      if (fa[2].tipo === 'vazio') { PC({ nome: 'Pé da bancada', tipo: 'estrutura', grupo: nomeT, mat: 'corpo', explode: [-1.2, 0, 0] }); C('corpo', fa[0], fa[0] + 2.5, 0, ytA, 0, zt); }
+      if (fb[2].tipo === 'vazio') { PC({ nome: 'Pé da bancada', tipo: 'estrutura', grupo: nomeT, mat: 'corpo', explode: [1.2, 0, 0] }); C('corpo', fb[1] - 2.5, fb[1], 0, ytA, 0, zt); }
     }
   }
 
   // ----- aéreo/alto: LED e ripado em cima
-  if (t.led && t.tipo !== 'baixo') C('led', xmin + 2, xmax - 2, E - 0.5, E, P - 6, P - 4);
-  if (t.led && t.tipo === 'baixo' && !temTampo) C('led', xmin + 2, xmax - 2, E - 0.5, E, P - 8, P - 6);
+  const led = () => PC({ nome: 'Iluminação LED', tipo: 'led', chave: 'led' + ti, grupo: nomeT, mat: 'led', explode: [0, -0.5, 0.3] });
+  if (t.led && t.tipo !== 'baixo') { led(); C('led', xmin + 2, xmax - 2, E - 0.5, E, P - 6, P - 4); }
+  if (t.led && t.tipo === 'baixo' && !temTampo) { led(); C('led', xmin + 2, xmax - 2, E - 0.5, E, P - 8, P - 6); }
   if (t.ripado) {
     const yr0 = E + H, yr1 = yr0 + t.altura_ripado;
+    PC({ nome: 'Ripado', tipo: 'painel', grupo: nomeT, mat: 'corpo', explode: [0, 1, -0.3] });
     C('corpo', xmin, xmax, yr0, yr1, 0, 1.5);
     for (let x = xmin + 0.9; x + 2.2 <= xmax; x += 4) C('corpo', x, x + 2.2, yr0, yr1, 1.5, 4.5);
-    if (t.led) C('led', xmin, xmax, yr0 + 0.2, yr0 + 0.8, 4.6, 5);
+    if (t.led) { led(); C('led', xmin, xmax, yr0 + 0.2, yr0 + 0.8, 4.6, 5); }
   }
   // laterais de acabamento nas pontas do trecho (madeira)
-  if (t.tipo === 'aereo' || t.tipo === 'alto') { C('corpo', xmin - 1.8, xmin, E, E + H, 0, P); C('corpo', xmax, xmax + 1.8, E, E + H, 0, P); }
+  const acab = (lado) => PC({ nome: 'Lateral de acabamento', tipo: 'lateral', grupo: nomeT, mat: 'corpo', explode: [lado * 1.6, 0, 0] });
+  if (t.tipo === 'aereo' || t.tipo === 'alto') { acab(-1); C('corpo', xmin - 1.8, xmin, E, E + H, 0, P); acab(1); C('corpo', xmax, xmax + 1.8, E, E + H, 0, P); }
   if (t.tipo === 'baixo') {   // laterais de acabamento (fecham as pontas do balcão)
     const yl = temTampo ? E + H - TAMPO : E + H;
-    C('corpo', xmin - 0.01, xmin + 1.8, E, yl, 0, P); C('corpo', xmax - 1.8, xmax + 0.01, E, yl, 0, P);
+    acab(-1); C('corpo', xmin - 0.01, xmin + 1.8, E, yl, 0, P); acab(1); C('corpo', xmax - 1.8, xmax + 0.01, E, yl, 0, P);
   }
 }
 
-function eletro(G, ap, a, b, y0, yt, zf0, zf1, E, comRodape) {
-  const C = G.caixa, CIL = G.cilindro, w = b - a, cx = (a + b) / 2;
+function eletro(G, ap, a, b, y0, yt, zf0, zf1, E, comRodape, ctx) {
+  const C = G.caixa, CIL = G.cilindro, w = b - a, cx = (a + b) / 2, PC = G.peca;
+  const ap1 = (nome, mat) => PC({ nome, tipo: 'eletro', grupo: ctx.grupo, mat, explode: [ctx.sx, 0, 1.4] });
+  const frente = () => PC({ nome: 'Frente', tipo: 'frente', grupo: ctx.grupo, mat: 'portas', explode: [ctx.sx, 0, 1.2] });
   if (ap === 'lava_loucas') {
+    ap1('Lava-louças', 'preto');
     C('preto', a + FOLGA, b - FOLGA, y0, yt, zf0 - 0.5, zf1 + 0.3);
     C('cromado', a + 6, b - 6, yt - 6, yt - 4.6, zf1 + 1.8, zf1 + 3.2);
     C('cromado', a + 8, a + 9.4, yt - 6, yt - 4.6, zf1 + 0.3, zf1 + 1.8); C('cromado', b - 9.4, b - 8, yt - 6, yt - 4.6, zf1 + 0.3, zf1 + 1.8);
   } else if (ap === 'lava_seca') {
     const L = Math.min(60, w - 2), la = cx - L / 2, lb = cx + L / 2, h = Math.min(85, yt - E + 3);
+    ap1('Lava e seca', 'eletro');
     C('eletro', la, lb, E + 2, E + h, 2, zf1 - 0.5);
     C('eletro', la + 1, lb - 1, E + h - 12, E + h - 1, zf1 - 0.5, zf1);
     C('vidro_esc', la + 30, lb - 6, E + h - 9, E + h - 4, zf1, zf1 + 0.2);
     CIL('cromado', 1.6, 1.2, la + 14, E + h - 6.5, zf1 + 0.4, 'z');
     CIL('cromado', 21, 2, cx, E + 45, zf1 + 0.8, 'z', 40);
     CIL('vidro_esc', 17, 2.4, cx, E + 45, zf1 + 1, 'z', 40);
-    if (la - a > 1) C('portas', a + FOLGA, la, y0, yt, zf0, zf1);
-    if (b - lb > 1) C('portas', lb, b - FOLGA, y0, yt, zf0, zf1);
+    if (la - a > 1) { frente(); C('portas', a + FOLGA, la, y0, yt, zf0, zf1); }
+    if (b - lb > 1) { frente(); C('portas', lb, b - FOLGA, y0, yt, zf0, zf1); }
   } else if (ap === 'forno') {
     const hF = 58, yfb = Math.max(y0 + 12, yt - hF);
-    if (yfb - y0 > 6) C('portas', a + FOLGA, b - FOLGA, y0 + FOLGA, yfb - FOLGA, zf0, zf1);
+    if (yfb - y0 > 6) { frente(); C('portas', a + FOLGA, b - FOLGA, y0 + FOLGA, yfb - FOLGA, zf0, zf1); }
+    ap1('Forno', 'preto');
     C('preto', a + 1.5, b - 1.5, yfb, yt, zf0 - 0.5, zf1 + 0.4);
     C('vidro_esc', a + 8, b - 8, yfb + 4, yt - 16, zf1 + 0.4, zf1 + 0.6);
     C('cromado', a + 10, b - 10, yt - 13, yt - 11.5, zf1 + 1.6, zf1 + 3);
     for (let k = 0; k < 4; k++) CIL('cromado', 1.5, 1.2, a + 14 + k * ((w - 28) / 3), yt - 5, zf1 + 1, 'z', 16);
   } else if (ap === 'micro_ondas') {
     const h = Math.min(30, yt - y0), ya = (y0 + yt) / 2 - h / 2;
+    ap1('Micro-ondas', 'preto');
     C('preto', a + 1, b - 1, ya, ya + h, zf0 - 30, zf1 + 0.3);
     C('vidro_esc', a + 4, b - 16, ya + 4, ya + h - 4, zf1 + 0.3, zf1 + 0.5);
     C('cromado', b - 12, b - 10.6, ya + 5, ya + h - 5, zf1 + 0.3, zf1 + 2);
-    C('portas', a + FOLGA, b - FOLGA, y0, ya - FOLGA, zf0, zf1); C('portas', a + FOLGA, b - FOLGA, ya + h + FOLGA, yt, zf0, zf1);
+    frente(); C('portas', a + FOLGA, b - FOLGA, y0, ya - FOLGA, zf0, zf1);
+    frente(); C('portas', a + FOLGA, b - FOLGA, ya + h + FOLGA, yt, zf0, zf1);
   } else { // cooktop: porta embaixo
+    ctx.porta('Porta');
     C('portas', a + FOLGA, b - FOLGA, y0 + FOLGA, yt - FOLGA, zf0, zf1);
   }
 }
@@ -507,26 +585,73 @@ function canvasParaBytes(cv) {
   return new Promise((ok, falha) => cv.toBlob((b) => (b ? b.arrayBuffer().then((x) => ok(new Uint8Array(x)), falha) : falha(new Error('Sem imagem'))), 'image/jpeg', 0.86));
 }
 
-// ------------------------------------------------------------------ montar o GLB
-export async function montarPlanejado(fichaBruta) {
-  const fic = normalizarFicha(fichaBruta);
-  const G = criarGeo();
+function gerarGeo(fic, comPecas) {
+  const G = criarGeo(comPecas);
   const compA = Math.max(0, ...fic.trechos.filter((t) => t.parede === 'A').map((t) => t.inicio + comprimentoTrecho(t)));
-  for (const t of fic.trechos) {
+  fic.trechos.forEach((t, ti) => {
     if (t.parede === 'A') G.set({ ang: 0, tx: 0, tz: 0 });
     else if (t.parede === 'B_direita') G.set({ ang: -90, tx: compA, tz: 0 });
     else G.set({ ang: 90, tx: 0, tz: 0 });
-    montarTrecho(G, t, fic);
-  }
+    montarTrecho(G, t, fic, ti);
+  });
   G.set({ ang: 0, tx: 0, tz: 0 });
-  if (![...G.mats.values()].some((m) => m.idx.length)) throw new Error('Adicione pelo menos um módulo.');
+  const grupos = comPecas ? G.pecas.flatMap((pc) => [...pc.mats.values()]) : [...G.mats.values()];
+  if (!grupos.some((m) => m.idx.length)) throw new Error('Adicione pelo menos um módulo.');
   corrigirOrientacao(G);
-
   // caixa total e centralização (x/z no meio, chão em y = 0), cm → m
   const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity];
-  for (const m of G.mats.values()) for (let i = 0; i < m.pos.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], m.pos[i + k]); mx[k] = Math.max(mx[k], m.pos[i + k]); }
+  for (const m of grupos) for (let i = 0; i < m.pos.length; i += 3) for (let k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], m.pos[i + k]); mx[k] = Math.max(mx[k], m.pos[i + k]); }
   const centro = [(mn[0] + mx[0]) / 2, mn[1], (mn[2] + mx[2]) / 2];
+  const medidas = { largura: +(mx[0] - mn[0]).toFixed(1), altura: +(mx[1] - mn[1]).toFixed(1), profundidade: +(mx[2] - mn[2]).toFixed(1) };
+  return { G, centro, medidas };
+}
 
+const TIPOS_PECA = { porta: 'Porta', gaveta: 'Gaveta', prateleira: 'Prateleira', lateral: 'Lateral', divisoria: 'Divisória', fundo: 'Fundo', tampo: 'Tampo', estrutura: 'Estrutura', puxador: 'Puxador', rodape: 'Rodapé', eletro: 'Eletrodoméstico', acessorio: 'Acessório', painel: 'Painel', led: 'Iluminação', frente: 'Frente' };
+function descreverPeca(pc) {
+  if (pc.tipo === 'porta' && pc.dobradica) return 'Porta de abrir, com dobradiça à ' + pc.dobradica + '.';
+  if (pc.tipo === 'gaveta') return /^Caixa/.test(pc.nome) ? 'Caixa interna da gaveta: corre junto com a frente.' : 'Gaveta de correr.';
+  if (pc.tipo === 'divisoria') return 'Divide o espaço interno do armário.';
+  if (pc.tipo === 'prateleira') return 'Prateleira interna prevista no projeto.';
+  if (pc.tipo === 'fundo') return 'Fecha a parte de trás do módulo.';
+  return '';
+}
+
+/** Raio-X: as peças do planejado separadas (mesmas medidas e posição do GLB). Só no navegador. */
+export function montarPecasPlanejado(fichaBruta) {
+  const fic = normalizarFicha(fichaBruta);
+  const { G, centro, medidas } = gerarGeo(fic, true);
+  const defs = definirMateriais(fic);
+  const m3 = (v) => [(v[0] - centro[0]) / 100, (v[1] - centro[1]) / 100, (v[2] - centro[2]) / 100];
+  const pecas = G.pecas.filter((pc) => [...pc.mats.values()].some((m) => m.idx.length)).map((pc, i) => {
+    const partes = [];
+    const pmn = [Infinity, Infinity, Infinity], pmx = [-Infinity, -Infinity, -Infinity];
+    for (const [mat, m] of pc.mats) {
+      if (!m.idx.length) continue;
+      const n = m.pos.length / 3, pos = new Float32Array(m.pos.length), uv = new Float32Array(m.uv);
+      const lmn = [Infinity, Infinity, Infinity], lmx = [-Infinity, -Infinity, -Infinity];
+      for (let j = 0; j < n; j++) for (let k = 0; k < 3; k++) { const v = (m.pos[j * 3 + k] - centro[k]) / 100; pos[j * 3 + k] = v; lmn[k] = Math.min(lmn[k], v); lmx[k] = Math.max(lmx[k], v); pmn[k] = Math.min(pmn[k], v); pmx[k] = Math.max(pmx[k], v); }
+      if ((defs[mat] || {}).uvCaixa) {
+        const lx = lmx[0] - lmn[0] || 1, lz = lmx[2] - lmn[2] || 1, ly = lmx[1] - lmn[1] || 1;
+        for (let j = 0; j < n; j++) { uv[j * 2] = (pos[j * 3] - lmn[0]) / lx; uv[j * 2 + 1] = mat === 'tela' ? 1 - (pos[j * 3 + 1] - lmn[1]) / ly : (pos[j * 3 + 2] - lmn[2]) / lz; }
+      }
+      partes.push({ mat, pos, nor: new Float32Array(m.nor), uv, idx: n > 65535 ? new Uint32Array(m.idx) : new Uint16Array(m.idx) });
+    }
+    const principal = defs[pc.mat] ? pc.mat : partes[0].mat;
+    return {
+      id: 'p' + i, nome: pc.nome, tipo: pc.tipo, tipoNome: TIPOS_PECA[pc.tipo] || 'Peça', grupo: pc.grupo || '',
+      desc: descreverPeca(pc), material: (defs[principal] || {}).nome || '',
+      medidas: [0, 1, 2].map((k) => +((pmx[k] - pmn[k]) * 100).toFixed(1)),
+      explode: pc.explode, partes,
+      mov: pc.pivo ? { id: 'porta:' + i, tipo: 'porta', pivo: m3(pc.pivo), giro: pc.giro } : pc.desliza ? { id: pc.mov || 'gaveta:' + i, tipo: 'gaveta', vetor: pc.desliza.map((v) => v / 100) } : null
+    };
+  });
+  return { pecas, materiais: defs, medidas };
+}
+
+// ------------------------------------------------------------------ montar o GLB
+export async function montarPlanejado(fichaBruta) {
+  const fic = normalizarFicha(fichaBruta);
+  const { G, centro, medidas } = gerarGeo(fic, false);
   const defs = definirMateriais(fic);
   const json = { asset: { version: '2.0', generator: 'MenuReal planejados' }, scene: 0, scenes: [{ nodes: [0] }],
     nodes: [{ name: fic.nome, mesh: 0 }], meshes: [{ name: fic.nome, primitives: [] }], materials: [], textures: [], images: [], samplers: [{ magFilter: 9729, minFilter: 9987, wrapS: 10497, wrapT: 10497 }],
@@ -579,7 +704,7 @@ export async function montarPlanejado(fichaBruta) {
   const { escreverGlb } = await import('./glb.mjs');
   return {
     glb: escreverGlb(json, bin),
-    medidas: { largura: +(mx[0] - mn[0]).toFixed(1), altura: +(mx[1] - mn[1]).toFixed(1), profundidade: +(mx[2] - mn[2]).toFixed(1) },
+    medidas,
     ficha: fic
   };
 }
