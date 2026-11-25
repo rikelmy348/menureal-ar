@@ -21,6 +21,27 @@ export function lerGlb(buf) {
   return { json, bin };
 }
 
+/**
+ * Raio-X: peças que já vêm identificadas no próprio arquivo (extras.menureal em cada nó:
+ * { nome, tipo, desc, material, mov, explodir }). Mesma ordem de partes que o Raio-X usa.
+ */
+export function pecasDoGlb(json) {
+  const nos = json.nodes || [], malhas = json.meshes || [];
+  const cena = (json.scenes || [])[json.scene || 0];
+  const out = []; let i = 0;
+  const visitar = (k, prof) => {
+    const n = nos[k]; if (!n || prof > 64) return;
+    const ex = n.extras && n.extras.menureal;
+    if (n.mesh !== undefined && malhas[n.mesh]) {
+      const prims = (malhas[n.mesh].primitives || []).length;
+      for (let p = 0; p < prims; p++) { if (ex && typeof ex === 'object' && ex.nome) out.push(Object.assign({}, ex, { no: i, nomeNo: '' })); i++; }
+    }
+    (n.children || []).forEach((c) => visitar(c, prof + 1));
+  };
+  ((cena && cena.nodes) || []).forEach((k) => visitar(k, 0));
+  return out;
+}
+
 /** .gltf de arquivo único (dados embutidos em base64) → .glb. Lança 'externo' se depender de outros arquivos. */
 export function gltfParaGlb(texto) {
   const j = JSON.parse(texto);

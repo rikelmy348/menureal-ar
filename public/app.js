@@ -1445,7 +1445,8 @@
   var PALETA_CORES = {
     'Off-white': '#ECE6DA', 'Areia': '#D9C9AE', 'Bege': '#C9B392', 'Linho': '#B9A98E', 'Fendi': '#A39684', 'Cinza-claro': '#B7B7B3', 'Cinza': '#8E8E8B', 'Grafite': '#4A4B4D', 'Preto': '#232323',
     'Caramelo': '#A8723D', 'Terracota': '#B5653E', 'Mostarda': '#C99A2E', 'Rosé': '#D4A5A0', 'Vinho': '#6E2A35', 'Verde-musgo': '#6B7350', 'Verde': '#4F6E58', 'Azul': '#4F6F8F', 'Azul-marinho': '#2E3B55',
-    'Branco': '#EEEEEA', 'Freijó': '#A6754A', 'Nogueira': '#6A4A33', 'Carvalho': '#C8A77C', 'Marrom': '#5C3E2E'
+    'Branco': '#EEEEEA', 'Freijó': '#A6754A', 'Nogueira': '#6A4A33', 'Carvalho': '#C8A77C', 'Marrom': '#5C3E2E',
+    'Tabaco': '#4E4039', 'Barcelona': '#E8E6E1', 'Nogal': '#8C5E3E'
   };
   function mostrarVariantes(mv) {
     var alvo = $('#viewer-cores');
@@ -3216,11 +3217,12 @@
         .then(function (res) { opcoesEnvio.reducao = res.depois < res.antes ? res : null; return [r[0], res.glb.buffer.slice(res.glb.byteOffset, res.glb.byteOffset + res.glb.byteLength)]; })
         .catch(function (e) { console.warn('otimizar', e); return r; });
     }).then(function (r) {
-      var m = r[0], bytes = new Uint8Array(r[1]), med;
+      var m = r[0], bytes = new Uint8Array(r[1]), med, pecasArq = [];
       if (bytes.length > 25 * 1024 * 1024) throw new Error('Mesmo reduzido, o 3D passa de 25 MB. Peça uma versão mais leve à fábrica.');
       try {
         var g = m.lerGlb(bytes), cx = m.caixaGlb(g.json);
         med = { largura: +((cx.mx[0] - cx.mn[0]) * 100).toFixed(1), profundidade: +((cx.mx[2] - cx.mn[2]) * 100).toFixed(1), altura: +((cx.mx[1] - cx.mn[1]) * 100).toFixed(1) };
+        try { pecasArq = lerPecas(m.pecasDoGlb(g.json)); } catch (e2) { pecasArq = []; }
       } catch (e) { throw new Error('Este arquivo não é um .glb válido.'); }
       if (!(med.largura > 0)) throw new Error('O arquivo não tem nenhum objeto 3D.');
       toast('Enviando o 3D…');
@@ -3229,7 +3231,7 @@
         method: 'POST', headers: Object.assign({ 'content-type': 'model/gltf-binary' }, credenciais()), body: bytes
       }).then(function (resp) {
         return resp.json().catch(function () { return {}; }).then(function (j) { if (!resp.ok) throw new Error(j.erro || 'Erro ' + resp.status); return j; });
-      }).then(function (j) { return { url: j.url, med: med }; });
+      }).then(function (j) { return { url: j.url, med: med, pecas: pecasArq }; });
     }).then(function (res) {
       if (tamId) {
         // versão do produto: guarda o 3D só nela (o resto do produto não muda)
@@ -3250,7 +3252,12 @@
       if (opcoesEnvio.planejado) x.planejadoDe = res.url;
       else if (x.planejado) x.planejadoDe = opcoesEnvio.manterMedidas && (!x.planejadoDe || x.planejadoDe === modeloAntigo) ? res.url : '-';
       if (x.pecas && x.pecas.length && x.pecasDe === modeloAntigo && opcoesEnvio.manterMedidas) x.pecasDe = res.url;
+      // o arquivo já traz as peças identificadas: o Raio-X liga sozinho (o marceneiro pode revisar em “Editar peças”)
+      var nomesArq = {}; (res.pecas || []).forEach(function (c) { nomesArq[c.nome.toLowerCase() + '|' + c.tipo] = 1; });
+      var pecasAuto = Object.keys(nomesArq).length >= 2 && !(x.pecasDe === res.url && x.pecas && x.pecas.length);
+      if (pecasAuto) { x.pecas = res.pecas; x.pecasDe = res.url; }
       var txtReducao = opcoesEnvio.reducao ? ' (ficou mais leve: ' + mb(opcoesEnvio.reducao.antes) + ' → ' + mb(opcoesEnvio.reducao.depois) + ')' : '';
+      if (pecasAuto) txtReducao += ' · Raio-X ligado: o arquivo já veio com ' + Object.keys(nomesArq).length + ' peças identificadas';
       if (opcoesEnvio.manterMedidas) {   // mesmo móvel (só mudou a cor ou o peso): medidas e ajuste continuam como estavam
         abertoNoAdmin = x.id; renderAdmin();
         toast((opcoesEnvio.aviso || '3D atualizado. Toque em “Salvar alterações” para publicar.') + txtReducao);
