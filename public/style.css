@@ -1442,3 +1442,24 @@ button.card__palco--vazio { border: 0; cursor: pointer; width: 100%; }
 .pecas-item.ok em { color: var(--tinta); font-weight: 700; }
 .pecas-item.ok { border-color: color-mix(in srgb, var(--limao) 70%, var(--linha)); }
 .pecas-item.sel { outline: 2px solid var(--tinta); outline-offset: -1px; }
+/* Móvel pela foto (IA) */
+.movel-cores { display: flex; flex-wrap: wrap; gap: 6px; margin: -2px 0 12px; }
+.movel-cores button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 6px; border: 1px solid var(--linha); border-radius: 999px; background: var(--superficie); color: var(--tinta); font: 650 13px var(--fonte); cursor: pointer; }
+.movel-cores button i { width: 20px; height: 20px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.15); }
+.movel-cores button[aria-pressed="true"] { border-color: var(--tinta); box-shadow: 0 0 0 1px var(--tinta); }
+.movel-cor { display: grid; grid-template-columns: 1fr 44px auto auto; align-items: center; gap: 8px; margin-bottom: 8px; }
+.movel-cor input:not([type]) , .movel-cor input[type="text"] { min-width: 0; }
+input[type="color"][data-mf] { width: 44px; height: 40px; padding: 2px; border: 1px solid var(--linha); border-radius: 10px; background: var(--superficie); cursor: pointer; }
+.movel-madeira { align-self: end; min-height: 44px; }
+.movel-cols { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.movel-col { padding: 10px; border: 1px solid var(--linha); border-radius: 14px; background: var(--fundo); }
+.movel-col__cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.movel-col__cab .btn-mini { margin-left: auto; }
+.movel-larg { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.movel-larg input { width: 80px; }
+.movel-itens { list-style: none; margin: 4px 0 8px; padding: 0; display: grid; gap: 6px; }
+.movel-itens li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px; border-radius: 10px; background: var(--superficie); }
+.movel-itens select { min-width: 150px; }
+.movel-itens label { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--tinta-2); }
+.movel-itens input[type="number"] { width: 64px; }
+.movel-itens .btn-mini { margin-left: auto; }

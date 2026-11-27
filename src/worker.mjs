@@ -22,6 +22,7 @@ import conta from './api/conta.mjs';
 import evento from './api/evento.mjs';
 import modeloArquivo from './api/modelo-arquivo.mjs';
 import planejado from './api/planejado.mjs';
+import movelIa from './api/movel-ia.mjs';
 
 const ROTAS = {
   '/api/cardapio': cardapio,
@@ -38,7 +39,8 @@ const ROTAS = {
   '/api/conta': conta,
   '/api/evento': evento,
   '/api/modelo-arquivo': modeloArquivo,
-  '/api/planejado': planejado
+  '/api/planejado': planejado,
+  '/api/movel-ia': movelIa
 };
 
 // ---------------------------------------------------------------------------

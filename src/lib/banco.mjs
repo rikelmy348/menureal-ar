@@ -4,6 +4,7 @@
    O esquema é criado/atualizado sozinho na primeira requisição.
    ========================================================================= */
 import { normalizarFicha } from '../../public/planejado.mjs';
+import { normalizarMovel } from '../../public/movel.mjs';
 import { erroComStatus } from './comum.mjs';
 
 export const DEMO = '_demo'; // linha da demonstração exibida na página inicial
@@ -264,6 +265,8 @@ export async function lerCardapio(env, slug) {
       pontosDe: String(lerJson(p.opcoes, {}).pontosDe || ''),
       planejado: lerJson(p.opcoes, {}).planejado || null,
       planejadoDe: String(lerJson(p.opcoes, {}).planejadoDe || ''),
+      movel: lerJson(p.opcoes, {}).movel || null,
+      movelDe: String(lerJson(p.opcoes, {}).movelDe || ''),
       pecas: limparPecas(lerJson(p.opcoes, {}).pecas),
       pecasDe: String(lerJson(p.opcoes, {}).pecasDe || ''),
       precoDe: reais(lerJson(p.opcoes, {}).precoDe, 1000000),
@@ -347,7 +350,7 @@ export async function salvarCardapio(env, slug, dados, opcoes = {}) {
       Math.min(99999999, Math.max(0, Math.round((Number(x.preco) || 0) * 100) / 100)), texto(x.descricao, 240),
       dimOk(x.dim, 'largura'), dimOk(x.dim, 'profundidade'), dimOk(x.dim, 'altura'), texto(x.modelo, 300), x.ilustrativo === false ? 0 : 1,
       texto(x.ingredientes, 600), JSON.stringify((Array.isArray(x.alergenos) ? x.alergenos : []).map((a) => texto(a, 40)).slice(0, 20)),
-      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), galeria: limparGaleria(x.galeria, s), acabamentos: texto(x.acabamentos, 400), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null, planejadoDe: texto(x.planejadoDe, 300), pecas: limparPecas(x.pecas), pecasDe: texto(x.pecasDe, 300) })));
+      JSON.stringify(tamanhos), JSON.stringify(limparAdicionais(x.adicionais)), JSON.stringify({ esgotado: x.esgotado === true, foto: fotoProduto(x.foto, s), versao: texto(x.versao, 30), pontos: limparPontos(x.pontos), pontosDe: texto(x.pontosDe, 300), precoDe: reais(x.precoDe, 1000000), galeria: limparGaleria(x.galeria, s), acabamentos: texto(x.acabamentos, 400), planejado: x.planejado && typeof x.planejado === 'object' ? normalizarFicha(x.planejado) : null, planejadoDe: texto(x.planejadoDe, 300), movel: x.movel && typeof x.movel === 'object' ? normalizarMovel(x.movel) : null, movelDe: texto(x.movelDe, 300), pecas: limparPecas(x.pecas), pecasDe: texto(x.pecasDe, 300) })));
   }
   await env.DB.batch(comandos); // transação: tudo ou nada
   return atual;

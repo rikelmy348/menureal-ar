@@ -252,6 +252,8 @@
         pontosDe: String(x.pontosDe || ''),      // o 3D em que os pontos foram marcados
         planejado: x.planejado && typeof x.planejado === 'object' && Array.isArray(x.planejado.trechos) ? x.planejado : null,   // ficha do montador de planejados
         planejadoDe: String(x.planejadoDe || ''),   // o 3D gerado a partir da ficha (o Raio-X só vale para ele)
+        movel: x.movel && typeof x.movel === 'object' && Array.isArray(x.movel.secoes) ? x.movel : null,   // ficha do móvel montado pela foto (IA)
+        movelDe: String(x.movelDe || ''),
         pecas: lerPecas(x.pecas),                   // Raio-X: partes do .glb identificadas pelo marceneiro
         pecasDe: String(x.pecasDe || ''),
         precoDe: Math.min(1000000, Math.max(0, Math.round((Number(x.precoDe) || 0) * 100) / 100)),   // preço antigo (oferta: "de R$ X por R$ Y")
@@ -1448,6 +1450,10 @@
     'Branco': '#EEEEEA', 'Freijó': '#A6754A', 'Nogueira': '#6A4A33', 'Carvalho': '#C8A77C', 'Marrom': '#5C3E2E',
     'Tabaco': '#4E4039', 'Barcelona': '#E8E6E1', 'Nogal': '#8C5E3E'
   };
+  function hexVariante(v) {   // cor da bolinha: a do móvel montado pela foto, senão a paleta pelo nome
+    var p = produtoAtual, c = p && p.movel && p.movel.cores ? p.movel.cores.filter(function (k) { return k.nome === v; })[0] : null;
+    return c && /^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : PALETA_CORES[nomeCor(v)];
+  }
   function mostrarVariantes(mv) {
     var alvo = $('#viewer-cores');
     var lista = (mv.availableVariants || []).slice(0, 12);
@@ -1458,13 +1464,13 @@
     var bar = document.createElement('div');
     bar.id = 'palco-cores'; bar.className = 'palco-cores'; bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', 'Cores');
     bar.innerHTML = lista.map(function (v) {
-      var hx = PALETA_CORES[nomeCor(v)];
+      var hx = hexVariante(v);
       return '<button type="button" class="palco-cor" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '" aria-label="' + esc(nomeCor(v)) + '" title="' + esc(nomeCor(v)) + '">' +
         (hx ? '<i style="background:' + hx + '"></i>' : '<i class="sem-cor">' + esc(nomeCor(v).slice(0, 2)) + '</i>') + '</button>';
     }).join('') + '<span class="palco-cores__nome" aria-live="polite">' + esc(nomeCor(mv.variantName || lista[0])) + '</span>';
     palco.appendChild(bar);
     alvo.innerHTML = '<legend>Cor <small>' + lista.length + ' opções</small></legend><div class="cores">' + lista.map(function (v, i) {
-      var hx = PALETA_CORES[nomeCor(v)];
+      var hx = hexVariante(v);
       return '<button type="button" class="cor-op" data-variante="' + esc(v) + '" aria-pressed="' + (v === mv.variantName) + '">' + (hx ? '<i class="cor-bola" style="background:' + hx + '" aria-hidden="true"></i>' : '') + esc(nomeCor(v)) + '</button>';
     }).join('') + '</div>';
   }
@@ -3250,6 +3256,8 @@
       x.ilustrativo = false;
       // Raio-X: as peças valem para o 3D em que foram identificadas (o mesmo móvel mais leve ou com cores continua valendo)
       if (opcoesEnvio.planejado) x.planejadoDe = res.url;
+      if (opcoesEnvio.movel) x.movelDe = res.url;
+      else if (x.movel) x.movelDe = opcoesEnvio.manterMedidas && (!x.movelDe || x.movelDe === modeloAntigo) ? res.url : '-';
       else if (x.planejado) x.planejadoDe = opcoesEnvio.manterMedidas && (!x.planejadoDe || x.planejadoDe === modeloAntigo) ? res.url : '-';
       if (x.pecas && x.pecas.length && x.pecasDe === modeloAntigo && opcoesEnvio.manterMedidas) x.pecasDe = res.url;
       // o arquivo já traz as peças identificadas: o Raio-X liga sozinho (o marceneiro pode revisar em “Editar peças”)
@@ -3293,9 +3301,11 @@
         ? '<div class="linha-acoes">' +
             '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.cubo + 'Enviar arquivo 3D (.glb ou .gltf)<input type="file" data-up3d hidden></label>' +
             '<button class="btn btn--contorno btn--p" type="button" data-gerar-3d>' + ICONES.camera + (x.modelo ? 'Refazer com fotos' : 'Criar com fotos') + '</button>' +
+            (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-movel-ia>' + ICONES.camera + (x.movel && x.movelDe === x.modelo ? 'Editar móvel da foto' : 'Montar pela foto (IA)') + '</button>' : '') +
             (!ehAlimento(rascunho) ? '<button class="btn btn--sec btn--p" type="button" data-planejado>' + ICONES.cubo + (x.planejado ? 'Editar planejado' : 'Montar planejado (projeto)') + '</button>' : '') +
             (/^(api\/arquivo\/|assets\/)/.test(x.modelo) ? '<button class="btn btn--fantasma btn--p" type="button" data-reescalar>Ajustar o 3D às medidas acima</button>' : '') +
           '</div>' +
+          (!ehAlimento(rascunho) ? '<small><strong>Armário, guarda-roupa, cômoda, rack ou estante?</strong> Use “Montar pela foto (IA)”: envie a foto do anúncio e a IA monta o 3D com as medidas, portas, gavetas, cores e Raio-X.</small>' : '') +
           (!ehAlimento(rascunho) ? '<small><strong>Móvel planejado</strong> (cozinha, guarda-roupa, painel, banheiro, escritório)? Use “Montar planejado”: envie a planta e a IA monta o 3D com as medidas do projeto, ou comece de um modelo pronto.</small>' : '') +
           '<small><strong>Melhor opção:</strong> peça à fábrica o arquivo 3D do móvel (muitas têm, para projetistas). Envie em <strong>.glb</strong>; se vier em outro formato (.skp, .obj, .fbx), dá para converter de graça no Blender. Sem arquivo? “Criar com fotos” gera o 3D a partir de 4 a 8 fotos do móvel.</small>'
         : '<small>Envio de arquivo 3D disponível no site publicado.</small>') +
@@ -3309,6 +3319,219 @@
         '<label class="checar"><input type="checkbox" data-f="ilustrativo"' + (x.ilustrativo ? ' checked' : '') + '> Mostrar selo “Modelo ilustrativo” (use se o 3D não for fiel ao produto)</label>' +
       '</details></fieldset>';
   }
+
+  // ----- Móvel pela foto (IA): a IA lê o anúncio e o site monta o 3D com medidas, cores e Raio-X -----
+  var movelIA = null, moduloMovel = null;
+  function carregarMovel() { if (!moduloMovel) moduloMovel = import(new URL('movel.mjs', document.baseURI).href); return moduloMovel; }
+  function abrirMovelIA(x) {
+    carregarMovel().then(function (M) {
+      var d = x.dim || {};
+      movelIA = { x: x, M: M, ficha: x.movel && (!x.movelDe || x.movelDe === x.modelo) ? M.normalizarMovel(x.movel) : null, arquivos: [], descricao: '', erro: '', medidasIA: true,
+        med: { largura: d.largura >= 10 ? d.largura : '', altura: d.altura >= 10 ? d.altura : '', profundidade: d.profundidade >= 10 ? d.profundidade : '' } };   // medida padrão de produto novo não conta
+      renderMovelIA();
+      abrirDialogo($('#dlg-movel'));
+      if (movelIA.ficha) gerarPreviaMovel();
+    }).catch(function () { toast('Não foi possível abrir. Recarregue a página.'); });
+  }
+  function renderMovelIA() {
+    var m = movelIA, M = m.M, corpo = $('#movel-corpo'), rod = $('#movel-rodape');
+    if (m.lendo) {
+      corpo.innerHTML = '<div class="carregando plan-lendo"><div class="spinner" aria-hidden="true"></div><p><strong>A IA está olhando a foto…</strong><br>Leva até 1 minuto. Não feche esta tela.</p></div>';
+      rod.innerHTML = ''; return;
+    }
+    var nMed = function (k, rot, v) { return campo(rot, '<input type="number" inputmode="decimal" min="10" max="400" step="0.5" data-mi-med="' + k + '" value="' + esc(v) + '">'); };
+    if (!m.ficha) {
+      corpo.innerHTML =
+        '<p class="mini" style="margin-top:0">Para <strong>armário, guarda-roupa, cômoda, rack, estante, sapateira, balcão e cristaleira</strong>. Envie a foto do anúncio (pode ser a arte com as medidas e as cores) e a IA monta o 3D com portas, gavetas, cores e Raio-X.</p>' +
+        '<section class="plan-bloco"><h3>Foto do móvel</h3>' +
+          '<p class="mini">Até 4 fotos: de frente, aberto ou sem portas, e a das cores disponíveis.</p>' +
+          '<label class="btn btn--sec btn--p" style="cursor:pointer">' + ICONES.mais + 'Escolher fotos<input type="file" id="movel-arq" multiple accept="image/jpeg,image/png,image/webp" hidden></label>' +
+          (m.arquivos.length ? '<ul class="plan-arqs">' + m.arquivos.map(function (a, i) { return '<li><span>' + esc(a.nome) + '</span><button class="link-remover" type="button" data-mi-tirar="' + i + '">Tirar</button></li>'; }).join('') + '</ul>' : '') +
+          '<div class="campos campos--3">' + nMed('largura', 'Largura (cm)', m.med.largura) + nMed('altura', 'Altura (cm)', m.med.altura) + nMed('profundidade', 'Profundidade (cm)', m.med.profundidade) + '</div>' +
+          '<small>Se o anúncio mostra as medidas, a IA lê sozinha. Se você preencher, valem as suas.</small>' +
+          campo('Detalhes (opcional)', '<textarea id="movel-desc" rows="2" maxlength="1000" placeholder="Ex.: 6 portas, 4 gavetas, puxador de alumínio, cores Cinza, Tabaco, Barcelona e Nogal">' + esc(m.descricao) + '</textarea>') +
+          (m.erro ? '<div class="ar-indisp" role="alert"><strong>Não deu certo</strong>' + esc(m.erro) + '</div>' : '') +
+          '<button class="btn btn--primario btn--bloco" type="button" id="movel-ler"' + (m.arquivos.length ? '' : ' disabled') + '>Montar o 3D com IA</button>' +
+        '</section>' +
+        '<p class="mini">Sofá, poltrona ou mesa? Use “Criar com fotos”. Quer ver como funciona? <button class="link-remover" type="button" data-mi-acao="exemplo">Abrir um exemplo pronto</button></p>';
+      rod.innerHTML = '';
+      return;
+    }
+    var f = m.ficha, rol = corpo.scrollTop;
+    var opc = function (lista_, atual) { return Object.keys(lista_).map(function (k) { return '<option value="' + k + '"' + (k === atual ? ' selected' : '') + '>' + esc(lista_[k]) + '</option>'; }).join(''); };
+    var n = function (path, rot, v, min, max) { return campo(rot, '<input type="number" inputmode="decimal" min="' + min + '" max="' + max + '" step="0.5" data-mf="' + path + '" value="' + v + '">'); };
+    var obs = (!m.medidasIA ? '• A IA estimou as medidas: confira e corrija abaixo.\n' : '') + (f.observacoes || '');
+    corpo.innerHTML =
+      '<div class="plan-palco"><model-viewer id="movel-mv" camera-controls touch-action="pan-y" loading="eager" interaction-prompt="none" environment-image="' + esc(ESTUDIO()) + '" tone-mapping="neutral" shadow-intensity="1" camera-orbit="-25deg 74deg auto" alt="Prévia do móvel"></model-viewer>' +
+        '<span class="plan-medidas" id="movel-medidas">Montando…</span></div>' +
+      (f.cores.length > 1 ? '<div class="movel-cores" role="group" aria-label="Ver na cor">' + f.cores.map(function (c, i) { return '<button type="button" data-mi-cor="' + esc(c.nome) + '" aria-pressed="' + (i === 0) + '"><i style="background:' + esc(c.hex) + '"></i>' + esc(c.nome) + '</button>'; }).join('') + '</div>' : '') +
+      (obs.trim() ? '<div class="plan-obs"><strong>Confira com o anúncio:</strong><p>' + esc(obs.trim()).replace(/\n/g, '<br>') + '</p></div>' : '') +
+      '<fieldset class="campo"><legend>Medidas e acabamento</legend>' +
+        '<div class="campos campos--3">' + n('largura', 'Largura (cm)', f.largura, 20, 400) + n('altura', 'Altura (cm)', f.altura, 20, 300) + n('profundidade', 'Profundidade (cm)', f.profundidade, 15, 120) + '</div>' +
+        '<div class="campos campos--3">' + campo('Nome', '<input data-mf="nome" maxlength="60" value="' + esc(f.nome) + '">') +
+          campo('Material', '<input data-mf="material" maxlength="40" placeholder="MDF" value="' + esc(f.material) + '">') +
+          campo('Base', '<select data-mf="base.tipo">' + opc(M.BASES, f.base.tipo) + '</select>') + '</div>' +
+        '<div class="campos campos--3">' + (f.base.tipo !== 'nenhuma' ? n('base.altura', 'Altura da base (cm)', f.base.altura, 2, 40) : '') +
+          campo('Puxador', '<select data-mf="puxador.tipo">' + opc(M.PUXADORES, f.puxador.tipo) + '</select>') +
+          campo('Cor do puxador', '<input type="color" data-mf="puxador.hex" value="' + esc(f.puxador.hex.toLowerCase()) + '">') + '</div>' +
+        '<div class="campos campos--3">' + campo('Cor da caixa', '<input data-mf="corpo.nome" maxlength="40" value="' + esc(f.corpo.nome) + '">') +
+          campo('Tom', '<input type="color" data-mf="corpo.hex" value="' + esc(f.corpo.hex.toLowerCase()) + '">') +
+          '<label class="checar movel-madeira"><input type="checkbox" data-mf="corpo.madeira"' + (f.corpo.madeira ? ' checked' : '') + '> Madeirado</label></div>' +
+      '</fieldset>' +
+      '<fieldset class="campo"><legend>Cores das portas e gavetas <small>o cliente escolhe</small></legend>' +
+        f.cores.map(function (c, i) {
+          return '<div class="movel-cor"><input data-mf="cores.' + i + '.nome" maxlength="30" aria-label="Nome da cor" value="' + esc(c.nome) + '">' +
+            '<input type="color" data-mf="cores.' + i + '.hex" aria-label="Tom da cor ' + esc(c.nome) + '" value="' + esc(c.hex.toLowerCase()) + '">' +
+            '<label class="checar"><input type="checkbox" data-mf="cores.' + i + '.madeira"' + (c.madeira ? ' checked' : '') + '> Madeirado</label>' +
+            (f.cores.length > 1 ? '<button type="button" class="btn-mini btn-mini--rem" data-mi-acao="rem-cor" data-p="' + i + '" aria-label="Tirar a cor ' + esc(c.nome) + '">✕</button>' : '') + '</div>';
+        }).join('') +
+        (f.cores.length < 8 ? '<button class="btn btn--contorno btn--p" type="button" data-mi-acao="add-cor">' + ICONES.mais + 'Cor</button>' : '') +
+      '</fieldset>' +
+      f.secoes.map(function (s, i) { return htmlSecaoMovel(f, s, i); }).join('') +
+      (f.secoes.length < 4 ? '<button class="btn btn--contorno btn--bloco" type="button" data-mi-acao="add-sec">' + ICONES.mais + 'Adicionar parte em cima</button>' : '');
+    corpo.scrollTop = rol;
+    rod.innerHTML = '<div class="linha-acoes plan-rod"><button class="btn btn--fantasma btn--p" type="button" data-mi-acao="recomecar">Ler outra foto</button>' +
+      '<button class="btn btn--primario" type="button" id="movel-usar">Usar este 3D no produto</button></div>';
+  }
+  function htmlSecaoMovel(f, s, i) {
+    var M = movelIA.M, ns = f.secoes.length;
+    var onde = ns === 1 ? 'o móvel inteiro' : i === 0 ? 'embaixo' : i === ns - 1 ? 'em cima' : 'no meio';
+    var opc = function (lista_, atual) { return Object.keys(lista_).map(function (k) { return '<option value="' + k + '"' + (k === atual ? ' selected' : '') + '>' + esc(lista_[k]) + '</option>'; }).join(''); };
+    var p = 'secoes.' + i;
+    return '<details class="plan-trecho" open><summary><strong>Parte ' + (i + 1) + '</strong> <small>' + onde + ' · ' + s.colunas.length + (s.colunas.length === 1 ? ' coluna' : ' colunas') + '</small></summary>' +
+      '<div class="campos campos--3">' +
+        campo('Altura (proporção, cm)', '<input type="number" inputmode="decimal" min="1" max="300" step="0.5" data-mf="' + p + '.altura" value="' + s.altura + '">') +
+        campo('Profundidade (cm, 0 = igual)', '<input type="number" inputmode="decimal" min="0" max="120" step="0.5" data-mf="' + p + '.profundidade" value="' + s.profundidade + '">') +
+        '<label class="checar movel-madeira"><input type="checkbox" data-mf="' + p + '.tampo"' + (s.tampo ? ' checked' : '') + '> Tampo em cima</label>' +
+      '</div>' +
+      '<p class="plan-sub">Colunas, da esquerda para a direita</p><ol class="movel-cols">' +
+      s.colunas.map(function (c, j) {
+        var pc = p + '.colunas.' + j;
+        return '<li class="movel-col"><div class="movel-col__cab"><strong>Coluna ' + (j + 1) + '</strong>' +
+            '<label class="movel-larg">Largura <input type="number" inputmode="decimal" min="1" max="400" step="0.5" data-mf="' + pc + '.largura" value="' + c.largura + '"> cm</label>' +
+            (s.colunas.length > 1 ? '<button type="button" class="btn-mini btn-mini--rem" data-mi-acao="rem-col" data-p="' + i + '.' + j + '" aria-label="Remover coluna ' + (j + 1) + '">✕</button>' : '') + '</div>' +
+          '<p class="mini">De baixo para cima:</p><ol class="movel-itens">' +
+          c.itens.map(function (it, k) {
+            var pi = pc + '.itens.' + k, porta = /^(porta|porta_vidro|espelho)$/.test(it.tipo);
+            return '<li><select data-mf="' + pi + '.tipo" aria-label="Tipo">' + opc(M.TIPOS_ITEM, it.tipo) + '</select>' +
+              '<label>Alt. <input type="number" inputmode="decimal" min="1" max="300" step="0.5" data-mf="' + pi + '.altura" value="' + it.altura + '"></label>' +
+              (it.tipo !== 'gaveta' ? '<label>Prat. <input type="number" min="0" max="8" data-mf="' + pi + '.prateleiras" value="' + it.prateleiras + '"></label>' : '') +
+              (it.tipo === 'nicho' ? '<label>Div. <input type="number" min="0" max="6" data-mf="' + pi + '.divisoes" value="' + it.divisoes + '"></label>' : '') +
+              (porta ? '<label>Dobradiça <select data-mf="' + pi + '.dobradica">' + opc(M.DOBRADICAS, it.dobradica) + '</select></label>' : '') +
+              (c.itens.length > 1 ? '<button type="button" class="btn-mini btn-mini--rem" data-mi-acao="rem-item" data-p="' + i + '.' + j + '.' + k + '" aria-label="Remover">✕</button>' : '') + '</li>';
+          }).join('') + '</ol>' +
+          '<button class="btn btn--fantasma btn--p" type="button" data-mi-acao="add-item" data-p="' + i + '.' + j + '">' + ICONES.mais + 'Item em cima</button></li>';
+      }).join('') + '</ol>' +
+      '<div class="linha-acoes"><button class="btn btn--sec btn--p" type="button" data-mi-acao="add-col" data-p="' + i + '">' + ICONES.mais + 'Coluna</button>' +
+        (ns > 1 ? '<button class="btn btn--fantasma btn--p" type="button" data-mi-acao="rem-sec" data-p="' + i + '">Remover parte</button>' : '') + '</div>' +
+    '</details>';
+  }
+  var movelTimer = null, movelGeracao = 0;
+  function gerarPreviaMovel() {
+    clearTimeout(movelTimer);
+    movelTimer = setTimeout(function () {
+      var m = movelIA; if (!m || !m.ficha) return;
+      var minha = ++movelGeracao;
+      m.M.montarMovel(m.ficha).then(function (r) {
+        if (movelIA !== m || minha !== movelGeracao) return;
+        m.res = r;
+        if (m.url) URL.revokeObjectURL(m.url);
+        m.url = URL.createObjectURL(new Blob([r.glb], { type: 'model/gltf-binary' }));
+        var mv = $('#movel-mv'); if (mv) { var cor = mv.variantName; mv.src = m.url; if (cor) mv.addEventListener('load', function () { try { mv.variantName = cor; } catch (e) { /* ok */ } }, { once: true }); }
+        var md = $('#movel-medidas');
+        if (md) md.textContent = num(r.medidas.largura) + ' × ' + num(r.medidas.profundidade) + ' × ' + num(r.medidas.altura) + ' cm · ' + r.resumo.portas + ' portas · ' + r.resumo.gavetas + ' gavetas';
+      }).catch(function (e) { var md = $('#movel-medidas'); if (md) md.textContent = e.message || 'Erro ao montar'; if (movelIA === m) m.res = null; });
+    }, 300);
+  }
+  function lerMedEntrada() { $$('#movel-corpo [data-mi-med]').forEach(function (el) { movelIA.med[el.getAttribute('data-mi-med')] = el.value; }); }
+  function lerMovelComIA() {
+    var m = movelIA;
+    m.descricao = ($('#movel-desc') || {}).value || m.descricao; lerMedEntrada();
+    var med = {}, temMed = ['largura', 'altura', 'profundidade'].every(function (k) { var v = Number(String(m.med[k]).replace(',', '.')); med[k] = v; return v >= 10; });
+    m.lendo = true; m.erro = ''; renderMovelIA();
+    fetch(comLoja('api/movel-ia'), {
+      method: 'POST', headers: Object.assign({ 'content-type': 'application/json' }, credenciais()),
+      body: JSON.stringify({ arquivos: m.arquivos.map(function (a) { return { tipo: a.tipo, dados: a.dados }; }), descricao: m.descricao, medidas: temMed ? med : null })
+    }).then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw new Error(j.erro || 'Erro ' + r.status); return j; }); })
+      .then(function (j) {
+        if (movelIA !== m) return;
+        m.lendo = false;
+        if (!j.ficha) { m.erro = j.aviso || 'A IA não encontrou um móvel de caixa nessa foto.'; renderMovelIA(); return; }
+        m.ficha = m.M.normalizarMovel(j.ficha); m.medidasIA = !!j.medidasNaImagem; renderMovelIA(); gerarPreviaMovel();
+      })
+      .catch(function (e) { if (movelIA !== m) return; m.lendo = false; m.erro = e.message; renderMovelIA(); });
+  }
+  function caminho(obj, path) { var ks = path.split('.'), o = obj; for (var i = 0; i < ks.length - 1; i++) o = o[ks[i]]; return { o: o, k: ks[ks.length - 1] }; }
+  function lerCampoMovel(el, rerender) {
+    var m = movelIA, c = caminho(m.ficha, el.getAttribute('data-mf'));
+    c.o[c.k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? (Number(String(el.value).replace(',', '.')) || 0) : el.value;
+    m.ficha = m.M.normalizarMovel(m.ficha);
+    if (rerender) renderMovelIA();
+    gerarPreviaMovel();
+  }
+  function acaoMovel(a, p) {
+    var m = movelIA, f = m.ficha, ix = String(p || '').split('.').map(Number);
+    if (a === 'add-cor') f.cores.push({ nome: 'Cor ' + (f.cores.length + 1), hex: '#8A8D90', madeira: false });
+    else if (a === 'rem-cor') f.cores.splice(ix[0], 1);
+    else if (a === 'add-sec') f.secoes.push({ altura: 60, profundidade: 0, tampo: false, colunas: [{ largura: 50, itens: [{ tipo: 'porta', altura: 60, prateleiras: 1, divisoes: 0, dobradica: 'auto' }] }] });
+    else if (a === 'rem-sec') f.secoes.splice(ix[0], 1);
+    else if (a === 'add-col') f.secoes[ix[0]].colunas.push({ largura: 40, itens: [{ tipo: 'nicho', altura: 40, prateleiras: 0, divisoes: 0, dobradica: 'auto' }] });
+    else if (a === 'rem-col') f.secoes[ix[0]].colunas.splice(ix[1], 1);
+    else if (a === 'add-item') f.secoes[ix[0]].colunas[ix[1]].itens.push({ tipo: 'nicho', altura: 30, prateleiras: 0, divisoes: 0, dobradica: 'auto' });
+    else if (a === 'rem-item') f.secoes[ix[0]].colunas[ix[1]].itens.splice(ix[2], 1);
+    m.ficha = m.M.normalizarMovel(f);
+    renderMovelIA(); gerarPreviaMovel();
+  }
+  function usarMovelIA() {
+    var m = movelIA, x = m.x, botao = $('#movel-usar');
+    if (botao) botao.disabled = true;
+    var ir = function (r) {
+      x.movel = r.ficha;
+      x.dim = { largura: r.medidas.largura, profundidade: r.medidas.profundidade, altura: r.medidas.altura };
+      if (!x.nome) x.nome = r.ficha.nome;
+      var arq = new File([r.glb], slug(x.nome || 'movel') + '.glb', { type: 'model/gltf-binary' });
+      fecharDialogo($('#dlg-movel'));
+      enviar3d(arq, x, null, { movel: true });
+    };
+    m.M.montarMovel(m.ficha).then(ir).catch(function (e) { if (botao) botao.disabled = false; toast(e.message || 'Não deu para montar o 3D.'); });
+  }
+  document.addEventListener('change', function (e) {
+    if (!movelIA || !e.target.closest('#dlg-movel')) return;
+    if (e.target.id === 'movel-arq') {
+      var lista_ = Array.prototype.slice.call(e.target.files || []).slice(0, 4 - movelIA.arquivos.length);
+      movelIA.descricao = ($('#movel-desc') || {}).value || movelIA.descricao; lerMedEntrada();
+      Promise.all(lista_.map(lerArquivoPlan)).then(function (r) {
+        movelIA.arquivos = movelIA.arquivos.concat(r).slice(0, 4); movelIA.erro = ''; renderMovelIA();
+      }).catch(function (err) { toast(err.message); });
+      return;
+    }
+    if (e.target.matches('[data-mf]') && movelIA.ficha) lerCampoMovel(e.target, e.target.tagName === 'SELECT' || e.target.type === 'checkbox' || e.target.type === 'number');
+  });
+  document.addEventListener('input', function (e) {
+    if (!movelIA || !movelIA.ficha || !e.target.closest('#dlg-movel')) return;
+    if (e.target.matches('input[type="color"][data-mf]')) lerCampoMovel(e.target, false);
+  });
+  document.addEventListener('click', function (e) {
+    if (!movelIA || !e.target.closest('#dlg-movel')) return;
+    var m = movelIA;
+    if (e.target.closest('#movel-ler')) { lerMovelComIA(); return; }
+    if (e.target.closest('#movel-usar')) { usarMovelIA(); return; }
+    var t = e.target.closest('[data-mi-tirar]');
+    if (t) { lerMedEntrada(); m.descricao = ($('#movel-desc') || {}).value || m.descricao; m.arquivos.splice(Number(t.getAttribute('data-mi-tirar')), 1); renderMovelIA(); return; }
+    var c = e.target.closest('[data-mi-cor]');
+    if (c) {
+      var mv = $('#movel-mv'); if (mv) mv.variantName = c.getAttribute('data-mi-cor');
+      $$('#dlg-movel [data-mi-cor]').forEach(function (b) { b.setAttribute('aria-pressed', String(b === c)); });
+      return;
+    }
+    var a = e.target.closest('[data-mi-acao]');
+    if (!a) return;
+    var ac = a.getAttribute('data-mi-acao');
+    if (ac === 'exemplo') { m.ficha = m.M.normalizarMovel(m.M.EXEMPLO_MOVEL); m.medidasIA = true; renderMovelIA(); gerarPreviaMovel(); }
+    else if (ac === 'recomecar') { m.ficha = null; m.erro = ''; m.res = null; renderMovelIA(); }
+    else acaoMovel(ac, a.getAttribute('data-p'));
+  });
+  $('#dlg-movel').addEventListener('close', function () { if (movelIA && movelIA.url) URL.revokeObjectURL(movelIA.url); movelIA = null; });
 
   // ----- Raio-X no painel: o marceneiro dá nome às partes do 3D (sem programar) -----
   function htmlRaioXAdmin(x) {
@@ -4431,6 +4654,8 @@
     if (bpl) { coletarAdmin(); var xpl = produtoDoAlvo(bpl); if (xpl) abrirPlanejado(xpl); return; }
     var bpt = e.target.closest('[data-pontos]');
     if (bpt) { coletarAdmin(); var xpt = produtoDoAlvo(bpt); if (xpt && xpt.modelo) abrirPontos(xpt); return; }
+    var bmi = e.target.closest('[data-movel-ia]');
+    if (bmi) { coletarAdmin(); var xmi = produtoDoAlvo(bmi); if (xmi) abrirMovelIA(xmi); return; }
     var bpc = e.target.closest('[data-pecas]');
     if (bpc) { coletarAdmin(); var xpc = produtoDoAlvo(bpc); if (xpc && xpc.modelo) abrirPecas(xpc); return; }
     var g3d = e.target.closest('[data-gerar-3d]');
