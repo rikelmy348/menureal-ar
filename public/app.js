@@ -552,7 +552,7 @@
     aplicarVisual(p);
     $('#horario-texto').textContent = p.dias.length ? diasTexto(p.dias) + ' · ' + horaTexto(p.abre) + ' às ' + horaTexto(p.fecha) + (LOJA ? '' : ' (horário demonstrativo)') : '';
     $('#selo-texto').textContent = (ehAlimento() ? 'Cardápio' : 'Catálogo') + ' em 3D e no tamanho real';
-    $('#busca').placeholder = ehAlimento() ? 'Buscar no cardápio…' : (LOJA ? 'Buscar produtos…' : 'Buscar sofá, poltrona…');
+    $('#busca').placeholder = ehAlimento() ? 'Buscar no cardápio…' : (LOJA ? 'Buscar produto ou “até 2 m”…' : 'Buscar sofá ou “até 2 m”…');
     $('#carrinho-titulo').textContent = ehAlimento() ? 'Seu pedido' : 'Seu orçamento';
     var rotCar = $('#btn-carrinho .icone-btn__rot'); if (rotCar) rotCar.textContent = ehAlimento() ? 'Pedido' : 'Orçamento';
     $('#passo-posicionar').textContent = 'Toque para posicionar. O produto aparece em escala fixa, no tamanho das medidas cadastradas.';
@@ -582,13 +582,126 @@
     }).join('');
   }
 
-  function filtrados() {
-    var q = semAcento(filtro.q.trim());
-    return dados.produtos.filter(function (p) {
-      if (filtro.cat !== 'Todos' && p.categoria !== filtro.cat) return false;
-      if (!q) return true;
-      return semAcento(p.nome + ' ' + p.descricao + ' ' + p.categoria + ' ' + (p.ingredientes || '')).indexOf(q) > -1;
+  // ----- Busca por medida: "largura até 2 m", "sofá até 1,80", "200x90", "profundidade menos de 90 cm" -----
+  // Lê as medidas do texto da busca (sempre em cm por dentro) e devolve o que sobrou para a busca por palavras.
+  var MED_DIM = { largura: 'largura|larg|comprimento|compr|frente|largo|comprido', profundidade: 'profundidade|prof|fundo|funda|profundo', altura: 'altura|alt|alto|alta' };
+  var MED_MAX = 'no maximo|maximo|max|ate|menos de|menor que|menor de|abaixo de|cabe em|cabe|caiba em|caiba|<=|<';
+  var MED_MIN = 'a partir de|mais de|maior que|maior de|acima de|no minimo|minimo|min|pelo menos|>=|>';
+  var MED_VAZIAS = /^(de|do|da|dos|das|com|e|ou|no|na|em|um|uma|que|para|pra|por|ate|cabe|caiba|caibam|x|medida|medidas|tamanho|quero|procuro|movel|moveis|algo|cm|m|mt|mts|metro|metros|centimetro|centimetros|lado|entre|a|o)$/;
+  function palavraDim(s) {
+    for (var k in MED_DIM) if (new RegExp('^(' + MED_DIM[k] + ')$').test(s)) return k;
+    return null;
+  }
+  function lerMedidas(texto) {
+    var s = ' ' + semAcento(texto).replace(/×/g, 'x').replace(/([<>]=?)/g, ' $1 ').replace(/(\d),(\d)/g, '$1.$2').replace(/(\d+)\s*m\s*(\d{2})(?!\d)/g, '$1.$2 m') + ' ';
+    var med = {}, achou = false;
+    function cm(v, u) {
+      if (u && u.charAt(0) === 'c') return v;
+      if (u) return v * 100;
+      return v <= 10 ? v * 100 : v;                       // "até 2" é 2 m; "até 180" é 180 cm
+    }
+    function por(k, tipo, v) {
+      if (!(v > 0 && v < 5000)) return;
+      med[k] = med[k] || {};
+      med[k][tipo] = v; achou = true;
+    }
+    var UN = '(cm|centimetros?|m|mts?|metros?)?(?![a-z])';
+    var UNX = '(cm|centimetros?|m|mts?|metros?)?(?![a-wyz])';
+    // 200x90 ou 200 x 90 x 85: largura × profundidade × altura, todas "até"
+    s = s.replace(new RegExp('(\\d+(?:\\.\\d+)?)\\s*' + UNX + '\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*' + UNX + '(?:\\s*x\\s*(\\d+(?:\\.\\d+)?)\\s*' + UN + ')?', 'g'),
+      function (_, a, ua, b, ub, c, uc) {
+        var u = uc || ub || ua;
+        por('largura', 'max', cm(+a, ua || u)); por('profundidade', 'max', cm(+b, ub || u));
+        if (c) por('altura', 'max', cm(+c, uc || u));
+        return ' ';
+      });
+    var reNum = new RegExp('(\\d+(?:\\.\\d+)?)\\s*' + UN, 'g');
+    var partes = [], m;
+    while ((m = reNum.exec(s))) partes.push({ v: +m[1], u: m[2] || '', ini: m.index, fim: reNum.lastIndex });
+    var resto = s, corte = [];
+    var dimAnt = null;
+    for (var i = 0; i < partes.length; i++) {
+      var pt = partes[i];
+      var antes = s.slice(i ? partes[i - 1].fim : 0, pt.ini);
+      var depois = s.slice(pt.fim, i + 1 < partes.length ? partes[i + 1].ini : s.length);
+      var palavrasAntes = antes.trim().split(/\s+/).filter(Boolean);
+      var dim = null;
+      for (var j = palavrasAntes.length - 1; j >= 0 && !dim; j--) dim = palavraDim(palavrasAntes[j]);
+      var mDepois = depois.match(/^\s*(?:de\s+)?([a-z]+)/);
+      if (!dim && mDepois) dim = palavraDim(mDepois[1]);
+      var cmp = null, mc;
+      var reCmp = new RegExp('(?:^|\\s)(' + MED_MAX + '|' + MED_MIN + '|entre)\\s*$');
+      if ((mc = antes.match(reCmp))) cmp = mc[1] === 'entre' ? 'entre' : new RegExp('^(' + MED_MIN + ')$').test(mc[1]) ? 'min' : 'max';
+      // "3 lugares", "2 portas": número sem unidade, sem medida e seguido de outra palavra não é medida
+      var proxPalavra = mDepois && mDepois[1];
+      if (!pt.u && !dim && (!cmp || (proxPalavra && !palavraDim(proxPalavra) && !/^(e|a)$/.test(proxPalavra)))) continue;
+      // "entre 1,5 e 2 m"
+      if (cmp === 'entre' && partes[i + 1] && /^\s*(e|a)\s*$/.test(s.slice(pt.fim, partes[i + 1].ini))) {
+        var pt2 = partes[i + 1], u2 = pt2.u || pt.u;
+        var d2 = dim || palavraDim((s.slice(pt2.fim).match(/^\s*(?:de\s+)?([a-z]+)/) || [])[1] || '') || 'largura';
+        por(d2, 'min', cm(pt.v, pt.u || u2)); por(d2, 'max', cm(pt2.v, u2));
+        corte.push([pt.ini, pt2.fim]); i++; dimAnt = d2;
+        continue;
+      }
+      dim = dim || (cmp ? dimAnt : null) || 'largura';
+      por(dim, cmp === 'min' ? 'min' : 'max', cm(pt.v, pt.u));
+      corte.push([pt.ini, pt.fim]); dimAnt = dim;
+    }
+    if (!achou) return { med: null, texto: texto };
+    for (var c = corte.length - 1; c >= 0; c--) resto = resto.slice(0, corte[c][0]) + ' ' + resto.slice(corte[c][1]);
+    // tira as palavras de medida e as de ligação; o que sobrar ("sofá", "veludo") continua na busca normal
+    var palavras = resto.replace(/[<>=]/g, ' ').split(/\s+/).filter(function (w) {
+      return w && !palavraDim(w) && !MED_VAZIAS.test(w) && !/^(maximo|max|menos|menor|abaixo|partir|mais|maior|acima|minimo|min|pelo)$/.test(w);
     });
+    return { med: med, texto: palavras.join(' ') };
+  }
+  function medTexto(v) {
+    return v >= 100 ? (v / 100).toLocaleString('pt-BR', { minimumFractionDigits: v % 100 ? 2 : 0, maximumFractionDigits: 2 }) + ' m' : num(v) + ' cm';
+  }
+  function descMedidas(med) {
+    return ['largura', 'profundidade', 'altura'].filter(function (k) { return med[k]; }).map(function (k) {
+      var r = med[k];
+      if (r.min && r.max) return k + ' de ' + medTexto(r.min) + ' a ' + medTexto(r.max);
+      return k + (r.max ? ' até ' + medTexto(r.max) : ' a partir de ' + medTexto(r.min));
+    }).join(', ');
+  }
+  // folga de meio centímetro para arredondamentos do cadastro
+  function dimCabe(d, med) {
+    for (var k in med) {
+      var v = d && +d[k], r = med[k];
+      if (!(v > 0)) return false;
+      if (r.max && v > r.max + 0.5) return false;
+      if (r.min && v < r.min - 0.5) return false;
+    }
+    return true;
+  }
+  // medidas de cada opção do produto: a versão principal (quando há) e as outras versões/tamanhos
+  function dimsDoProduto(p) {
+    if (!(p.tamanhos && p.tamanhos.length)) return [p.dim];
+    return (temVersaoPrincipal(p) ? [p.dim] : []).concat(p.tamanhos.map(function (t) { return t.dim; }));
+  }
+  function produtoCabe(p, med) {
+    return dimsDoProduto(p).some(function (d) { return dimCabe(d, med); });
+  }
+  var buscaMed = null;                                     // medidas lidas da busca atual (ou null)
+  var semMedida = [];                                      // o que a busca acharia sem as medidas
+
+  function palavraBate(hay, w) {
+    if (hay.indexOf(w) > -1) return true;
+    if (w.length > 4 && /oes$/.test(w) && hay.indexOf(w.slice(0, -3) + 'ao') > -1) return true;   // colchões → colchão
+    return w.length > 3 && /s$/.test(w) && hay.indexOf(w.slice(0, -1)) > -1;                        // sofás → sofá
+  }
+  function filtrados() {
+    var lido = ehAlimento() ? { med: null, texto: filtro.q } : lerMedidas(filtro.q);
+    buscaMed = lido.med;
+    var palavras = semAcento(lido.texto.trim()).split(/\s+/).filter(Boolean);
+    semMedida = dados.produtos.filter(function (p) {
+      if (filtro.cat !== 'Todos' && p.categoria !== filtro.cat) return false;
+      if (!palavras.length) return true;
+      var hay = semAcento(p.nome + ' ' + p.descricao + ' ' + p.categoria + ' ' + (p.ingredientes || ''));
+      return palavras.every(function (w) { return palavraBate(hay, w); });
+    });
+    return buscaMed ? semMedida.filter(function (p) { return !p.combo && produtoCabe(p, buscaMed); }) : semMedida;
   }
 
   // Parcelamento e oferta
@@ -631,7 +744,9 @@
       '<div class="card__corpo">' +
         '<h3 class="card__nome"' + (editando ? ' contenteditable="true" data-ph="Nome do produto"' : '') + '>' + esc(p.nome) + '</h3>' +
         (p.descricao || editando ? '<p class="card__desc"' + (editando ? ' contenteditable="true" data-ph="Descrição (opcional)"' : '') + '>' + esc(p.descricao) + '</p>' : '') +
-        (temTams ? '<p class="card__info">' + p.tamanhos.length + ' tamanhos</p>' : '') +
+        (temTams ? '<p class="card__info">' + (buscaMed
+          ? (function (ds) { var n = ds.filter(function (d) { return dimCabe(d, buscaMed); }).length; return n === ds.length ? 'Todas as ' + n + ' opções cabem' : n + ' de ' + ds.length + ' opções cabem'; })(dimsDoProduto(p))
+          : p.tamanhos.length + ' tamanhos') + '</p>' : '') +
         (ehAlimento() && p.alergenos && p.alergenos.length ? '<p class="card__alerg">Contém ' + esc(p.alergenos.join(', ').toLowerCase()) + '</p>' : '') +
         '<div class="card__rodape">' +
           '<span class="card__preco">' + (temTams ? '<small>a partir de</small>' : '') + (emOferta(p) ? '<s class="preco-de">' + brl(p.precoDe) + '</s>' : '') + (editando && !temTams ? '<span class="card__preco-ed" contenteditable="true" inputmode="decimal" data-ph="Preço">' + brl(p.preco) + '</span>' : brl(precoMinimo(p))) + '</span>' +
@@ -648,7 +763,10 @@
     var lista = filtrados();
     var grade = $('#grade');
     var q = filtro.q.trim();
-    if (!lista.length) {
+    if (!lista.length && buscaMed) {
+      grade.innerHTML = '<div class="vazio"><strong>Nenhum móvel com ' + esc(descMedidas(buscaMed)) + '</strong>' + esc(maisPerto(buscaMed)) +
+        '<button class="btn btn--contorno vazio__btn" type="button" data-limpar-med>Limpar medidas</button></div>';
+    } else if (!lista.length) {
       grade.innerHTML = q
         ? '<div class="vazio"><strong>Nada encontrado</strong>Nenhum produto corresponde a “' + esc(q) + '”' + (filtro.cat !== 'Todos' ? ' em ' + esc(filtro.cat) : '') + '.</div>'
         : '<div class="vazio"><strong>Ainda não há itens em ' + esc(filtro.cat) + '</strong>Adicione produtos desta categoria pelo painel administrativo.</div>';
@@ -656,9 +774,52 @@
       grade.innerHTML = lista.map(htmlCard).join('');
       $$('model-viewer', grade).forEach(ligarCardViewer);
     }
-    $('#resultado').textContent = q
-      ? lista.length + (lista.length === 1 ? ' produto encontrado' : ' produtos encontrados')
-      : '';
+    $('#resultado').textContent = buscaMed
+      ? (lista.length ? lista.length + (lista.length === 1 ? ' móvel' : ' móveis') + ' com ' + descMedidas(buscaMed) : '')
+      : q ? lista.length + (lista.length === 1 ? ' produto encontrado' : ' produtos encontrados') : '';
+    sincronizarMedidas();
+  }
+  // quando nada cabe, diz qual é o mais perto, para o cliente saber quanto falta
+  function maisPerto(med) {
+    var k = ['largura', 'profundidade', 'altura'].filter(function (x) { return med[x]; })[0], r = med[k];
+    var vals = [];
+    semMedida.forEach(function (p) {
+      if (p.combo) return;
+      dimsDoProduto(p).forEach(function (d) { if (d && d[k] > 0) vals.push(+d[k]); });
+    });
+    if (!semMedida.length) return 'Nenhum produto corresponde ao resto da busca.';
+    if (!vals.length) return 'Os produtos desta lista ainda não têm essa medida cadastrada.';
+    var nome = { largura: ['mais estreito', 'mais largo'], profundidade: ['mais raso', 'mais fundo'], altura: ['mais baixo', 'mais alto'] }[k];
+    if (r.max && Math.min.apply(null, vals) > r.max) return 'O ' + nome[0] + ' tem ' + medTexto(Math.min.apply(null, vals)) + ' de ' + k + '.';
+    if (r.min && Math.max.apply(null, vals) < r.min) return 'O ' + nome[1] + ' tem ' + medTexto(Math.max.apply(null, vals)) + ' de ' + k + '.';
+    return 'Tente mudar um pouco as medidas.';
+  }
+
+  // Painel "Medidas": os campos escrevem na própria busca, então só existe um filtro
+  function sincronizarMedidas() {
+    var btn = $('#btn-medidas'), painel = $('#painel-medidas');
+    if (!btn) return;
+    btn.hidden = ehAlimento();
+    if (ehAlimento()) { painel.hidden = true; return; }
+    btn.classList.toggle('ativo', !!buscaMed);
+    ['largura', 'profundidade', 'altura'].forEach(function (k) {
+      var el = document.getElementById('med-' + k.charAt(0));
+      if (el && document.activeElement !== el) el.value = buscaMed && buscaMed[k] && buscaMed[k].max && !buscaMed[k].min ? num(buscaMed[k].max) : '';
+    });
+    // o "Cabe no meu espaço?" do móvel já abre com as medidas que o cliente buscou
+    if (buscaMed) ['largura', 'profundidade', 'altura'].forEach(function (k) {
+      var r = buscaMed[k], el = document.getElementById('cabe-' + k.charAt(0));
+      if (r && r.max && !r.min && el && espacoCliente) { el.value = num(r.max); espacoCliente[k.charAt(0)] = String(r.max); }
+    });
+  }
+  function textoDosCampos() {
+    var partes = [];
+    ['largura', 'profundidade', 'altura'].forEach(function (k) {
+      var v = lerCm(document.getElementById('med-' + k.charAt(0)).value);
+      if (v) partes.push(k + ' até ' + num(v) + ' cm');
+    });
+    var resto = lerMedidas($('#busca').value);
+    return [resto.med ? resto.texto : $('#busca').value.trim()].concat(partes).filter(Boolean).join(' ');
   }
 
   function ligarCardViewer(mv) {
@@ -5803,6 +5964,29 @@
   $('#busca').addEventListener('input', function (e) {
     clearTimeout(tBusca);
     tBusca = setTimeout(function () { filtro.q = e.target.value; renderGrade(); }, 120);
+  });
+
+  // Busca por medida: botão "Medidas", campos e "Limpar"
+  $('#btn-medidas').addEventListener('click', function (e) {
+    e.preventDefault();
+    var painel = $('#painel-medidas'), abrir = painel.hidden;
+    painel.hidden = !abrir;
+    this.setAttribute('aria-expanded', String(abrir));
+    if (abrir) setTimeout(function () { $('#med-l').focus(); }, 30);
+  });
+  var tMed;
+  ['l', 'p', 'a'].forEach(function (k) {
+    $('#med-' + k).addEventListener('input', function () {
+      clearTimeout(tMed);
+      tMed = setTimeout(function () { $('#busca').value = textoDosCampos(); filtro.q = $('#busca').value; renderGrade(); }, 250);
+    });
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target.closest('[data-limpar-med]')) return;
+    var lido = lerMedidas($('#busca').value);
+    $('#busca').value = lido.med ? lido.texto : $('#busca').value;
+    ['l', 'p', 'a'].forEach(function (k) { $('#med-' + k).value = ''; });
+    filtro.q = $('#busca').value; renderGrade();
   });
 
   // ajusta o "sticky" dos filtros à altura real do topo

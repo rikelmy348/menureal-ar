@@ -123,12 +123,28 @@
         <span class="sr-only">Buscar produtos</span>
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         <input id="busca" type="search" placeholder="Buscar coxinha, pão de queijo…" autocomplete="off" enterkeyhint="search">
+        <button class="busca__med" id="btn-medidas" type="button" aria-expanded="false" aria-controls="painel-medidas" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6.5 8v3M10.5 8v4.5M14.5 8v3M18.5 8v4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span>Medidas</span>
+        </button>
       </label>
       <nav class="categorias" aria-label="Categorias">
         <div class="categorias__trilho" id="categorias" role="tablist"></div>
       </nav>
     </div>
 
+    <div class="medidas" id="painel-medidas" hidden>
+      <p class="medidas__tit">Mostrar só o que cabe <small>(medida máxima)</small></p>
+      <div class="cabe__campos">
+        <label>Largura<span><input id="med-l" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
+        <label>Profundidade<span><input id="med-p" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
+        <label>Altura<span><input id="med-a" type="text" inputmode="decimal" autocomplete="off" placeholder="—"> cm</span></label>
+      </div>
+      <div class="medidas__rodape">
+        <p class="mini">Também dá para digitar na busca: “sofá até 2 m”, “profundidade até 90 cm” ou “200x90”.</p>
+        <button class="btn-link" type="button" data-limpar-med>Limpar</button>
+      </div>
+    </div>
     <p class="resultado" id="resultado" aria-live="polite"></p>
     <section class="grade" id="grade" aria-label="Produtos"></section>
     <div class="blocos" id="blocos-depois"></div>

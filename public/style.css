@@ -204,6 +204,20 @@ main {
 .chip[aria-selected="true"] .chip__n { opacity: .85; }
 .chip:hover { color: var(--tinta); }
 
+.busca__med {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; margin-right: -8px; min-height: 36px; padding: 0 12px;
+  border: 1px solid var(--linha); border-radius: 999px; background: var(--fundo); color: var(--tinta-2); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.busca .busca__med svg { width: 18px; height: 18px; color: currentColor; }
+.busca__med[aria-expanded="true"], .busca__med.ativo { background: var(--verde); border-color: var(--verde); color: var(--sobre-verde); }
+@media (max-width: 360px) { .busca__med span { display: none; } }
+.medidas { margin: 8px 0 2px; padding: 12px 14px; border: 1.5px solid var(--linha); border-radius: var(--raio-p); background: var(--superficie); }
+.medidas__tit { margin: 0 0 8px; font-weight: 800; font-size: 15px; color: var(--tinta); }
+.medidas__tit small { font-weight: 600; font-size: 13px; color: var(--tinta-2); }
+.medidas__rodape { display: flex; align-items: flex-start; gap: 12px; margin-top: 10px; }
+.medidas__rodape .mini { flex: 1; }
+.btn-link { flex: none; border: 0; background: none; padding: 2px 0; font: inherit; font-size: 14px; font-weight: 750; color: var(--verde); text-decoration: underline; cursor: pointer; }
+.vazio__btn { display: block; margin: 14px auto 0; }
 .resultado { margin: 6px 0 10px; font-size: 14px; color: var(--tinta-2); }
 .resultado:empty { margin: 0 0 8px; }
 
